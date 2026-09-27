@@ -1,9 +1,8 @@
 import React from 'react';
-import { GRID_SIZE, TOWERS_DATA } from '../../data/dota95Data.js';
-import { getAssetUrl } from '../../utils/assetUrl.js';
+import { GRID_SIZE } from '../../../data/dota95Data.js';
+import { getAssetUrl } from '../../../utils/assetUrl.js';
 import { 
-  Copy, Trash2, Crosshair, Move, Maximize2, 
-  MapPin, Shield, Layers, HelpCircle 
+  Copy, Trash2, Crosshair, Maximize2 
 } from 'lucide-react';
 
 export default function EditorBottomHUD({
@@ -13,16 +12,20 @@ export default function EditorBottomHUD({
   onDuplicate,
   onDelete,
   onFitMap,
-  totalObjectsCount
+  zoom,
+  camera
 }) {
+  const radiantCount = objects.filter(o => o.team === 'radiant').length;
+  const direCount = objects.filter(o => o.team === 'dire').length;
+
   return (
-    <footer className="relative w-full h-[150px] flex items-end justify-between pointer-events-auto select-none bg-gradient-to-t from-black via-[#080b12] to-transparent px-3 pb-2 z-30">
+    <footer className="relative w-full h-[135px] flex items-end justify-between pointer-events-auto select-none bg-gradient-to-t from-black via-[#0d0e12] to-transparent px-3 pb-2 z-30">
       
       {/* ------------------------------------------------------------- */}
       {/* A. BOTTOM-LEFT: COMPACT DOTA 2 MINIMAP FRAME */}
       {/* ------------------------------------------------------------- */}
       <div className="relative flex items-end">
-        <div className="relative w-[140px] h-[140px] bg-[#07090e] border-2 border-[#2b3548] rounded-xl overflow-hidden shadow-2xl p-0.5">
+        <div className="relative w-[125px] h-[125px] bg-[#07080a] border-2 border-[#2b2d38] overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.9)] p-0.5">
           <div 
             className="w-full h-full relative cursor-pointer"
             onClick={(e) => {
@@ -91,21 +94,21 @@ export default function EditorBottomHUD({
             </svg>
           </div>
           
-          <div className="absolute top-1 left-1.5 text-[8px] font-mono font-bold text-slate-400 bg-black/80 px-1 rounded pointer-events-none">
+          <div className="absolute top-0.5 left-1 text-[7px] font-mono font-bold text-[#888b99] bg-black/90 px-1 border border-[#2b2d38] pointer-events-none">
             95×95
           </div>
         </div>
       </div>
 
       {/* ------------------------------------------------------------- */}
-      {/* B. BOTTOM-CENTER: SELECTED OBJECT HUD CONSOLE */}
+      {/* B. BOTTOM-CENTER: DOTA-STYLE TACTICAL HUD CONSOLE */}
       {/* ------------------------------------------------------------- */}
-      <div className="flex items-center bg-[#0d121b]/95 border-t-2 border-x-2 border-[#2b374c] rounded-t-2xl shadow-2xl backdrop-blur-md px-4 py-2 gap-4">
+      <div className="flex items-center bg-[#111216] border-t-2 border-x-2 border-[#2b2d38] shadow-[0_-2px_15px_rgba(0,0,0,0.8)] px-3 py-1.5 gap-3">
         {selectedObject ? (
-          <div className="flex items-center gap-4">
-            {/* Portrait */}
-            <div className={`relative w-14 h-14 rounded-lg overflow-hidden border-2 bg-black flex items-center justify-center shrink-0 shadow-inner ${
-              selectedObject.team === 'radiant' ? 'border-emerald-500' : selectedObject.team === 'dire' ? 'border-rose-500' : 'border-amber-500'
+          <div className="flex items-center gap-3">
+            {/* Square Portrait */}
+            <div className={`w-11 h-11 bg-black border shrink-0 flex items-center justify-center ${
+              selectedObject.team === 'radiant' ? 'border-[#1b5e3f]' : selectedObject.team === 'dire' ? 'border-[#8a2424]' : 'border-[#8a681c]'
             }`}>
               {selectedObject.avatar ? (
                 <img 
@@ -114,82 +117,83 @@ export default function EditorBottomHUD({
                   className="w-full h-full object-cover object-top" 
                 />
               ) : (
-                <span className="text-2xl">{selectedObject.icon}</span>
+                <span className="text-xl">{selectedObject.icon}</span>
               )}
             </div>
 
-            {/* Info */}
-            <div className="flex flex-col min-w-[140px]">
-              <div className="text-sm font-fantasy font-black text-white leading-tight">
+            {/* Quick Details */}
+            <div className="flex flex-col min-w-[130px]">
+              <div className="text-xs font-fantasy font-black text-white leading-tight truncate">
                 {selectedObject.name}
               </div>
-              <div className="text-[10px] font-mono text-slate-400 uppercase mt-0.5">
-                {selectedObject.type} • <span className={selectedObject.team === 'radiant' ? 'text-emerald-400 font-bold' : selectedObject.team === 'dire' ? 'text-rose-400 font-bold' : 'text-amber-400 font-bold'}>{selectedObject.team.toUpperCase()}</span>
+              <div className="text-[9px] font-mono text-[#8a8e9e] uppercase">
+                {selectedObject.type} • <span className={selectedObject.team === 'radiant' ? 'text-[#34d399] font-bold' : selectedObject.team === 'dire' ? 'text-[#f87171] font-bold' : 'text-[#facc15] font-bold'}>{selectedObject.team.toUpperCase()}</span>
               </div>
-              <div className="text-[11px] font-mono text-amber-300 font-bold mt-1">
-                Клетка: X: {selectedObject.x}, Y: {selectedObject.y}
+              <div className="text-[10px] font-mono text-[#dfb652] font-black mt-0.5">
+                CELL: X {selectedObject.x} | Y {selectedObject.y}
               </div>
             </div>
 
-            <div className="h-8 w-px bg-slate-800"></div>
+            <div className="h-7 w-px bg-[#262833]"></div>
 
-            {/* Quick Actions */}
-            <div className="flex items-center gap-2">
+            {/* Tactical Action Buttons */}
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => onCenterOnCell(selectedObject.y, selectedObject.x)}
-                className="px-3 py-1.5 rounded-lg bg-[#161d2a] hover:bg-[#202b3c] border border-[#2c3b52] text-xs font-mono font-bold text-slate-200 flex items-center gap-1.5 cursor-pointer shadow transition-colors"
+                className="px-2.5 py-1 bg-[#171820] hover:bg-[#20222b] border border-[#2d303d] text-[#b3b7c4] hover:text-white text-[10px] font-mono font-bold flex items-center gap-1 cursor-pointer transition-colors"
                 title="Центрировать камеру на объекте"
               >
-                <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
-                <span>КАМЕРА</span>
+                <Crosshair className="w-3 h-3 text-[#38bdf8]" />
+                <span>FOCUS</span>
               </button>
 
               <button
                 onClick={onDuplicate}
-                className="px-3 py-1.5 rounded-lg bg-[#182232] hover:bg-amber-500 hover:text-black border border-[#2f4059] text-xs font-mono font-bold text-amber-300 flex items-center gap-1.5 cursor-pointer shadow transition-all"
+                className="px-2.5 py-1 bg-gradient-to-b from-[#382b13] to-[#201809] hover:from-[#453618] hover:to-[#281f0b] border border-[#a17920] text-[#fce89e] text-[10px] font-mono font-black uppercase flex items-center gap-1 cursor-pointer transition-colors"
                 title="Дублировать объект [Ctrl + D]"
               >
-                <Copy className="w-3.5 h-3.5" />
-                <span>ДУБЛИРОВАТЬ</span>
+                <Copy className="w-3 h-3" />
+                <span>DUPLICATE</span>
               </button>
 
               <button
                 onClick={onDelete}
-                className="px-3 py-1.5 rounded-lg bg-rose-950/70 hover:bg-rose-900 border border-rose-600/70 text-xs font-mono font-bold text-rose-300 hover:text-white flex items-center gap-1.5 cursor-pointer shadow transition-colors"
-                title="Удалить объект с карты [Del]"
+                className="px-2.5 py-1 bg-gradient-to-b from-[#3b1416] to-[#240c0d] hover:from-[#4a1a1c] hover:to-[#2e1011] border border-[#8f2828] text-[#fca5a5] text-[10px] font-mono font-black uppercase flex items-center gap-1 cursor-pointer transition-colors"
+                title="Удалить объект [Del]"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>УДАЛИТЬ</span>
+                <Trash2 className="w-3 h-3 text-[#ef4444]" />
+                <span>DELETE</span>
               </button>
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-3 py-2 px-4 text-xs font-mono text-slate-400">
-            <span className="text-amber-400 text-base">💡</span>
-            <span>Кликните по любому герою, крипу или вышке для выбора, либо зажмите ЛКМ для перемещения.</span>
+          <div className="flex items-center gap-3 py-1 px-3 text-[10px] font-mono text-[#767a88]">
+            <span className="text-[#dfb652] text-sm">💡</span>
+            <span>Кликните по любому объекту для выбора, либо зажмите ЛКМ и перетащите на новую клетку.</span>
           </div>
         )}
       </div>
 
       {/* ------------------------------------------------------------- */}
-      {/* C. BOTTOM-RIGHT: QUICK TOOLS & METRICS */}
+      {/* C. BOTTOM-RIGHT: METRICS & CONTROLS */}
       {/* ------------------------------------------------------------- */}
-      <div className="flex items-center gap-2 mb-1">
-        <div className="flex items-center gap-3 bg-[#0d121b]/95 border border-[#2b374c] px-3 py-2 rounded-xl shadow-xl text-xs font-mono text-slate-300">
+      <div className="flex items-center gap-2 mb-0.5">
+        <div className="flex items-center gap-2.5 bg-[#111216] border border-[#2b2d38] px-3 py-1.5 text-[10px] font-mono text-[#8f93a2] shadow-lg">
           <div>
-            <span className="text-slate-400">Всего: </span>
-            <span className="font-bold text-amber-400">{totalObjectsCount}</span>
+            <span>UNITS: </span>
+            <span className="font-bold text-[#dfb652]">{objects.length}</span>
+            <span className="text-[#595d6c] ml-1">({radiantCount}R / {direCount}D)</span>
           </div>
 
-          <div className="h-3 w-px bg-slate-800"></div>
+          <div className="h-3 w-px bg-[#262833]"></div>
 
           <button
             onClick={onFitMap}
-            className="hover:text-white flex items-center gap-1 text-[11px] cursor-pointer"
+            className="hover:text-white flex items-center gap-1 text-[10px] cursor-pointer text-[#a2a6b5]"
             title="Показать всю карту"
           >
-            <Maximize2 className="w-3 h-3 text-cyan-400" />
-            <span>Вся карта</span>
+            <Maximize2 className="w-3 h-3 text-[#38bdf8]" />
+            <span>FIT</span>
           </button>
         </div>
       </div>

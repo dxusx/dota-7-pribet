@@ -15,7 +15,7 @@ import {
   playCritSound, playDiceSound 
 } from '../../utils/sound';
 
-export default function Dota95Map() {
+export default function Dota95Map({ onSwitchMode }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const terrainCanvasRef = useRef(null);
@@ -1064,6 +1064,7 @@ export default function Dota95Map() {
         showLegend={showLegend}
         onToggleLegend={() => setShowLegend(!showLegend)}
         onNotify={notify}
+        onSwitchMode={onSwitchMode}
       />
     </div>
   );

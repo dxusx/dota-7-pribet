@@ -28,7 +28,8 @@ export default function Dota2HUD({
   onToggleRanges,
   showLegend,
   onToggleLegend,
-  onNotify
+  onNotify,
+  onSwitchMode
 }) {
   const {
     heroes,
@@ -332,6 +333,32 @@ export default function Dota2HUD({
               DIRE
             </div>
           </div>
+
+          {/* Mode Switcher: [ EDITOR ] [ GAME ] */}
+          {onSwitchMode && (
+            <div className="flex items-center bg-[#0a0b0d] p-0.5 border border-[#262832] shadow-lg">
+              <button
+                onClick={() => {
+                  playClickSound();
+                  onSwitchMode('EDITOR');
+                }}
+                className="px-2.5 py-1 text-[10px] font-mono font-black uppercase tracking-wider transition-colors cursor-pointer border bg-[#15161b] border-transparent text-[#7e8392] hover:text-[#d3d6e0]"
+                title="Переключиться в Редактор карты"
+              >
+                EDITOR
+              </button>
+              <button
+                onClick={() => {
+                  playClickSound();
+                  onSwitchMode('GAME');
+                }}
+                className="px-2.5 py-1 text-[10px] font-mono font-black uppercase tracking-wider transition-colors cursor-pointer border bg-gradient-to-b from-[#3a2c10] to-[#241a08] border-[#dfb652] text-[#fce89e] shadow-[inset_0_1px_0_rgba(255,255,255,0.2)]"
+                title="Боевой тактический режим"
+              >
+                GAME
+              </button>
+            </div>
+          )}
 
           {/* DOTA 2 Menu buttons */}
           <div className="flex items-center gap-1 bg-[#10141d]/95 border border-[#2b3548] p-1.5 rounded-xl shadow-xl">

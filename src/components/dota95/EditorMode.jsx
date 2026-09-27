@@ -1,137 +1,65 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useReducer, useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { 
-  GRID_SIZE, TILE_TYPES, TILE_INFO, generatePixelDotaMap, 
+  editorReducer, createInitialEditorState, 
+  LOCAL_STORAGE_EDITOR_KEY, validateCell 
+} from '../../game/editorReducer.js';
+import { 
+  GRID_SIZE, TILE_TYPES, TILE_INFO, 
   getLaneAt, isBridgeCell 
 } from '../../data/dotaPixelGrid.js';
 import { 
   CREEP_CAMPS_DATA, RUNES_DATA, BASES_DATA, LANDMARKS 
 } from '../../data/dota95Data.js';
-import { 
-  getInitialEditorObjects, createInstanceFromTemplate, 
-  HERO_TEMPLATES, CREEP_TEMPLATES, TOWER_TEMPLATES, OBJECT_TYPES 
-} from '../../data/editorTemplates.js';
+import { OBJECT_TYPES } from '../../data/editorTemplates.js';
 import { getAssetUrl } from '../../utils/assetUrl.js';
 import { playClickSound, playSpellSound } from '../../utils/sound.js';
 
-import EditorTopBar from './EditorTopBar.jsx';
-import EditorLeftLibrary from './EditorLeftLibrary.jsx';
-import EditorRightInspector from './EditorRightInspector.jsx';
-import EditorBottomHUD from './EditorBottomHUD.jsx';
-import EditorContextMenu from './EditorContextMenu.jsx';
+import EditorTopBar from './editor/EditorTopBar.jsx';
+import EditorLeftLibrary from './editor/EditorLeftLibrary.jsx';
+import EditorRightInspector from './editor/EditorRightInspector.jsx';
+import EditorBottomHUD from './editor/EditorBottomHUD.jsx';
+import EditorContextMenu from './editor/EditorContextMenu.jsx';
 
-const LOCAL_STORAGE_KEY = 'dota_battle_map_editor_v1';
-
-export default function DotaMapEditor() {
+export default function EditorMode({ onSwitchMode }) {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const terrainCanvasRef = useRef(null);
 
-  // 95x95 Static Terrain Map Grid (Uint8Array)
-  const [mapGrid] = useState(() => generatePixelDotaMap());
+  // 1. DEDICATED EDITOR STATE ENGINE (INDEPENDENT FROM GAME ENGINE)
+  const [state, dispatch] = useReducer(editorReducer, null, createInitialEditorState);
+  const { 
+    objects, 
+    selectedObjectId, 
+    hoveredObjectId, 
+    hoveredCell, 
+    dragState, 
+    camera, 
+    mapGrid, 
+    settings, 
+    notification 
+  } = state;
 
-  // -------------------------------------------------------------
-  // 1. OBJECTS STATE (INSTANCES ON THE MAP)
-  // -------------------------------------------------------------
-  const [objects, setObjects] = useState(() => {
-    try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.objects) && parsed.objects.length > 0) {
-          return parsed.objects;
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to load from localStorage:', e);
-    }
-    return getInitialEditorObjects();
-  });
-
-  const [selectedObjectId, setSelectedObjectId] = useState(() => {
-    // Default select Axe or first hero
-    const firstHero = getInitialEditorObjects().find(o => o.templateId === 'axe');
-    return firstHero ? firstHero.id : null;
-  });
-
-  // -------------------------------------------------------------
-  // 2. CAMERA STATE (PAN & ZOOM)
-  // -------------------------------------------------------------
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [isSpacePressed, setIsSpacePressed] = useState(false);
-
-  // Dragging camera (pan)
-  const isPanningRef = useRef(false);
-  const panStartRef = useRef({ x: 0, y: 0 });
-
-  // -------------------------------------------------------------
-  // 3. OBJECT DRAG & DROP STATE
-  // -------------------------------------------------------------
-  // candidate before moving past threshold
-  const dragCandidateRef = useRef(null); 
-  const [dragState, setDragState] = useState(null); 
-  // { isDragging: true, objectId: string, currentGridX: number, currentGridY: number, mouseWorldX: number, mouseWorldY: number }
-
-  // Dragging from library template
-  const libraryDragTemplateRef = useRef(null);
-
-  // -------------------------------------------------------------
-  // 4. UI SETTINGS & CONTEXT MENU
-  // -------------------------------------------------------------
+  // Local UI State
   const [isLibraryOpen, setIsLibraryOpen] = useState(true);
   const [isInspectorOpen, setIsInspectorOpen] = useState(true);
-  const [showGrid, setShowGrid] = useState(true);
-  const [showRanges, setShowRanges] = useState(true);
-  const [showLabels, setShowLabels] = useState(true);
   const [contextMenu, setContextMenu] = useState(null);
-  const [hoveredCell, setHoveredCell] = useState(null);
-  const [hoveredObject, setHoveredObject] = useState(null);
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [saveNotice, setSaveNotice] = useState(null);
 
-  // Cached Avatar Images
+  // Drag candidate ref before movement threshold (4-6px threshold)
+  const dragCandidateRef = useRef(null);
+  const isPanningRef = useRef(false);
+  const panStartRef = useRef({ x: 0, y: 0 });
+  const libraryDragTemplateRef = useRef(null);
   const avatarImagesRef = useRef({});
 
-  // Cell dimensions in world coordinates
+  // Cell dimensions in world coordinates (px)
   const CELL_PX = 24; 
   const MAP_TOTAL_PX = GRID_SIZE * CELL_PX; // 2280px
 
   const selectedObject = useMemo(() => {
     return objects.find(o => o.id === selectedObjectId) || null;
   }, [objects, selectedObjectId]);
-
-  // Save notice banner helper
-  const showSaveBanner = useCallback((msg = '💾 Карта сохранена локально') => {
-    setSaveNotice(msg);
-    setTimeout(() => setSaveNotice(null), 3000);
-  }, []);
-
-  // Save to LocalStorage
-  const saveMapToStorage = useCallback((customObjects = objects) => {
-    try {
-      const payload = {
-        objects: customObjects,
-        pan,
-        zoom,
-        updatedAt: Date.now()
-      };
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(payload));
-      showSaveBanner();
-    } catch (e) {
-      console.error('Failed to save to localStorage:', e);
-    }
-  }, [objects, pan, zoom, showSaveBanner]);
-
-  // Reset to default layout
-  const resetMapToDefault = useCallback(() => {
-    if (window.confirm('Сбросить карту к исходной расстановке героев, вышек и крипов?')) {
-      const defaults = getInitialEditorObjects();
-      setObjects(defaults);
-      const defaultAxe = defaults.find(o => o.templateId === 'axe');
-      setSelectedObjectId(defaultAxe ? defaultAxe.id : defaults[0]?.id || null);
-      saveMapToStorage(defaults);
-      showSaveBanner('🔄 Карта сброшена к исходной расстановке');
-    }
-  }, [saveMapToStorage, showSaveBanner]);
 
   // Load avatar images into cache
   useEffect(() => {
@@ -144,15 +72,50 @@ export default function DotaMapEditor() {
     });
   }, [objects]);
 
-  // Coordinate Conversion: Viewport (clientX, clientY) -> Grid (x, y)
+  // Auto-save to LocalStorage with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const payload = {
+          objects,
+          camera,
+          updatedAt: Date.now()
+        };
+        localStorage.setItem(LOCAL_STORAGE_EDITOR_KEY, JSON.stringify(payload));
+      } catch (err) {
+        console.warn('Failed to auto-save editor state:', err);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [objects, camera]);
+
+  // Save Banner Helper
+  const handleSave = useCallback(() => {
+    try {
+      const payload = {
+        objects,
+        camera,
+        updatedAt: Date.now()
+      };
+      localStorage.setItem(LOCAL_STORAGE_EDITOR_KEY, JSON.stringify(payload));
+      setSaveNotice('💾 КАРТА СОХРАНЕНА');
+      setTimeout(() => setSaveNotice(null), 3000);
+      playClickSound();
+    } catch (err) {
+      console.error('Save failed:', err);
+    }
+  }, [objects, camera]);
+
+  // Coordinate Conversion: Viewport -> Grid (x, y)
   const viewportToGrid = useCallback((clientX, clientY) => {
     if (!containerRef.current) return null;
     const rect = containerRef.current.getBoundingClientRect();
     const mouseX = clientX - rect.left;
     const mouseY = clientY - rect.top;
 
-    const worldX = (mouseX - pan.x) / zoom;
-    const worldY = (mouseY - pan.y) / zoom;
+    const worldX = (mouseX - camera.x) / camera.zoom;
+    const worldY = (mouseY - camera.y) / camera.zoom;
 
     const x = Math.floor(worldX / CELL_PX); // column
     const y = Math.floor(worldY / CELL_PX); // row
@@ -161,10 +124,10 @@ export default function DotaMapEditor() {
       return { x, y, worldX, worldY };
     }
     return null;
-  }, [pan, zoom, CELL_PX]);
+  }, [camera, CELL_PX]);
 
-  // Center camera on grid cell (r, c)
-  const centerOnCell = useCallback((targetY, targetX, customZoom = zoom) => {
+  // Center camera on grid cell (targetY = row, targetX = col)
+  const centerOnCell = useCallback((targetY, targetX, customZoom = camera.zoom) => {
     if (!containerRef.current) return;
     const w = containerRef.current.clientWidth;
     const h = containerRef.current.clientHeight;
@@ -172,14 +135,18 @@ export default function DotaMapEditor() {
     const cellWorldX = (targetX + 0.5) * CELL_PX;
     const cellWorldY = (targetY + 0.5) * CELL_PX;
 
-    const newPanX = (w / 2) - (cellWorldX * customZoom);
-    const newPanY = (h / 2) - (cellWorldY * customZoom);
+    const newX = (w / 2) - (cellWorldX * customZoom);
+    const newY = (h / 2) - (cellWorldY * customZoom);
 
-    setPan({ x: Math.round(newPanX), y: Math.round(newPanY) });
-    setZoom(customZoom);
-  }, [zoom, CELL_PX]);
+    dispatch({
+      type: 'SET_CAMERA',
+      x: Math.round(newX),
+      y: Math.round(newY),
+      zoom: customZoom
+    });
+  }, [camera.zoom, CELL_PX]);
 
-  // Fit entire map on screen
+  // Fit entire 95x95 map onto current viewport
   const fitMapToScreen = useCallback(() => {
     if (!containerRef.current) return;
     const w = containerRef.current.clientWidth;
@@ -189,125 +156,29 @@ export default function DotaMapEditor() {
     const availH = h - 180;
 
     const fitZoom = Math.max(0.25, Math.min(availW / MAP_TOTAL_PX, availH / MAP_TOTAL_PX));
-    const newPanX = (w - MAP_TOTAL_PX * fitZoom) / 2;
-    const newPanY = ((h - MAP_TOTAL_PX * fitZoom) / 2) + 20;
+    const newX = (w - MAP_TOTAL_PX * fitZoom) / 2;
+    const newY = ((h - MAP_TOTAL_PX * fitZoom) / 2) + 20;
 
-    setZoom(fitZoom);
-    setPan({ x: Math.round(newPanX), y: Math.round(newPanY) });
+    dispatch({
+      type: 'SET_CAMERA',
+      x: Math.round(newX),
+      y: Math.round(newY),
+      zoom: fitZoom
+    });
   }, [MAP_TOTAL_PX]);
 
-  // Initial fit
+  // Initial fit on mount
   useEffect(() => {
-    fitMapToScreen();
+    if (camera.x === 0 && camera.y === 0) {
+      fitMapToScreen();
+    }
     const handleResize = () => fitMapToScreen();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [fitMapToScreen]);
+  }, [fitMapToScreen, camera.x, camera.y]);
 
   // -------------------------------------------------------------
-  // 5. OBJECT ACTIONS: ADD, DUPLICATE, DELETE, UPDATE
-  // -------------------------------------------------------------
-  const handleAddObjectAt = useCallback((template, gridX, gridY) => {
-    const newInstance = createInstanceFromTemplate(template, gridX, gridY);
-    setObjects(prev => [...prev, newInstance]);
-    setSelectedObjectId(newInstance.id);
-    playSpellSound();
-    showSaveBanner(`✨ Добавлен объект: ${template.name}`);
-  }, [showSaveBanner]);
-
-  const handleAddObjectToCenter = useCallback((template) => {
-    if (!containerRef.current) return;
-    const w = containerRef.current.clientWidth / 2;
-    const h = containerRef.current.clientHeight / 2;
-    const cell = viewportToGrid(w, h) || { x: 47, y: 47 };
-    handleAddObjectAt(template, cell.x, cell.y);
-  }, [viewportToGrid, handleAddObjectAt]);
-
-  const handleDuplicate = useCallback(() => {
-    if (!selectedObject) return;
-    const newInstance = {
-      ...selectedObject,
-      id: `${selectedObject.type}_${Date.now()}_copy`,
-      name: `${selectedObject.name} (Копия)`,
-      x: Math.min(94, selectedObject.x + 1),
-      y: selectedObject.y
-    };
-    setObjects(prev => [...prev, newInstance]);
-    setSelectedObjectId(newInstance.id);
-    playClickSound();
-    showSaveBanner(`📋 Дублирован: ${selectedObject.name}`);
-  }, [selectedObject, showSaveBanner]);
-
-  const handleDelete = useCallback(() => {
-    if (!selectedObjectId) return;
-    const target = objects.find(o => o.id === selectedObjectId);
-    setObjects(prev => prev.filter(o => o.id !== selectedObjectId));
-    setSelectedObjectId(null);
-    playClickSound();
-    showSaveBanner(`🗑️ Удален объект: ${target?.name || ''}`);
-  }, [selectedObjectId, objects, showSaveBanner]);
-
-  const handleUpdateObject = useCallback((objectId, updates) => {
-    setObjects(prev => prev.map(o => o.id === objectId ? { ...o, ...updates } : o));
-  }, []);
-
-  const handleToggleTeam = useCallback(() => {
-    if (!selectedObject) return;
-    const nextTeam = selectedObject.team === 'radiant' ? 'dire' : selectedObject.team === 'dire' ? 'neutral' : 'radiant';
-    handleUpdateObject(selectedObject.id, { team: nextTeam });
-  }, [selectedObject, handleUpdateObject]);
-
-  // -------------------------------------------------------------
-  // 6. KEYBOARD SHORTCUTS (Ctrl+D, Delete, Esc, Space)
-  // -------------------------------------------------------------
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
-      // Duplicate: Ctrl + D
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
-        e.preventDefault();
-        handleDuplicate();
-        return;
-      }
-
-      // Delete: Delete or Backspace
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        e.preventDefault();
-        handleDelete();
-        return;
-      }
-
-      // Deselect: Escape
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setSelectedObjectId(null);
-        setContextMenu(null);
-        return;
-      }
-
-      // Space for Pan
-      if (e.code === 'Space' && !e.repeat) {
-        setIsSpacePressed(true);
-      }
-    };
-
-    const handleKeyUp = (e) => {
-      if (e.code === 'Space') {
-        setIsSpacePressed(false);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [handleDuplicate, handleDelete]);
-
-  // -------------------------------------------------------------
-  // 7. PRE-RENDER STATIC TERRAIN TO OFFSCREEN CANVAS (60 FPS)
+  // 2. PRE-RENDER STATIC TERRAIN TO OFFSCREEN CANVAS (60 FPS)
   // -------------------------------------------------------------
   useEffect(() => {
     let offscreen = terrainCanvasRef.current;
@@ -362,7 +233,7 @@ export default function DotaMapEditor() {
         }
 
         // Grid lines
-        if (showGrid) {
+        if (settings.showGrid) {
           offCtx.strokeStyle = info.gridBorder;
           offCtx.lineWidth = 0.5;
           offCtx.strokeRect(x, y, CELL_PX, CELL_PX);
@@ -418,7 +289,7 @@ export default function DotaMapEditor() {
     offCtx.restore();
 
     // Landmarks & Labels
-    if (showLabels) {
+    if (settings.showLabels) {
       LANDMARKS.forEach(lm => {
         const lx = (lm.c + 0.5) * CELL_PX;
         const ly = (lm.r + 0.5) * CELL_PX;
@@ -500,21 +371,71 @@ export default function DotaMapEditor() {
       offCtx.fillText('◆', rx, ry);
       offCtx.restore();
     });
-  }, [mapGrid, showGrid, showLabels, CELL_PX, MAP_TOTAL_PX]);
+  }, [mapGrid, settings.showGrid, settings.showLabels, CELL_PX, MAP_TOTAL_PX]);
 
   // -------------------------------------------------------------
-  // 8. MOUSE EVENT HANDLERS (SEPARATE CLICK VS DRAG THRESHOLD)
+  // 3. KEYBOARD SHORTCUTS (Ctrl+D, Delete, Esc, Space)
+  // -------------------------------------------------------------
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      // Duplicate: Ctrl + D
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        dispatch({ type: 'DUPLICATE_OBJECT' });
+        playClickSound();
+        return;
+      }
+
+      // Delete: Delete or Backspace
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        dispatch({ type: 'DELETE_OBJECT' });
+        playClickSound();
+        return;
+      }
+
+      // Deselect: Escape
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        dispatch({ type: 'DESELECT_OBJECT' });
+        setContextMenu(null);
+        return;
+      }
+
+      // Space for Pan
+      if (e.code === 'Space' && !e.repeat) {
+        setIsSpacePressed(true);
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      if (e.code === 'Space') {
+        setIsSpacePressed(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  // -------------------------------------------------------------
+  // 4. MOUSE EVENT HANDLERS (SEPARATE CLICK VS DRAG THRESHOLD)
   // -------------------------------------------------------------
   const handleMouseDown = (e) => {
-    // If Right Click (button 2)
+    // RMB (Context menu)
     if (e.button === 2) {
       e.preventDefault();
       const gridPos = viewportToGrid(e.clientX, e.clientY);
       if (gridPos) {
-        // Find object under cursor
         const obj = objects.find(o => Math.abs(o.x - gridPos.x) <= 1 && Math.abs(o.y - gridPos.y) <= 1);
         if (obj) {
-          setSelectedObjectId(obj.id);
+          dispatch({ type: 'SELECT_OBJECT', objectId: obj.id });
           setContextMenu({ x: e.clientX, y: e.clientY, object: obj });
           return;
         }
@@ -523,49 +444,50 @@ export default function DotaMapEditor() {
       return;
     }
 
-    // Left Click (button 0) or Middle Click (button 1)
+    // MMB (button 1) or Space+LMB -> Camera Pan
     if (e.button === 1 || isSpacePressed) {
-      // Pan camera immediately
       isPanningRef.current = true;
-      panStartRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+      panStartRef.current = { x: e.clientX - camera.x, y: e.clientY - camera.y };
       return;
     }
 
+    // LMB (button 0)
     if (e.button === 0) {
       setContextMenu(null);
       const gridPos = viewportToGrid(e.clientX, e.clientY);
 
       if (gridPos) {
-        // Check if clicked an existing object
+        // Check if clicking an existing object
         const clickedObj = objects.find(o => {
-          const radius = o.type === 'hero' ? 1.5 : 1.2;
+          const radius = o.type === OBJECT_TYPES.HERO ? 1.5 : 1.2;
           const dist = Math.hypot(o.x - gridPos.x, o.y - gridPos.y);
           return dist <= radius;
         });
 
         if (clickedObj) {
-          // Record candidate for drag (threshold check)
+          // Record candidate for drag (4-6px threshold check)
           dragCandidateRef.current = {
             objectId: clickedObj.id,
             startClientX: e.clientX,
             startClientY: e.clientY,
-            originGridX: clickedObj.x,
-            originGridY: clickedObj.y
+            originX: clickedObj.x,
+            originY: clickedObj.y
           };
           return;
         }
       }
 
-      // If clicked empty map space, allow panning camera with left mouse!
+      // If clicked empty map ground, start camera panning
       isPanningRef.current = true;
-      panStartRef.current = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+      panStartRef.current = { x: e.clientX - camera.x, y: e.clientY - camera.y };
     }
   };
 
   const handleMouseMove = (e) => {
     // 1. Camera Panning
     if (isPanningRef.current) {
-      setPan({
+      dispatch({
+        type: 'SET_CAMERA',
         x: e.clientX - panStartRef.current.x,
         y: e.clientY - panStartRef.current.y
       });
@@ -573,44 +495,48 @@ export default function DotaMapEditor() {
     }
 
     const gridPos = viewportToGrid(e.clientX, e.clientY);
-    setHoveredCell(gridPos);
+    if (gridPos) {
+      dispatch({ type: 'SET_HOVERED_CELL', cell: { x: gridPos.x, y: gridPos.y } });
+    }
 
-    // 2. Check threshold for Drag Candidate (4-6px threshold)
+    // 2. Drag threshold check (4-6 px movement before starting drag)
     if (dragCandidateRef.current && !dragState) {
       const dist = Math.hypot(
         e.clientX - dragCandidateRef.current.startClientX,
         e.clientY - dragCandidateRef.current.startClientY
       );
 
-      if (dist >= 5) {
+      if (dist >= 5 && gridPos) {
         // Exceeded threshold: START DRAG!
-        setSelectedObjectId(dragCandidateRef.current.objectId);
-        setDragState({
-          isDragging: true,
+        dispatch({
+          type: 'START_DRAG',
           objectId: dragCandidateRef.current.objectId,
-          currentGridX: gridPos ? gridPos.x : dragCandidateRef.current.originGridX,
-          currentGridY: gridPos ? gridPos.y : dragCandidateRef.current.originGridY
+          source: 'MAP',
+          originX: dragCandidateRef.current.originX,
+          originY: dragCandidateRef.current.originY,
+          startX: gridPos.x,
+          startY: gridPos.y
         });
       }
       return;
     }
 
-    // 3. Update Drag State
-    if (dragState && gridPos) {
-      setDragState(prev => ({
-        ...prev,
-        currentGridX: gridPos.x,
-        currentGridY: gridPos.y
-      }));
+    // 3. Update Drag State during drag
+    if (dragState && dragState.isDragging && gridPos) {
+      dispatch({
+        type: 'MOVE_DRAG',
+        targetX: gridPos.x,
+        targetY: gridPos.y
+      });
       return;
     }
 
-    // 4. Hover detection when not dragging
+    // 4. Update Hovered Object
     if (gridPos) {
       const obj = objects.find(o => Math.abs(o.x - gridPos.x) <= 1 && Math.abs(o.y - gridPos.y) <= 1);
-      setHoveredObject(obj || null);
+      dispatch({ type: 'SET_HOVERED_OBJECT', objectId: obj?.id || null });
     } else {
-      setHoveredObject(null);
+      dispatch({ type: 'SET_HOVERED_OBJECT', objectId: null });
     }
   };
 
@@ -623,27 +549,15 @@ export default function DotaMapEditor() {
 
     // End Object Drag & Drop
     if (dragState && dragState.isDragging) {
-      const targetX = dragState.currentGridX;
-      const targetY = dragState.currentGridY;
-
-      // Update object's permanent position (Snaps to grid cell center!)
-      setObjects(prev => prev.map(o => {
-        if (o.id === dragState.objectId) {
-          return { ...o, x: targetX, y: targetY };
-        }
-        return o;
-      }));
-
+      dispatch({ type: 'DROP_OBJECT' });
       playClickSound();
-      showSaveBanner(`📍 Объекту задана клетка [${targetX}, ${targetY}]`);
-      setDragState(null);
       dragCandidateRef.current = null;
       return;
     }
 
-    // If was only clicked without dragging (regular SELECT action)
+    // If was clicked without dragging (regular SELECT action)
     if (dragCandidateRef.current) {
-      setSelectedObjectId(dragCandidateRef.current.objectId);
+      dispatch({ type: 'SELECT_OBJECT', objectId: dragCandidateRef.current.objectId });
       playClickSound();
       dragCandidateRef.current = null;
     }
@@ -659,36 +573,52 @@ export default function DotaMapEditor() {
     const mouseY = e.clientY - rect.top;
 
     const zoomFactor = e.deltaY < 0 ? 1.15 : 0.87;
-    const newZoom = Math.max(0.25, Math.min(3.5, zoom * zoomFactor));
+    const newZoom = Math.max(0.25, Math.min(3.5, camera.zoom * zoomFactor));
 
-    const newPanX = mouseX - (mouseX - pan.x) * (newZoom / zoom);
-    const newPanY = mouseY - (mouseY - pan.y) * (newZoom / zoom);
+    const newX = mouseX - (mouseX - camera.x) * (newZoom / camera.zoom);
+    const newY = mouseY - (mouseY - camera.y) * (newZoom / camera.zoom);
 
-    setZoom(newZoom);
-    setPan({ x: Math.round(newPanX), y: Math.round(newPanY) });
+    dispatch({
+      type: 'SET_CAMERA',
+      x: Math.round(newX),
+      y: Math.round(newY),
+      zoom: newZoom
+    });
   };
 
-  // HTML5 Drag & Drop from Object Library to Canvas
+  // HTML5 Drag & Drop from Left Library to Canvas
   const handleDragOver = (e) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
     const gridPos = viewportToGrid(e.clientX, e.clientY);
-    if (gridPos) setHoveredCell(gridPos);
+    if (gridPos) {
+      if (!dragState) {
+        dispatch({
+          type: 'START_DRAG',
+          source: 'LIBRARY',
+          template: libraryDragTemplateRef.current,
+          startX: gridPos.x,
+          startY: gridPos.y
+        });
+      } else {
+        dispatch({
+          type: 'MOVE_DRAG',
+          targetX: gridPos.x,
+          targetY: gridPos.y
+        });
+      }
+    }
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    const gridPos = viewportToGrid(e.clientX, e.clientY);
-    const tpl = libraryDragTemplateRef.current;
-
-    if (gridPos && tpl) {
-      handleAddObjectAt(tpl, gridPos.x, gridPos.y);
-    }
+    dispatch({ type: 'DROP_OBJECT' });
+    playSpellSound();
     libraryDragTemplateRef.current = null;
   };
 
   // ===========================================================================
-  // 9. MAIN CANVAS RENDERING LOOP (Blits Cached Terrain + Draws Dynamic Objects)
+  // 5. MAIN CANVAS RENDERING LOOP (Blits Cached Terrain + Draws Dynamic Objects)
   // ===========================================================================
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -708,8 +638,8 @@ export default function DotaMapEditor() {
     ctx.fillRect(0, 0, width, height);
 
     ctx.save();
-    ctx.translate(pan.x, pan.y);
-    ctx.scale(zoom, zoom);
+    ctx.translate(camera.x, camera.y);
+    ctx.scale(camera.zoom, camera.zoom);
 
     // 1. Blit static offscreen terrain
     if (terrainCanvasRef.current) {
@@ -720,8 +650,8 @@ export default function DotaMapEditor() {
     if (selectedObject) {
       const sx = selectedObject.x * CELL_PX;
       const sy = selectedObject.y * CELL_PX;
-      ctx.fillStyle = 'rgba(250, 204, 21, 0.25)';
-      ctx.strokeStyle = '#facc15';
+      ctx.fillStyle = 'rgba(223, 182, 82, 0.22)';
+      ctx.strokeStyle = '#dfb652';
       ctx.lineWidth = 1.5;
       ctx.fillRect(sx, sy, CELL_PX, CELL_PX);
       ctx.strokeRect(sx, sy, CELL_PX, CELL_PX);
@@ -729,30 +659,34 @@ export default function DotaMapEditor() {
 
     // 3. Highlight Drag Destination Cell
     if (dragState && dragState.isDragging) {
-      const dx = dragState.currentGridX * CELL_PX;
-      const dy = dragState.currentGridY * CELL_PX;
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 2.5;
+      const dx = dragState.targetX * CELL_PX;
+      const dy = dragState.targetY * CELL_PX;
+      const isValid = dragState.isValid;
+
+      ctx.fillStyle = isValid ? 'rgba(56, 189, 248, 0.3)' : 'rgba(239, 68, 68, 0.45)';
+      ctx.strokeStyle = isValid ? '#38bdf8' : '#ef4444';
+      ctx.lineWidth = 2;
       ctx.fillRect(dx, dy, CELL_PX, CELL_PX);
       ctx.strokeRect(dx, dy, CELL_PX, CELL_PX);
 
       // Trajectory dashed line from original position to current drag position
-      const draggedObj = objects.find(o => o.id === dragState.objectId);
-      if (draggedObj) {
-        ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([6, 4]);
-        ctx.beginPath();
-        ctx.moveTo((draggedObj.x + 0.5) * CELL_PX, (draggedObj.y + 0.5) * CELL_PX);
-        ctx.lineTo((dragState.currentGridX + 0.5) * CELL_PX, (dragState.currentGridY + 0.5) * CELL_PX);
-        ctx.stroke();
-        ctx.setLineDash([]);
+      if (dragState.source === 'MAP' && dragState.objectId) {
+        const draggedObj = objects.find(o => o.id === dragState.objectId);
+        if (draggedObj) {
+          ctx.strokeStyle = isValid ? '#38bdf8' : '#ef4444';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 4]);
+          ctx.beginPath();
+          ctx.moveTo((draggedObj.x + 0.5) * CELL_PX, (draggedObj.y + 0.5) * CELL_PX);
+          ctx.lineTo((dragState.targetX + 0.5) * CELL_PX, (dragState.targetY + 0.5) * CELL_PX);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
       }
     }
 
     // 4. Draw Towers Attack Range (if enabled)
-    if (showRanges) {
+    if (settings.showRanges) {
       objects.filter(o => o.type === OBJECT_TYPES.TOWER).forEach(t => {
         const tx = (t.x + 0.5) * CELL_PX;
         const ty = (t.y + 0.5) * CELL_PX;
@@ -769,13 +703,13 @@ export default function DotaMapEditor() {
 
     // 5. Draw All Placed Map Objects
     objects.forEach(obj => {
-      const isBeingDragged = dragState?.isDragging && dragState?.objectId === obj.id;
+      const isBeingDragged = dragState?.isDragging && dragState?.source === 'MAP' && dragState?.objectId === obj.id;
       // If being dragged, draw at the target cell preview
-      const ox = ((isBeingDragged ? dragState.currentGridX : obj.x) + 0.5) * CELL_PX;
-      const oy = ((isBeingDragged ? dragState.currentGridY : obj.y) + 0.5) * CELL_PX;
+      const ox = ((isBeingDragged ? dragState.targetX : obj.x) + 0.5) * CELL_PX;
+      const oy = ((isBeingDragged ? dragState.targetY : obj.y) + 0.5) * CELL_PX;
 
       const isSelected = selectedObjectId === obj.id;
-      const isHovered = hoveredObject?.id === obj.id;
+      const isHovered = hoveredObjectId === obj.id;
       const isRadiant = obj.team === 'radiant';
       const isDire = obj.team === 'dire';
 
@@ -788,16 +722,16 @@ export default function DotaMapEditor() {
         ctx.globalAlpha = 0.85;
       }
 
-      // Pulsing Selection Ring
+      // Hard Rectangular / Beveled Selection Ring
       if (isSelected) {
-        ctx.strokeStyle = '#f59e0b';
-        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#dfb652';
+        ctx.lineWidth = 3.5;
         ctx.beginPath();
-        ctx.arc(ox, oy, tokenRadius + 5, 0, Math.PI * 2);
+        ctx.arc(ox, oy, tokenRadius + 4, 0, Math.PI * 2);
         ctx.stroke();
 
         // Arrow indicator above
-        ctx.fillStyle = '#f59e0b';
+        ctx.fillStyle = '#dfb652';
         ctx.beginPath();
         ctx.moveTo(ox, oy - tokenRadius - 6);
         ctx.lineTo(ox - 6, oy - tokenRadius - 14);
@@ -806,22 +740,22 @@ export default function DotaMapEditor() {
         ctx.fill();
       } else if (isHovered) {
         ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(ox, oy, tokenRadius + 3, 0, Math.PI * 2);
+        ctx.arc(ox, oy, tokenRadius + 2, 0, Math.PI * 2);
         ctx.stroke();
       }
 
-      // Base Circle Token
-      ctx.fillStyle = isRadiant ? '#064e3b' : isDire ? '#7f1d1d' : '#1c2436';
+      // Base Circle Token with hard border
+      ctx.fillStyle = isRadiant ? '#0c2417' : isDire ? '#301213' : '#1a1b22';
       ctx.strokeStyle = isSelected 
-        ? '#fbbf24' 
+        ? '#dfb652' 
         : isRadiant 
-        ? '#10b981' 
+        ? '#1b5e3f' 
         : isDire 
-        ? '#ef4444' 
-        : '#f59e0b';
-      ctx.lineWidth = isSelected ? 3.5 : 2.5;
+        ? '#8a2424' 
+        : '#8a681c';
+      ctx.lineWidth = isSelected ? 3 : 2;
       ctx.beginPath();
       ctx.arc(ox, oy, tokenRadius, 0, Math.PI * 2);
       ctx.fill();
@@ -860,21 +794,21 @@ export default function DotaMapEditor() {
       }
 
       // Nameplate below token
-      ctx.font = "bold 10px 'Cinzel', sans-serif";
-      ctx.fillStyle = isSelected ? '#fde047' : '#ffffff';
+      ctx.font = "bold 9px 'Cinzel', sans-serif";
+      ctx.fillStyle = isSelected ? '#fde047' : '#e0e2ec';
       ctx.shadowColor = '#000000';
-      ctx.shadowBlur = 5;
+      ctx.shadowBlur = 4;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText(obj.name, ox, oy + tokenRadius + 3);
+      ctx.fillText(obj.name, ox, oy + tokenRadius + 2);
 
       ctx.restore();
     });
 
     ctx.restore();
   }, [
-    pan, zoom, objects, selectedObjectId, selectedObject, 
-    dragState, hoveredObject, showGrid, showRanges
+    camera, objects, selectedObjectId, selectedObject, 
+    dragState, hoveredObjectId, settings
   ]);
 
   // Counts for Top Bar
@@ -885,7 +819,7 @@ export default function DotaMapEditor() {
   return (
     <div 
       ref={containerRef}
-      className={`relative w-screen h-screen overflow-hidden select-none bg-[#07090e] font-sans ${
+      className={`relative w-screen h-screen overflow-hidden select-none bg-[#090a0d] font-sans ${
         isSpacePressed ? 'cursor-grab' : 'cursor-default'
       }`}
       onMouseDown={handleMouseDown}
@@ -898,70 +832,111 @@ export default function DotaMapEditor() {
     >
       {/* 1. TOP BAR */}
       <EditorTopBar
+        mode="EDITOR"
+        onSwitchMode={onSwitchMode}
         objectsCount={objects.length}
         radiantCount={radiantCount}
         direCount={direCount}
         neutralCount={neutralCount}
-        zoom={zoom}
-        onZoomIn={() => setZoom(z => Math.min(3.5, z * 1.2))}
-        onZoomOut={() => setZoom(z => Math.max(0.25, z * 0.83))}
+        zoom={camera.zoom}
+        onZoomIn={() => dispatch({ type: 'SET_CAMERA', zoom: Math.min(3.5, camera.zoom * 1.2) })}
+        onZoomOut={() => dispatch({ type: 'SET_CAMERA', zoom: Math.max(0.25, camera.zoom * 0.83) })}
         onFitMap={fitMapToScreen}
-        showGrid={showGrid}
-        onToggleGrid={() => setShowGrid(!showGrid)}
-        showRanges={showRanges}
-        onToggleRanges={() => setShowRanges(!showRanges)}
-        showLabels={showLabels}
-        onToggleLabels={() => setShowLabels(!showLabels)}
-        onSave={() => saveMapToStorage()}
-        onReset={resetMapToDefault}
+        showGrid={settings.showGrid}
+        onToggleGrid={() => dispatch({ type: 'SET_SETTINGS', settings: { showGrid: !settings.showGrid } })}
+        showRanges={settings.showRanges}
+        onToggleRanges={() => dispatch({ type: 'SET_SETTINGS', settings: { showRanges: !settings.showRanges } })}
+        showLabels={settings.showLabels}
+        onToggleLabels={() => dispatch({ type: 'SET_SETTINGS', settings: { showLabels: !settings.showLabels } })}
+        onSave={handleSave}
+        onReset={() => {
+          if (window.confirm('Сбросить карту к исходной расстановке?')) {
+            dispatch({ type: 'RESET_MAP' });
+          }
+        }}
         saveNotice={saveNotice}
       />
 
-      {/* 2. MAIN CANVAS */}
+      {/* 2. NOTIFICATION BANNER */}
+      {notification && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-50 bg-[#16171f] border-2 border-[#dfb652] text-[#fce89e] font-mono text-[11px] font-black px-4 py-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.9)] animate-fade-in pointer-events-none">
+          {notification}
+        </div>
+      )}
+
+      {/* 3. MAIN CANVAS */}
       <canvas ref={canvasRef} className="absolute inset-0" />
 
-      {/* 3. LEFT OBJECT LIBRARY PANEL */}
+      {/* 4. LEFT OBJECT LIBRARY */}
       <EditorLeftLibrary
         isOpen={isLibraryOpen}
         onToggleOpen={() => setIsLibraryOpen(!isLibraryOpen)}
-        onAddObjectToCenter={handleAddObjectToCenter}
+        onAddObjectToCenter={(tpl) => {
+          const w = containerRef.current?.clientWidth || 800;
+          const h = containerRef.current?.clientHeight || 600;
+          const cell = viewportToGrid(w / 2, h / 2) || { x: 47, y: 47 };
+          dispatch({ type: 'ADD_OBJECT', template: tpl, targetX: cell.x, targetY: cell.y });
+          playSpellSound();
+        }}
         onStartLibraryDrag={(tpl) => {
           libraryDragTemplateRef.current = tpl;
         }}
       />
 
-      {/* 4. RIGHT INSPECTOR PANEL */}
+      {/* 5. RIGHT INSPECTOR */}
       <EditorRightInspector
         isOpen={isInspectorOpen}
         onToggleOpen={() => setIsInspectorOpen(!isInspectorOpen)}
         selectedObject={selectedObject}
-        onUpdateObject={handleUpdateObject}
-        onDuplicate={handleDuplicate}
-        onDelete={handleDelete}
+        onUpdateObject={(id, updates) => dispatch({ type: 'UPDATE_OBJECT', objectId: id, updates })}
+        onDuplicate={() => {
+          dispatch({ type: 'DUPLICATE_OBJECT' });
+          playClickSound();
+        }}
+        onDelete={() => {
+          dispatch({ type: 'DELETE_OBJECT' });
+          playClickSound();
+        }}
         onCenterCamera={centerOnCell}
       />
 
-      {/* 5. BOTTOM HUD CONSOLE WITH MINIMAP */}
+      {/* 6. BOTTOM HUD & MINIMAP */}
       <EditorBottomHUD
         objects={objects}
         selectedObject={selectedObject}
         onCenterOnCell={centerOnCell}
-        onDuplicate={handleDuplicate}
-        onDelete={handleDelete}
+        onDuplicate={() => {
+          dispatch({ type: 'DUPLICATE_OBJECT' });
+          playClickSound();
+        }}
+        onDelete={() => {
+          dispatch({ type: 'DELETE_OBJECT' });
+          playClickSound();
+        }}
         onFitMap={fitMapToScreen}
-        totalObjectsCount={objects.length}
+        zoom={camera.zoom}
+        camera={camera}
       />
 
-      {/* 6. CONTEXT MENU (RMB) */}
+      {/* 7. CONTEXT MENU (RMB) */}
       {contextMenu && (
         <EditorContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           object={contextMenu.object}
           onClose={() => setContextMenu(null)}
-          onDuplicate={handleDuplicate}
-          onDelete={handleDelete}
-          onToggleTeam={handleToggleTeam}
+          onDuplicate={() => {
+            dispatch({ type: 'DUPLICATE_OBJECT', objectId: contextMenu.object.id });
+            playClickSound();
+          }}
+          onDelete={() => {
+            dispatch({ type: 'DELETE_OBJECT', objectId: contextMenu.object.id });
+            playClickSound();
+          }}
+          onToggleTeam={() => {
+            const nextTeam = contextMenu.object.team === 'radiant' ? 'dire' : contextMenu.object.team === 'dire' ? 'neutral' : 'radiant';
+            dispatch({ type: 'UPDATE_OBJECT', objectId: contextMenu.object.id, updates: { team: nextTeam } });
+          }}
           onCenterCamera={centerOnCell}
         />
       )}
