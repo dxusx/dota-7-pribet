@@ -75,6 +75,31 @@ export function createInitialEditorState() {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed.objects) && parsed.objects.length > 0) {
         objects = parsed.objects;
+        // Ensure Ancients (Thrones) are present even if loading an earlier save
+        if (!objects.some(o => o.templateId === 'rad_ancient_tpl' || o.id === 'rad_ancient_obj')) {
+          objects.push({
+            id: 'rad_ancient_obj',
+            templateId: 'rad_ancient_tpl',
+            type: OBJECT_TYPES.STRUCTURE,
+            name: 'Древо Жизни (Ancient)',
+            team: OBJECT_TEAMS.RADIANT,
+            x: 9,
+            y: 85,
+            icon: '💎'
+          });
+        }
+        if (!objects.some(o => o.templateId === 'dire_ancient_tpl' || o.id === 'dire_ancient_obj')) {
+          objects.push({
+            id: 'dire_ancient_obj',
+            templateId: 'dire_ancient_tpl',
+            type: OBJECT_TYPES.STRUCTURE,
+            name: 'Ледяной Трон (Ancient)',
+            team: OBJECT_TEAMS.DIRE,
+            x: 85,
+            y: 9,
+            icon: '🌋'
+          });
+        }
       }
       if (parsed.camera) {
         camera = parsed.camera;

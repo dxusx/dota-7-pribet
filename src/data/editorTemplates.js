@@ -352,5 +352,29 @@ export function getInitialEditorObjects() {
     { id: 'dire_creep_mid_2', templateId: 'dire_ranged', type: OBJECT_TYPES.CREEP, name: 'Крип-маг Dire', team: OBJECT_TEAMS.DIRE, x: 55, y: 39, icon: '🏹' }
   );
 
+  // 5. Ancients / Thrones (Movable Structures)
+  objects.push(
+    {
+      id: 'rad_ancient_obj',
+      templateId: 'rad_ancient_tpl',
+      type: OBJECT_TYPES.STRUCTURE,
+      name: 'Древо Жизни (Ancient)',
+      team: OBJECT_TEAMS.RADIANT,
+      x: 9,
+      y: 85,
+      icon: '💎'
+    },
+    {
+      id: 'dire_ancient_obj',
+      templateId: 'dire_ancient_tpl',
+      type: OBJECT_TYPES.STRUCTURE,
+      name: 'Ледяной Трон (Ancient)',
+      team: OBJECT_TEAMS.DIRE,
+      x: 85,
+      y: 9,
+      icon: '🌋'
+    }
+  );
+
   return objects;
 }

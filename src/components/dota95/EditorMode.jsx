@@ -241,51 +241,25 @@ export default function EditorMode({ onSwitchMode }) {
       }
     }
 
-    // Base Ancients & Bases
-    // Radiant Ancient (85, 9)
+    // Base Sanctuaries (Subtle ground dais for base platforms)
+    // Radiant Base Dais (85, 9)
     const radAncientX = (BASES_DATA.radiant.ancient.c + 0.5) * CELL_PX;
     const radAncientY = (BASES_DATA.radiant.ancient.r + 0.5) * CELL_PX;
     offCtx.save();
-    offCtx.fillStyle = '#065f46';
-    offCtx.strokeStyle = '#34d399';
-    offCtx.lineWidth = 3;
-    offCtx.fillRect(radAncientX - 2.2 * CELL_PX, radAncientY - 2.2 * CELL_PX, 4.4 * CELL_PX, 4.4 * CELL_PX);
-    offCtx.strokeRect(radAncientX - 2.2 * CELL_PX, radAncientY - 2.2 * CELL_PX, 4.4 * CELL_PX, 4.4 * CELL_PX);
-    offCtx.fillStyle = '#10b981';
-    offCtx.beginPath();
-    offCtx.arc(radAncientX, radAncientY, 1.3 * CELL_PX, 0, Math.PI * 2);
-    offCtx.fill();
-    offCtx.font = 'bold 20px sans-serif';
-    offCtx.fillStyle = '#ffffff';
-    offCtx.textAlign = 'center';
-    offCtx.textBaseline = 'middle';
-    offCtx.fillText('💎', radAncientX, radAncientY);
-    offCtx.font = "bold 11px 'Cinzel', serif";
-    offCtx.fillStyle = '#6ee7b7';
-    offCtx.fillText('ДРЕВО ЖИЗНИ (Ancient)', radAncientX, radAncientY + 3.2 * CELL_PX);
+    offCtx.fillStyle = 'rgba(6, 95, 70, 0.2)';
+    offCtx.strokeStyle = 'rgba(52, 211, 153, 0.35)';
+    offCtx.lineWidth = 1.5;
+    offCtx.strokeRect(radAncientX - 1.5 * CELL_PX, radAncientY - 1.5 * CELL_PX, 3 * CELL_PX, 3 * CELL_PX);
     offCtx.restore();
 
-    // Dire Ancient (9, 85)
+    // Dire Base Dais (9, 85)
     const direAncientX = (BASES_DATA.dire.ancient.c + 0.5) * CELL_PX;
     const direAncientY = (BASES_DATA.dire.ancient.r + 0.5) * CELL_PX;
     offCtx.save();
-    offCtx.fillStyle = '#881337';
-    offCtx.strokeStyle = '#f43f5e';
-    offCtx.lineWidth = 3;
-    offCtx.fillRect(direAncientX - 2.2 * CELL_PX, direAncientY - 2.2 * CELL_PX, 4.4 * CELL_PX, 4.4 * CELL_PX);
-    offCtx.strokeRect(direAncientX - 2.2 * CELL_PX, direAncientY - 2.2 * CELL_PX, 4.4 * CELL_PX, 4.4 * CELL_PX);
-    offCtx.fillStyle = '#e11d48';
-    offCtx.beginPath();
-    offCtx.arc(direAncientX, direAncientY, 1.3 * CELL_PX, 0, Math.PI * 2);
-    offCtx.fill();
-    offCtx.font = 'bold 20px sans-serif';
-    offCtx.fillStyle = '#ffffff';
-    offCtx.textAlign = 'center';
-    offCtx.textBaseline = 'middle';
-    offCtx.fillText('🌋', direAncientX, direAncientY);
-    offCtx.font = "bold 11px 'Cinzel', serif";
-    offCtx.fillStyle = '#fda4af';
-    offCtx.fillText('ЛЕДЯНОЙ ТРОН (Ancient)', direAncientX, direAncientY + 3.2 * CELL_PX);
+    offCtx.fillStyle = 'rgba(136, 19, 55, 0.2)';
+    offCtx.strokeStyle = 'rgba(244, 63, 94, 0.35)';
+    offCtx.lineWidth = 1.5;
+    offCtx.strokeRect(direAncientX - 1.5 * CELL_PX, direAncientY - 1.5 * CELL_PX, 3 * CELL_PX, 3 * CELL_PX);
     offCtx.restore();
 
     // Landmarks & Labels
@@ -433,7 +407,7 @@ export default function EditorMode({ onSwitchMode }) {
       e.preventDefault();
       const gridPos = viewportToGrid(e.clientX, e.clientY);
       if (gridPos) {
-        const obj = objects.find(o => Math.abs(o.x - gridPos.x) <= 1 && Math.abs(o.y - gridPos.y) <= 1);
+        const obj = objects.find(o => Math.hypot(o.x - gridPos.x, o.y - gridPos.y) <= 0.6);
         if (obj) {
           dispatch({ type: 'SELECT_OBJECT', objectId: obj.id });
           setContextMenu({ x: e.clientX, y: e.clientY, object: obj });
@@ -457,11 +431,10 @@ export default function EditorMode({ onSwitchMode }) {
       const gridPos = viewportToGrid(e.clientX, e.clientY);
 
       if (gridPos) {
-        // Check if clicking an existing object
+        // Check if clicking an existing object (1x1 cell sizing)
         const clickedObj = objects.find(o => {
-          const radius = o.type === OBJECT_TYPES.HERO ? 1.5 : 1.2;
           const dist = Math.hypot(o.x - gridPos.x, o.y - gridPos.y);
-          return dist <= radius;
+          return dist <= 0.6;
         });
 
         if (clickedObj) {
@@ -531,9 +504,9 @@ export default function EditorMode({ onSwitchMode }) {
       return;
     }
 
-    // 4. Update Hovered Object
+    // 4. Update Hovered Object (1x1 cell size)
     if (gridPos) {
-      const obj = objects.find(o => Math.abs(o.x - gridPos.x) <= 1 && Math.abs(o.y - gridPos.y) <= 1);
+      const obj = objects.find(o => Math.hypot(o.x - gridPos.x, o.y - gridPos.y) <= 0.6);
       dispatch({ type: 'SET_HOVERED_OBJECT', objectId: obj?.id || null });
     } else {
       dispatch({ type: 'SET_HOVERED_OBJECT', objectId: null });
@@ -713,9 +686,9 @@ export default function EditorMode({ onSwitchMode }) {
       const isRadiant = obj.team === 'radiant';
       const isDire = obj.team === 'dire';
 
-      const isHero = obj.type === OBJECT_TYPES.HERO;
       const isTower = obj.type === OBJECT_TYPES.TOWER;
-      const tokenRadius = isHero ? 1.5 * CELL_PX : isTower ? 1.4 * CELL_PX : 1.1 * CELL_PX;
+      // Object circular token sized exactly 1x1 cell
+      const tokenRadius = (CELL_PX / 2) - 1.5;
 
       ctx.save();
       if (isBeingDragged) {
@@ -725,24 +698,24 @@ export default function EditorMode({ onSwitchMode }) {
       // Hard Rectangular / Beveled Selection Ring
       if (isSelected) {
         ctx.strokeStyle = '#dfb652';
-        ctx.lineWidth = 3.5;
+        ctx.lineWidth = 2.5;
         ctx.beginPath();
-        ctx.arc(ox, oy, tokenRadius + 4, 0, Math.PI * 2);
+        ctx.arc(ox, oy, tokenRadius + 2.5, 0, Math.PI * 2);
         ctx.stroke();
 
         // Arrow indicator above
         ctx.fillStyle = '#dfb652';
         ctx.beginPath();
-        ctx.moveTo(ox, oy - tokenRadius - 6);
-        ctx.lineTo(ox - 6, oy - tokenRadius - 14);
-        ctx.lineTo(ox + 6, oy - tokenRadius - 14);
+        ctx.moveTo(ox, oy - tokenRadius - 3);
+        ctx.lineTo(ox - 4, oy - tokenRadius - 8);
+        ctx.lineTo(ox + 4, oy - tokenRadius - 8);
         ctx.closePath();
         ctx.fill();
       } else if (isHovered) {
         ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(ox, oy, tokenRadius + 2, 0, Math.PI * 2);
+        ctx.arc(ox, oy, tokenRadius + 1.5, 0, Math.PI * 2);
         ctx.stroke();
       }
 
@@ -755,7 +728,7 @@ export default function EditorMode({ onSwitchMode }) {
         : isDire 
         ? '#8a2424' 
         : '#8a681c';
-      ctx.lineWidth = isSelected ? 3 : 2;
+      ctx.lineWidth = isSelected ? 2.5 : 1.5;
       ctx.beginPath();
       ctx.arc(ox, oy, tokenRadius, 0, Math.PI * 2);
       ctx.fill();
@@ -766,18 +739,18 @@ export default function EditorMode({ onSwitchMode }) {
       if (img && img.complete && img.naturalWidth > 0) {
         ctx.save();
         ctx.beginPath();
-        ctx.arc(ox, oy, tokenRadius - 2, 0, Math.PI * 2);
+        ctx.arc(ox, oy, tokenRadius - 1.5, 0, Math.PI * 2);
         ctx.clip();
         ctx.drawImage(
           img, 
-          ox - (tokenRadius - 2), 
-          oy - (tokenRadius - 2), 
-          (tokenRadius - 2) * 2, 
-          (tokenRadius - 2) * 2
+          ox - (tokenRadius - 1.5), 
+          oy - (tokenRadius - 1.5), 
+          (tokenRadius - 1.5) * 2, 
+          (tokenRadius - 1.5) * 2
         );
         ctx.restore();
       } else {
-        ctx.font = `bold ${Math.round(tokenRadius * 0.9)}px sans-serif`;
+        ctx.font = 'bold 11px sans-serif';
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -786,7 +759,7 @@ export default function EditorMode({ onSwitchMode }) {
 
       // Tier badge for towers
       if (isTower && obj.tier) {
-        ctx.font = 'bold 10px monospace';
+        ctx.font = 'bold 8px monospace';
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -794,10 +767,10 @@ export default function EditorMode({ onSwitchMode }) {
       }
 
       // Nameplate below token
-      ctx.font = "bold 9px 'Cinzel', sans-serif";
+      ctx.font = "bold 8px 'Cinzel', sans-serif";
       ctx.fillStyle = isSelected ? '#fde047' : '#e0e2ec';
       ctx.shadowColor = '#000000';
-      ctx.shadowBlur = 4;
+      ctx.shadowBlur = 3;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillText(obj.name, ox, oy + tokenRadius + 2);
