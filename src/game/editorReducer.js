@@ -74,7 +74,19 @@ export function createInitialEditorState() {
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed.objects) && parsed.objects.length > 0) {
-        objects = parsed.objects;
+        objects = parsed.objects.map(obj => {
+          // If Wesker was saved in the old isolated jungle cell (54, 24), free him to the open lane (42, 10)
+          if ((obj.id === 'hero_wesker' || obj.templateId === 'wesker') && obj.x === 54 && obj.y === 24) {
+            return { ...obj, x: 42, y: 10 };
+          }
+          if ((obj.id === 'hero_pudge' || obj.templateId === 'pudge') && obj.x === 28 && obj.y === 76) {
+            return { ...obj, x: 30, y: 86 };
+          }
+          if ((obj.id === 'hero_sf' || obj.templateId === 'sf') && obj.x === 66 && obj.y === 28) {
+            return { ...obj, x: 60, y: 34 };
+          }
+          return obj;
+        });
         // Ensure Ancients (Thrones) are present even if loading an earlier save
         if (!objects.some(o => o.templateId === 'rad_ancient_tpl' || o.id === 'rad_ancient_obj')) {
           objects.push({

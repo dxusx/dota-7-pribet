@@ -181,8 +181,16 @@ export function generatePixelDotaMap() {
         const dMed1 = Math.hypot(r - 78, c - 46);
         const dMed2 = Math.hypot(r - 64, c - 22);
         const dHard = Math.hypot(r - 68, c - 38);
-        if (dSmall > 3.2 && dMed1 > 3.2 && dMed2 > 3.2 && dHard > 3.2) {
-          if ((r + c) % 3 === 0 || (r * c) % 4 === 0) {
+
+        // Broad open pathways through Radiant jungle
+        const isRadPath1 = Math.abs(c - 38) <= 2; // Mid lane to Hard Camp & river path
+        const isRadPath2 = Math.abs(r - 68) <= 2; // East-West jungle arterial road
+        const isRadPath3 = Math.abs(c - 28) <= 2; // Base to small camp avenue
+        const isRadPath4 = Math.abs(r - 78) <= 2; // Bot lane access corridor
+
+        if (dSmall > 4.5 && dMed1 > 4.5 && dMed2 > 4.5 && dHard > 4.5 && 
+            !isRadPath1 && !isRadPath2 && !isRadPath3 && !isRadPath4) {
+          if ((r + c) % 3 === 0 && (r * c) % 2 === 0) {
             setCell(r, c, TILE_TYPES.UNPASSABLE);
           }
         }
@@ -208,8 +216,16 @@ export function generatePixelDotaMap() {
         const dMed1 = Math.hypot(r - 16, c - 48);
         const dMed2 = Math.hypot(r - 28, c - 72);
         const dHard = Math.hypot(r - 24, c - 54);
-        if (dSmall > 3.2 && dMed1 > 3.2 && dMed2 > 3.2 && dHard > 3.2) {
-          if ((r + c) % 3 === 0 || (r * c) % 4 === 0) {
+
+        // Broad open pathways through Dire jungle (giving plenty of air and connectivity)
+        const isDirePath1 = Math.abs(c - 54) <= 2; // North-South open road through camp (24, 54) connecting to Top & Mid
+        const isDirePath2 = Math.abs(r - 24) <= 2; // West-East open highway connecting River to Base through (24, 54)
+        const isDirePath3 = Math.abs(r - 18) <= 2; // Upper jungle road connecting Small Camp
+        const isDirePath4 = Math.abs(c - 68) <= 2; // Base to Top Lane open path
+
+        if (dSmall > 4.5 && dMed1 > 4.5 && dMed2 > 4.5 && dHard > 5.0 && 
+            !isDirePath1 && !isDirePath2 && !isDirePath3 && !isDirePath4) {
+          if ((r + c) % 3 === 0 && (r * c) % 2 === 0) {
             setCell(r, c, TILE_TYPES.UNPASSABLE);
           }
         }

@@ -305,15 +305,15 @@ export default function EditorMode({ onSwitchMode }) {
         offCtx.restore();
       } else {
         offCtx.save();
-        offCtx.fillStyle = '#0f172a';
+        offCtx.fillStyle = 'rgba(0, 0, 0, 0.12)';
         offCtx.strokeStyle = camp.color;
-        offCtx.lineWidth = 2.5;
-        offCtx.beginPath();
-        offCtx.arc(cx, cy, 1.3 * CELL_PX, 0, Math.PI * 2);
-        offCtx.fill();
-        offCtx.stroke();
-        offCtx.font = 'bold 12px monospace';
-        offCtx.fillStyle = camp.color;
+        offCtx.lineWidth = 1;
+        offCtx.setLineDash([3, 3]);
+        // Clean neutral creep spawn box (ground marking, no opaque isolation bubble)
+        offCtx.strokeRect(cx - 1.2 * CELL_PX, cy - 1.2 * CELL_PX, 2.4 * CELL_PX, 2.4 * CELL_PX);
+        offCtx.fillRect(cx - 1.2 * CELL_PX, cy - 1.2 * CELL_PX, 2.4 * CELL_PX, 2.4 * CELL_PX);
+        offCtx.setLineDash([]);
+        offCtx.font = '11px sans-serif';
         offCtx.textAlign = 'center';
         offCtx.textBaseline = 'middle';
         const icon = camp.type === 'ancient' ? '🐉' : camp.type === 'hard' ? '🐻' : camp.type === 'medium' ? '🐺' : '🐗';
