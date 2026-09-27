@@ -6,7 +6,7 @@ import {
 } from '../data/editorTemplates.js';
 import { generatePixelDotaMap, TILE_TYPES, GRID_SIZE } from '../data/dotaPixelGrid.js';
 
-export const LOCAL_STORAGE_EDITOR_KEY = 'dota_battle_map_editor_state_v2';
+export const LOCAL_STORAGE_EDITOR_KEY = 'dota_battle_map_editor_state_v3';
 
 // Check if a cell is valid for placement/movement
 export function validateCell(targetX, targetY, currentObjects, excludeId = null, mapGrid = null) {
