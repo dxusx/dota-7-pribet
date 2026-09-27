@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="4200" height="6200" viewBox="0 0 4200 6200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Card Background -->
+  <rect width="4200" height="6200" rx="60" fill="#1c0a0a" />
+  <rect x="30" y="30" width="4140" height="6140" rx="45" stroke="#ef4444" stroke-width="20" stroke-opacity="0.6" />
+
+  <!-- Header Header -->
+  <text x="150" y="320" font-family="Inter, sans-serif" font-size="90" font-weight="bold" fill="#ef4444" letter-spacing="10">JUJUTSU KAISEN</text>
+  <text x="150" y="550" font-family="Inter, sans-serif" font-size="240" font-weight="900" fill="#ffffff">Ryomen Sukuna</text>
+  <text x="150" y="720" font-family="Inter, sans-serif" font-size="110" font-style="italic" fill="#94a3b8">King of Curses / Король Проклятий</text>
+
+  <!-- Level Badge -->
+  <g transform="translate(3750, 150)">
+    <circle cx="160" cy="160" r="150" fill="#047857" stroke="#34d399" stroke-width="15" />
+    <text x="160" y="215" font-family="Inter, sans-serif" font-size="160" font-weight="bold" fill="#ffffff" text-anchor="middle">1</text>
+  </g>
+
+  <!-- Skills -->
+  
+      <!-- Skill 1 -->
+      <g transform="translate(150, 1200)">
+        <rect width="3900" height="420" rx="30" fill="#0d1117" stroke="#30363d" stroke-width="6" />
+        <text x="60" y="110" font-family="Inter, sans-serif" font-size="130" font-weight="bold" fill="#e6edf3">Скилл 1 “King of Curses (Король Проклятий)”</text>
+        <text x="60" y="240" font-family="Inter, sans-serif" font-size="95" fill="#8b949e">
+          <tspan x="60" dy="0">ПОЛНЫЙ ИММУНИТЕТ к ядам, кровотечениям и гниению (Rot Пуджа не работает!).</tspan>
+          <tspan x="60" dy="120">За каждого убитого врага поглощает палец: +10% к макс. ХП и урону. Пассивное.</tspan>
+        </text>
+      </g>
+    
+      <!-- Skill 2 -->
+      <g transform="translate(150, 1700)">
+        <rect width="3900" height="420" rx="30" fill="#0d1117" stroke="#30363d" stroke-width="6" />
+        <text x="60" y="110" font-family="Inter, sans-serif" font-size="130" font-weight="bold" fill="#e6edf3">Скилл 2 “Dismantle (Рассечение)”</text>
+        <text x="60" y="240" font-family="Inter, sans-serif" font-size="95" fill="#8b949e">
+          <tspan x="60" dy="0">Невидимый летящий разрез на расстояние до 15 клеток. Наносит 50/100/150/200</tspan>
+          <tspan x="60" dy="120">физического урона с бронепробитием 30. Каст 0 сек. 40/50/60/70 ПЭ. КД 8/6/4/2 сек.</tspan>
+        </text>
+      </g>
+    
+      <!-- Skill 3 -->
+      <g transform="translate(150, 2200)">
+        <rect width="3900" height="420" rx="30" fill="#0d1117" stroke="#30363d" stroke-width="6" />
+        <text x="60" y="110" font-family="Inter, sans-serif" font-size="130" font-weight="bold" fill="#e6edf3">Скилл 3 “Cleave (Расщепление)”</text>
+        <text x="60" y="240" font-family="Inter, sans-serif" font-size="95" fill="#8b949e">
+          <tspan x="60" dy="0">Разрез, подстраивающийся под плотность цели: ПОЛНОСТЬЮ ИГНОРИРУЕТ 100% БРОНИ цели</tspan>
+          <tspan x="60" dy="120">и наносит 60/120/180/240 чистого урона! Каст 1 сек. 60/80/100/120 ПЭ. КД 12/10/8/6 сек.</tspan>
+        </text>
+      </g>
+    
+      <!-- Skill 4 -->
+      <g transform="translate(150, 2700)">
+        <rect width="3900" height="420" rx="30" fill="#0d1117" stroke="#30363d" stroke-width="6" />
+        <text x="60" y="110" font-family="Inter, sans-serif" font-size="130" font-weight="bold" fill="#e6edf3">Скилл 4 “Furnace: «Open» (Божественное Пламя)”</text>
+        <text x="60" y="240" font-family="Inter, sans-serif" font-size="95" fill="#8b949e">
+          <tspan x="60" dy="0">Сукуна произносит «Откройся» (Fuuga) и выпускает пылающую стрелу, взрывающую область</tspan>
+          <tspan x="60" dy="120">5x5 клеток пламенем: 100/200/300/400 урона по площади. Каст 2 сек. КД 24/20/16/12 сек.</tspan>
+        </text>
+      </g>
+    
+      <!-- Skill 5 -->
+      <g transform="translate(150, 3200)">
+        <rect width="3900" height="420" rx="30" fill="#0d1117" stroke="#ef4444" stroke-width="12" />
+        <text x="60" y="110" font-family="Inter, sans-serif" font-size="130" font-weight="bold" fill="#fbbf24">Ульта “Domain: Malevolent Shrine (Зловещая Гробница)”</text>
+        <text x="60" y="240" font-family="Inter, sans-serif" font-size="95" fill="#8b949e">
+          <tspan x="60" dy="0">Открытая Территория без барьера радиусом 8 клеток. Каждый ход наносит шквал из сотен ударов</tspan>
+          <tspan x="60" dy="120">Dismantle и Cleave: 80/140/200 урона каждый ход по всем врагам! Длительность 16 сек. КД 100/80/60 сек.</tspan>
+        </text>
+      </g>
+    
+
+  <!-- Stats -->
+  
+    <!-- Stats Block -->
+    <g transform="translate(150, 3750)">
+      <rect width="3900" height="900" rx="40" fill="#0a0c10" stroke="#30363d" stroke-width="8" />
+      <text x="80" y="160" font-family="Inter, sans-serif" font-size="140" font-weight="bold" fill="#ef4444">ХАРАКТЕРИСТИКИ:</text>
+      
+      <text x="80" y="340" font-family="Inter, monospace" font-size="105" fill="#e6edf3">
+        <tspan x="80" dy="0">ХП: 150 (рег: +5/ход)   |   МАНА: 200 (вос: +15/ход)</tspan>
+        <tspan x="80" dy="150">УРОН: 65 (период: 4)   |   КРИТ: 130   |   ДАЛЬНОСТЬ: 15 кл</tspan>
+        <tspan x="80" dy="150">ПРОБИТИЕ: 30   |   МЕТКОСТЬ: 60%   |   СКОРОСТЬ: 6 кл</tspan>
+        <tspan x="80" dy="150">БРОНЯ: 8   |   ЛОВКОСТЬ: 4</tspan>
+      </text>
+    </g>
+  
+</svg>

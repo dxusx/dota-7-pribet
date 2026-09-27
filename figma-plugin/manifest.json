@@ -1,0 +1,14 @@
+{
+  "name": "Antigravity Figma Live Bridge",
+  "id": "antigravity-live-bridge-2026",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "capabilities": [],
+  "enableProposedApi": false,
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": ["*"],
+    "reasoning": "Connects to local bridge server on localhost:8765 to receive editing commands from Antigravity AI"
+  }
+}
