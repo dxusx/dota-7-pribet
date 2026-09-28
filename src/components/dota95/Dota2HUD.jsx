@@ -115,8 +115,9 @@ export default function Dota2HUD({
       return;
     }
 
-    if (!turnActions.hasAction && !ab.isBonusAction) {
-      onNotify('⛔ Основное действие уже использовано в этом ходу!');
+    const timeCost = ab.timeCost || 4.0;
+    if ((turnActions.remainingTime ?? 8) < timeCost) {
+      onNotify(`⛔ Недостаточно времени хода (требуется ${timeCost}s, осталось ${(turnActions.remainingTime ?? 8).toFixed(1)}s)!`);
       return;
     }
 
@@ -138,6 +139,12 @@ export default function Dota2HUD({
   const handleUseItem = (it) => {
     if (selectedHero.id !== activeHero.id) {
       onNotify(`⛔ Сейчас ход героя ${activeHero.name}!`);
+      return;
+    }
+
+    const timeCost = 2.0;
+    if ((turnActions.remainingTime ?? 8) < timeCost) {
+      onNotify(`⛔ Недостаточно времени для предмета (требуется ${timeCost}s, осталось ${(turnActions.remainingTime ?? 8).toFixed(1)}s)!`);
       return;
     }
 
@@ -226,9 +233,12 @@ export default function Dota2HUD({
               <div className="flex items-center gap-1.5 text-amber-400 text-xs font-mono font-bold">
                 <span>{isDay ? '☀️' : '🌙'}</span>
                 <span className="text-sm text-white tracking-wider">РАУНД {round}</span>
+                <span className="text-[11px] text-amber-300 font-mono ml-1">
+                  [{Math.floor((gameState.gameTimeSeconds || 0) / 60)}:{String((gameState.gameTimeSeconds || 0) % 60).padStart(2, '0')}]
+                </span>
               </div>
               <div className="text-[9px] uppercase font-bold text-amber-300/80 tracking-widest">
-                ХОД: {activeHero.name}
+                ХОД: {activeHero.name} ({(turnActions.remainingTime ?? 8).toFixed(1)}s)
               </div>
             </div>
 
@@ -546,10 +556,10 @@ export default function Dota2HUD({
       )}
 
       {/* ========================================================================= */}
-      {/* 4. TACTICAL ACTION ECONOMY BAR (D&D ACTIONS + ATTACK + END TURN) */}
+      {/* 4. TACTICAL ACTION ECONOMY BAR (TIME-BASED 8-SECOND TURN SYSTEM) */}
       {/* ========================================================================= */}
       <div className="relative w-full flex items-center justify-center mb-1 pointer-events-auto">
-        <div className="flex items-center gap-2 bg-[#0e121a]/95 border border-[#334155] px-4 py-1.5 rounded-full shadow-2xl backdrop-blur-md">
+        <div className="flex items-center gap-3 bg-[#0e121a]/95 border border-[#334155] px-4 py-1.5 rounded-full shadow-2xl backdrop-blur-md">
           {/* Active Unit Indicator */}
           <div className="flex items-center gap-1.5 pr-3 border-r border-slate-700">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
@@ -558,32 +568,43 @@ export default function Dota2HUD({
             </span>
           </div>
 
-          {/* D&D Turn Economy Badges */}
-          <div className="flex items-center gap-2 text-xs font-mono">
+          {/* 8-Second Turn Time System */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 bg-[#141824] border border-amber-500/50 px-3 py-1 rounded-md">
+              <span className="text-sm">⏳</span>
+              <div className="flex flex-col">
+                <div className="flex items-center justify-between gap-3 text-[10px] font-mono leading-none">
+                  <span className="text-slate-400 font-bold uppercase">Время хода:</span>
+                  <span className={`font-black ${
+                    (turnActions.remainingTime ?? 8) > 4 
+                      ? 'text-emerald-400' 
+                      : (turnActions.remainingTime ?? 8) > 2 
+                      ? 'text-amber-400' 
+                      : 'text-rose-400'
+                  }`}>
+                    {(turnActions.remainingTime ?? 8).toFixed(1)} / 8.0s
+                  </span>
+                </div>
+                {/* Visual Progress Bar */}
+                <div className="w-28 h-1.5 bg-slate-800 rounded-full overflow-hidden mt-1">
+                  <div 
+                    className={`h-full transition-all duration-300 ${
+                      (turnActions.remainingTime ?? 8) > 4 
+                        ? 'bg-emerald-500' 
+                        : (turnActions.remainingTime ?? 8) > 2 
+                        ? 'bg-amber-500' 
+                        : 'bg-rose-500'
+                    }`}
+                    style={{ width: `${Math.max(0, Math.min(100, ((turnActions.remainingTime ?? 8) / 8) * 100))}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+
             {/* Movement */}
-            <div className="flex items-center gap-1 bg-[#161c28] border border-amber-500/40 px-2 py-0.5 rounded-md text-amber-300">
+            <div className="flex items-center gap-1 bg-[#161c28] border border-cyan-500/40 px-2.5 py-1 rounded-md text-cyan-300 text-xs font-mono" title="Расход: 2.0s за ход">
               <span>👟</span>
-              <span className="font-bold">{turnActions.movement} / {turnActions.movementMax} кл</span>
-            </div>
-
-            {/* Action */}
-            <div className={`flex items-center gap-1 px-2 py-0.5 rounded-md border ${
-              turnActions.hasAction 
-                ? 'bg-emerald-950/60 border-emerald-500/60 text-emerald-300' 
-                : 'bg-slate-900 border-slate-700 text-slate-500'
-            }`}>
-              <span>⚔️ Действие:</span>
-              <span>{turnActions.hasAction ? '●' : '○'}</span>
-            </div>
-
-            {/* Bonus Action */}
-            <div className={`flex items-center gap-1 px-2 py-0.5 rounded-md border ${
-              turnActions.hasBonusAction 
-                ? 'bg-cyan-950/60 border-cyan-500/60 text-cyan-300' 
-                : 'bg-slate-900 border-slate-700 text-slate-500'
-            }`}>
-              <span>✨ Бонус:</span>
-              <span>{turnActions.hasBonusAction ? '●' : '○'}</span>
+              <span className="font-bold">{turnActions.movement} / {turnActions.movementMax} кл (-2.0s)</span>
             </div>
           </div>
 
@@ -595,18 +616,18 @@ export default function Dota2HUD({
               playClickSound();
               dispatch({ type: 'SET_TARGETING', mode: 'ATTACK' });
             }}
-            disabled={!turnActions.hasAction}
+            disabled={(turnActions.remainingTime ?? 8) < 3.0}
             className={`px-3 py-1 rounded-lg text-xs font-fantasy font-black flex items-center gap-1 transition-all cursor-pointer ${
               targetingMode?.mode === 'ATTACK'
                 ? 'bg-rose-600 text-white ring-2 ring-rose-400'
-                : turnActions.hasAction
+                : (turnActions.remainingTime ?? 8) >= 3.0
                 ? 'bg-gradient-to-r from-rose-700 to-red-600 hover:from-rose-600 hover:to-red-500 text-white shadow-lg'
                 : 'bg-slate-800 text-slate-500 cursor-not-allowed'
             }`}
-            title="Перейти в режим базовой атаки [A]"
+            title="Базовая атака [A] (Расход: 3.0s)"
           >
             <Swords className="w-3.5 h-3.5" />
-            <span>АТАКА [A]</span>
+            <span>АТАКА (3.0s) [A]</span>
           </button>
 
           {/* End Turn Button */}
