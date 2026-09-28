@@ -166,8 +166,8 @@ export default function TacticalHUD({
       {/* ========================================================= */}
       {/* 1. TOP TIMELINE: HORIZONTAL TURN ORDER RIBBON             */}
       {/* ========================================================= */}
-      <header className="fixed top-3 left-1/2 -translate-x-1/2 z-40 max-w-[96vw] w-auto">
-        <div className="bg-[#121622]/95 backdrop-blur-xl border border-slate-700/80 rounded-2xl px-3 py-2 shadow-2xl flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar">
+      <header className="fixed top-2 sm:top-3 left-1/2 -translate-x-1/2 z-40 max-w-[98vw] w-auto">
+        <div className="h-[56px] min-h-[56px] bg-[#121622]/90 backdrop-blur-[10px] border border-slate-700/80 rounded-2xl px-3 py-1 shadow-2xl flex items-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar">
           {/* Round Indicator Badge */}
           <div className="bg-amber-500/20 text-amber-300 border border-amber-500/50 px-2.5 sm:px-3 py-1 rounded-xl text-[11px] sm:text-xs font-mono font-black tracking-wider whitespace-nowrap flex items-center gap-1 shadow-inner">
             <Award className="w-3.5 h-3.5 text-amber-400" />
@@ -196,13 +196,13 @@ export default function TacticalHUD({
                   }}
                   title={`${hero.name} (Инициатива: ${entry.total})`}
                   className={`relative flex flex-col items-center group transition-all duration-200 cursor-pointer ${
-                    isActive ? 'scale-110 -translate-y-0.5' : 'hover:scale-105 opacity-80 hover:opacity-100'
+                    isActive ? 'scale-[1.08] -translate-y-0.5' : 'hover:scale-105 opacity-80 hover:opacity-100'
                   }`}
                 >
                   <div
                     className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden flex items-center justify-center transition-all ${
                       isActive
-                        ? 'border-2 border-amber-400 shadow-[0_0_14px_#f59e0b] ring-2 ring-amber-400/40'
+                        ? 'border-2 border-amber-400 shadow-[0_0_12px_#f59e0b] ring-2 ring-amber-400/50'
                         : isHeroDead
                         ? 'border border-zinc-600 grayscale opacity-40 bg-zinc-900'
                         : isHeroRadiant
@@ -274,9 +274,9 @@ export default function TacticalHUD({
         <div className="fixed top-18 sm:top-20 left-1/2 -translate-x-1/2 z-30 pointer-events-auto">
           <button
             onClick={() => setShowLogDrawer(!showLogDrawer)}
-            className="bg-[#10141f]/90 hover:bg-[#151a28] backdrop-blur-md border border-slate-700/70 text-slate-200 text-xs font-mono px-4 py-1.5 rounded-full shadow-lg flex items-center gap-2 cursor-pointer transition hover:border-amber-500/50"
+            className="bg-[#10141f]/85 backdrop-blur-[10px] border border-slate-700/80 text-slate-100 text-xs sm:text-sm font-sans font-medium px-5 py-1.5 rounded-full shadow-2xl flex items-center gap-2.5 cursor-pointer transition hover:border-amber-500/60 hover:bg-[#151a28]"
           >
-            <History className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <History className="w-4 h-4 text-amber-400 shrink-0" />
             <span className="truncate max-w-[280px] sm:max-w-md">{lastLog.text}</span>
           </button>
         </div>
@@ -285,15 +285,13 @@ export default function TacticalHUD({
       {/* ========================================================= */}
       {/* 3. BOTTOM COMMAND DECK (VITALS & ACTION BAR)              */}
       {/* ========================================================= */}
-      <footer className="fixed bottom-3 left-1/2 -translate-x-1/2 z-40 w-[96vw] max-w-4xl">
+      <footer className="fixed bottom-2 sm:bottom-3 left-1/2 -translate-x-1/2 z-40 w-[96vw] max-w-4xl pb-[env(safe-area-inset-bottom)]">
         <div className="bg-[#121622]/95 backdrop-blur-2xl border border-slate-700/80 rounded-2xl p-3 sm:p-4 shadow-[0_8px_32px_rgba(0,0,0,0.85)] flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
           
           {/* LEFT: VITALS SECTION */}
           <div className="flex items-center gap-3 min-w-[240px] sm:min-w-[290px]">
-            {/* Active Hero Portrait */}
-            <div className={`relative w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden shrink-0 border-2 ${
-              isRadiant ? 'border-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.4)]' : 'border-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.4)]'
-            }`}>
+            {/* Active Hero Portrait (48x48px with golden frame) */}
+            <div className="relative w-12 h-12 rounded-full overflow-hidden shrink-0 border-2 border-amber-400 shadow-[0_0_10px_#f59e0b]">
               <img
                 src={getAssetUrl(activeHero.avatar)}
                 alt={activeHero.name}
@@ -304,44 +302,44 @@ export default function TacticalHUD({
               />
             </div>
 
-            {/* Hero Name, Mini Stats & Dual Progress Bars */}
+            {/* Hero Name, Speed & Attack Range & Dual Progress Bars */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-sm sm:text-base font-black text-white truncate font-sans tracking-wide">
                   {activeHero.name}
                 </h2>
                 {/* Tactical Stats Pills */}
-                <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400">
-                  <span title="Оставшиеся шаги">🦶 {turnActions.movement}/{activeHero.speed || 6}</span>
-                  <span title="Броня">🛡️ {activeHero.armor ?? 5}</span>
-                  <span title="Урон">⚔️ {activeHero.averageDamage ?? activeHero.damage ?? 50}</span>
+                <div className="flex items-center gap-2 text-[10px] sm:text-xs font-mono text-slate-300">
+                  <span title="Дальность хода">🦶 Ход: {activeHero.speed || 6} ({turnActions.movement} ост.)</span>
+                  <span className="text-slate-600">|</span>
+                  <span title="Дальность атаки">⚔️ Атака: {activeHero.range || 2} кл</span>
                 </div>
               </div>
 
-              {/* Health Progress Bar */}
+              {/* Health Progress Bar (Green gradient #10b981) */}
               <div className="mt-1">
                 <div className="flex items-center justify-between text-[10px] font-mono font-bold text-emerald-400 mb-0.5">
                   <span>HP</span>
                   <span>{activeHero.hp} / {activeHero.maxHp}</span>
                 </div>
-                <div className="h-2 w-full bg-slate-900/90 rounded-full overflow-hidden border border-emerald-950">
+                <div className="h-2.5 w-full bg-slate-900/90 rounded-full overflow-hidden border border-emerald-950">
                   <div
-                    className="h-full bg-emerald-500 rounded-full transition-all duration-300 shadow-[0_0_8px_#10b981]"
-                    style={{ width: `${hpPercent}%` }}
+                    className="h-full rounded-full transition-all duration-300 shadow-[0_0_8px_#10b981]"
+                    style={{ width: `${hpPercent}%`, background: 'linear-gradient(90deg, #059669, #10b981)' }}
                   />
                 </div>
               </div>
 
-              {/* Mana Progress Bar */}
+              {/* Mana Progress Bar (Blue gradient #3b82f6) */}
               <div className="mt-1">
                 <div className="flex items-center justify-between text-[10px] font-mono font-bold text-sky-400 mb-0.5">
                   <span>MP</span>
                   <span>{activeHero.mana ?? 100} / {activeHero.maxMana ?? 100}</span>
                 </div>
-                <div className="h-1.5 w-full bg-slate-900/90 rounded-full overflow-hidden border border-sky-950">
+                <div className="h-2 w-full bg-slate-900/90 rounded-full overflow-hidden border border-sky-950">
                   <div
-                    className="h-full bg-sky-500 rounded-full transition-all duration-300 shadow-[0_0_6px_#38bdf8]"
-                    style={{ width: `${manaPercent}%` }}
+                    className="h-full rounded-full transition-all duration-300 shadow-[0_0_6px_#38bdf8]"
+                    style={{ width: `${manaPercent}%`, background: 'linear-gradient(90deg, #2563eb, #3b82f6)' }}
                   />
                 </div>
               </div>
@@ -351,30 +349,30 @@ export default function TacticalHUD({
           <div className="hidden md:block h-12 w-px bg-slate-700/60" />
 
           {/* CENTER & RIGHT: ACTION BAR */}
-          <div className="flex items-center justify-between sm:justify-end gap-2 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap">
             {/* Button 1: [ 🦶 Ход ] */}
             <button
               onClick={handleToggleMove}
-              className={`flex-1 sm:flex-initial min-h-[44px] px-3 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+              className={`flex-1 sm:flex-initial min-h-[44px] px-2.5 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                 actionMode === 'MOVE'
                   ? 'bg-cyan-950/80 text-[#00f0ff] border-[#00f0ff] shadow-[0_0_14px_rgba(0,240,255,0.45)]'
                   : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
               }`}
             >
-              <Footprints className="w-4 h-4" />
+              <Footprints className="w-4 h-4 shrink-0" />
               <span>Ход</span>
             </button>
 
             {/* Button 2: [ ⚔️ Удар ] */}
             <button
               onClick={handleToggleAttack}
-              className={`flex-1 sm:flex-initial min-h-[44px] px-3 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+              className={`flex-1 sm:flex-initial min-h-[44px] px-2.5 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                 actionMode === 'ATTACK' || targetingMode?.mode === 'ATTACK'
                   ? 'bg-rose-950/80 text-[#ef4444] border-[#ef4444] shadow-[0_0_14px_rgba(239,68,68,0.45)]'
                   : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
               }`}
             >
-              <Swords className="w-4 h-4" />
+              <Swords className="w-4 h-4 shrink-0" />
               <span>Удар</span>
             </button>
 
@@ -385,16 +383,16 @@ export default function TacticalHUD({
                 setShowShopDrawer(false);
                 setShowSkillDrawer(!showSkillDrawer);
               }}
-              className={`flex-1 sm:flex-initial min-h-[44px] px-3 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+              className={`flex-1 sm:flex-initial min-h-[44px] px-2.5 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                 showSkillDrawer
                   ? 'bg-purple-950/80 text-purple-300 border-purple-500 shadow-[0_0_14px_rgba(168,85,247,0.4)]'
                   : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
               }`}
             >
-              <Sparkles className="w-4 h-4 text-purple-400" />
+              <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />
               <span>Скиллы</span>
               {heroAbilities.length > 0 && (
-                <span className="text-[10px] bg-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded-full">
+                <span className="text-[10px] bg-purple-500/30 text-purple-300 px-1 py-0.5 rounded-full shrink-0">
                   {heroAbilities.length}
                 </span>
               )}
@@ -407,23 +405,24 @@ export default function TacticalHUD({
                 setShowSkillDrawer(false);
                 setShowShopDrawer(!showShopDrawer);
               }}
-              className={`flex-1 sm:flex-initial min-h-[44px] px-3 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+              className={`flex-1 sm:flex-initial min-h-[44px] px-2.5 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                 showShopDrawer
                   ? 'bg-amber-950/80 text-amber-300 border-amber-500 shadow-[0_0_14px_rgba(245,158,11,0.4)]'
                   : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
               }`}
             >
-              <ShoppingBag className="w-4 h-4 text-amber-400" />
+              <ShoppingBag className="w-4 h-4 text-amber-400 shrink-0" />
               <span>Лавка</span>
             </button>
 
             {/* Button 5: [ КОНЕЦ ХОДА ➔ ] */}
             <button
               onClick={handleEndTurn}
-              className="flex-1 sm:flex-initial min-h-[44px] px-5 sm:px-6 py-2 rounded-xl font-sans font-black text-xs sm:text-sm tracking-wider uppercase bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-black shadow-[0_0_16px_rgba(245,158,11,0.5)] active:scale-95 transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              style={{ background: 'linear-gradient(to right, #d97706, #f59e0b)' }}
+              className="flex-1 sm:flex-initial min-h-[44px] px-4 sm:px-6 py-2 rounded-xl font-sans font-black text-xs sm:text-sm tracking-wider uppercase text-black shadow-[0_0_16px_rgba(245,158,11,0.5)] active:scale-95 transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
               <span>Конец хода</span>
-              <ArrowRight className="w-4 h-4 stroke-[3]" />
+              <ArrowRight className="w-4 h-4 stroke-[3] shrink-0" />
             </button>
           </div>
         </div>

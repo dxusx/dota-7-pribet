@@ -225,6 +225,7 @@ export function gameReducer(state, action) {
     // -------------------------------------------------------------
     // 3. SET TARGETING MODE
     // -------------------------------------------------------------
+    case 'START_TARGETING':
     case 'SET_TARGETING': {
       const activeHero = state.heroes.find(h => h.id === state.activeHeroId);
       if (!activeHero || activeHero.isDead || !canUnitAct(activeHero)) return state;

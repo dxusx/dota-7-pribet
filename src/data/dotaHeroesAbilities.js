@@ -196,6 +196,7 @@ export const HERO_ABILITIES_DATA = {
       { id: 'quas', hotkey: 'Q', name: 'Quas (Лед)', desc: 'Сфера льда. Дает регенерацию здоровья и силу льда.', icon: '❄️', manaCost: 0, cooldown: 0, level: 7, maxLevel: 7 },
       { id: 'wex', hotkey: 'W', name: 'Wex (Молния)', desc: 'Сфера молнии. Дает скорость бега и атаки.', icon: '⚡', manaCost: 0, cooldown: 0, level: 7, maxLevel: 7 },
       { id: 'exort', hotkey: 'E', name: 'Exort (Огонь)', desc: 'Сфера огня. Дает огромный бонус к урону заклинаний.', icon: '🔥', manaCost: 0, cooldown: 0, level: 7, maxLevel: 7 },
+      { id: 'coldsnap', hotkey: 'Y', name: 'Cold Snap (QQQ)', desc: 'Замораживает противника, нанося периодический урон и оглушая при каждом ударе.', icon: '🧊', manaCost: 100, cooldown: 15, level: 4, maxLevel: 4 },
       { id: 'sunstrike', hotkey: 'D', name: 'Sun Strike (Катаклизм)', desc: 'Глобальный солнечный луч в любую точку карты.', icon: '☀️', manaCost: 175, cooldown: 25, level: 4, maxLevel: 4 },
       { id: 'meteor', hotkey: 'F', name: 'Chaos Meteor', desc: 'Призывает пылающий метеорит с небес.', icon: '☄️', manaCost: 200, cooldown: 45, level: 4, maxLevel: 4 },
       { id: 'invoke', hotkey: 'R', name: 'Invoke', desc: 'Комбинирует сферы для создания одного из 10 заклинаний.', icon: '✨', manaCost: 30, cooldown: 5, level: 4, maxLevel: 4, isUltimate: true }
@@ -376,8 +377,9 @@ export const HERO_ABILITIES_DATA = {
     },
     abilities: [
       { id: 'awp_shot', hotkey: 'Q', name: 'AWP Wallbang', desc: 'Стреляет бронебойной пулей сквозь скалы и деревья на 20 клеток.', icon: '🎯', manaCost: 90, cooldown: 6, level: 4, maxLevel: 4 },
-      { id: 'flashbang', hotkey: 'W', name: 'Flashbang', desc: 'Ослепляет всех в радиусе 6 клеток, накладывая 100% промахов.', icon: '💥', manaCost: 75, cooldown: 12, level: 4, maxLevel: 4 },
-      { id: 'smoke_nade', hotkey: 'E', name: 'Smoke Cloud', desc: 'Создает дымовую завесу, делая союзников внутри невидимыми.', icon: '💨', manaCost: 80, cooldown: 18, level: 4, maxLevel: 4 },
+      { id: 'one_way', hotkey: 'W', name: 'One Way (Ван-Вей)', desc: 'Легендарный снайперский прострел сквозь дым с гарантированным критическим попаданием.', icon: '🎯', manaCost: 110, cooldown: 14, level: 4, maxLevel: 4 },
+      { id: 'flashbang', hotkey: 'E', name: 'Flashbang', desc: 'Ослепляет всех в радиусе 6 клеток, накладывая 100% промахов.', icon: '💥', manaCost: 75, cooldown: 12, level: 4, maxLevel: 4 },
+      { id: 'smoke_nade', hotkey: 'D', name: 'Smoke Cloud', desc: 'Создает дымовую завесу, делая союзников внутри невидимыми.', icon: '💨', manaCost: 80, cooldown: 18, level: 4, maxLevel: 4 },
       { id: 'clutch_god', hotkey: 'R', name: '1v5 Clutch Master', desc: 'Включает режим бога: 100% криты и мгновенный прыжок.', icon: '🏆', manaCost: 150, cooldown: 65, level: 3, maxLevel: 3, isUltimate: true }
     ],
     items: [
