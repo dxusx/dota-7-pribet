@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useReducer, useMemo } from 'react';
-import Dota2HUD from './Dota2HUD';
+import TacticalHUD from './TacticalHUD';
 import { 
   GRID_SIZE, TILE_TYPES, TILE_INFO, 
   getLaneAt, isBridgeCell 
@@ -41,6 +41,9 @@ export default function Dota95Map({ onSwitchMode }) {
     notification: stateNotification
   } = gameState;
 
+  // Active Action Mode: 'NONE' | 'MOVE' | 'ATTACK' | 'ABILITY' | 'ITEM'
+  const [actionMode, setActionMode] = useState('NONE');
+
   // Active Hero (Whose turn it currently is)
   const activeHero = heroes.find(h => h.id === activeHeroId) || heroes[0];
   // Selected Hero (Inspected in console)
@@ -48,7 +51,7 @@ export default function Dota95Map({ onSwitchMode }) {
 
   // Camera State: pan offset (px) and zoom scale
   const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(1.25);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [hasDragged, setHasDragged] = useState(false);
@@ -167,13 +170,17 @@ export default function Dota95Map({ onSwitchMode }) {
     setPan({ x: Math.round(newPanX), y: Math.round(newPanY) });
   }, [MAP_TOTAL_PX]);
 
-  // Initial fit
+  // Focus camera on active hero in combat zone
   useEffect(() => {
-    fitMapToScreen();
-    const handleResize = () => fitMapToScreen();
+    if (activeHero) {
+      centerOnCell(activeHero.r, activeHero.c, 1.25);
+    }
+    const handleResize = () => {
+      if (activeHero) centerOnCell(activeHero.r, activeHero.c, zoom);
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [fitMapToScreen]);
+  }, [activeHeroId]);
 
   // ---------------------------------------------------------------------------
   // REQUIREMENT #24: OFFSCREEN TERRAIN CANVAS CACHING
@@ -634,33 +641,57 @@ export default function Dota95Map({ onSwitchMode }) {
       ctx.drawImage(terrainCanvasRef.current, 0, 0);
     }
 
-    // 2. DRAW REACHABLE MOVEMENT CELLS (WHEN NOT TARGETING)
-    if (!targetingMode && turnActions.movement > 0 && activeHero && !activeHero.isDead) {
+    // 2. DRAW REACHABLE MOVEMENT CELLS (.reachable-move: neon cyan #00f0ff)
+    if (!targetingMode && turnActions.movement > 0 && activeHero && !activeHero.isDead && (actionMode === 'MOVE' || actionMode === 'NONE')) {
       reachableCells.forEach((node, key) => {
         const [r, c] = key.split(',').map(Number);
         const x = c * CELL_PX;
         const y = r * CELL_PX;
 
-        ctx.fillStyle = 'rgba(234, 179, 8, 0.16)';
-        ctx.strokeStyle = 'rgba(234, 179, 8, 0.35)';
-        ctx.lineWidth = 0.8;
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.22)';
+        ctx.strokeStyle = '#00f0ff';
+        ctx.lineWidth = 1;
         ctx.fillRect(x, y, CELL_PX, CELL_PX);
         ctx.strokeRect(x, y, CELL_PX, CELL_PX);
       });
     }
 
-    // 3. DRAW TARGETING OVERLAY (ATTACK / ABILITY / ITEM)
-    if (targetingMode && activeHero) {
+    // 3. DRAW TARGETING OVERLAY & ATTACK CELLS (.reachable-attack: red #ef4444)
+    if ((targetingMode || actionMode === 'ATTACK') && activeHero) {
       const ax = (activeHero.c + 0.5) * CELL_PX;
       const ay = (activeHero.r + 0.5) * CELL_PX;
-      const rangePx = (targetingMode.range || 2) * CELL_PX;
+      const attackRange = targetingMode?.range || activeHero.range || 2;
+      const rangePx = attackRange * CELL_PX;
+
+      // Draw red cells in attack radius for .reachable-attack
+      if (targetingMode?.mode === 'ATTACK' || actionMode === 'ATTACK') {
+        const ceilRange = Math.ceil(attackRange);
+        for (let dr = -ceilRange; dr <= ceilRange; dr++) {
+          for (let dc = -ceilRange; dc <= ceilRange; dc++) {
+            const dist = Math.hypot(dr, dc);
+            if (dist <= attackRange) {
+              const ar = activeHero.r + dr;
+              const ac = activeHero.c + dc;
+              if (ar >= 0 && ar < GRID_SIZE && ac >= 0 && ac < GRID_SIZE) {
+                const rx = ac * CELL_PX;
+                const ry = ar * CELL_PX;
+                ctx.fillStyle = 'rgba(239, 68, 68, 0.22)';
+                ctx.strokeStyle = '#ef4444';
+                ctx.lineWidth = 1;
+                ctx.fillRect(rx, ry, CELL_PX, CELL_PX);
+                ctx.strokeRect(rx, ry, CELL_PX, CELL_PX);
+              }
+            }
+          }
+        }
+      }
 
       // Range dashed circle
-      const strokeColor = targetingMode.mode === 'ATTACK' 
-        ? 'rgba(239, 68, 68, 0.7)' 
-        : targetingMode.mode === 'ABILITY' 
-        ? 'rgba(56, 189, 248, 0.7)' 
-        : 'rgba(168, 85, 247, 0.7)';
+      const strokeColor = (targetingMode?.mode === 'ATTACK' || actionMode === 'ATTACK')
+        ? 'rgba(239, 68, 68, 0.85)' 
+        : targetingMode?.mode === 'ABILITY' 
+        ? 'rgba(56, 189, 248, 0.85)' 
+        : 'rgba(168, 85, 247, 0.85)';
 
       ctx.strokeStyle = strokeColor;
       ctx.lineWidth = 2;
@@ -670,14 +701,14 @@ export default function Dota95Map({ onSwitchMode }) {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Highlight valid target cells
-      (targetingMode.validCells || []).forEach(vc => {
+      // Highlight valid target cells with pulsing ring
+      (targetingMode?.validCells || []).forEach(vc => {
         const vx = vc.c * CELL_PX;
         const vy = vc.r * CELL_PX;
 
-        ctx.fillStyle = targetingMode.mode === 'ATTACK' ? 'rgba(239, 68, 68, 0.35)' : 'rgba(56, 189, 248, 0.35)';
+        ctx.fillStyle = targetingMode.mode === 'ATTACK' ? 'rgba(239, 68, 68, 0.45)' : 'rgba(56, 189, 248, 0.45)';
         ctx.strokeStyle = targetingMode.mode === 'ATTACK' ? '#ef4444' : '#38bdf8';
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.fillRect(vx, vy, CELL_PX, CELL_PX);
         ctx.strokeRect(vx, vy, CELL_PX, CELL_PX);
       });
@@ -792,8 +823,8 @@ export default function Dota95Map({ onSwitchMode }) {
       const hy = hoveredCell.r * CELL_PX;
       const isReachable = reachableCells.has(`${hoveredCell.r},${hoveredCell.c}`);
 
-      ctx.fillStyle = isReachable ? 'rgba(250, 204, 21, 0.45)' : 'rgba(255, 255, 255, 0.15)';
-      ctx.strokeStyle = isReachable ? '#facc15' : '#94a3b8';
+      ctx.fillStyle = isReachable ? 'rgba(0, 240, 255, 0.45)' : 'rgba(255, 255, 255, 0.15)';
+      ctx.strokeStyle = isReachable ? '#00f0ff' : '#94a3b8';
       ctx.lineWidth = 2;
       ctx.fillRect(hx, hy, CELL_PX, CELL_PX);
       ctx.strokeRect(hx, hy, CELL_PX, CELL_PX);
@@ -808,7 +839,7 @@ export default function Dota95Map({ onSwitchMode }) {
         // If hovering over reachable cell, draw complete BFS path!
         const node = reachableCells.get(`${hoveredCell.r},${hoveredCell.c}`);
         if (node && node.path) {
-          ctx.strokeStyle = '#facc15';
+          ctx.strokeStyle = '#00f0ff';
           ctx.lineWidth = 3;
           ctx.beginPath();
           ctx.moveTo(fromX, fromY);
@@ -822,12 +853,12 @@ export default function Dota95Map({ onSwitchMode }) {
           ctx.beginPath();
           ctx.arc(toX, toY, 9, 0, Math.PI * 2);
           ctx.fill();
-          ctx.strokeStyle = '#facc15';
+          ctx.strokeStyle = '#00f0ff';
           ctx.lineWidth = 1.5;
           ctx.stroke();
 
           ctx.font = 'bold 10px monospace';
-          ctx.fillStyle = '#facc15';
+          ctx.fillStyle = '#00f0ff';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
           ctx.fillText(node.path.length - 1, toX, toY);
@@ -1047,22 +1078,13 @@ export default function Dota95Map({ onSwitchMode }) {
         </div>
       )}
 
-      {/* 5. AUTHENTIC DOTA 2 HUD WITH PLAYABLE COMBAT CONTROLS */}
-      <Dota2HUD
+      {/* 5. MINIMALIST TACTICAL TURN-BASED HUD */}
+      <TacticalHUD
         gameState={gameState}
         dispatch={dispatch}
-        pan={pan}
-        zoom={zoom}
+        actionMode={actionMode}
+        setActionMode={setActionMode}
         onCenterOnCell={centerOnCell}
-        onFitMap={fitMapToScreen}
-        hoveredCell={hoveredCell}
-        hoveredEntity={hoveredEntity}
-        showGrid={showGrid}
-        onToggleGrid={() => setShowGrid(!showGrid)}
-        showRanges={showRanges}
-        onToggleRanges={() => setShowRanges(!showRanges)}
-        showLegend={showLegend}
-        onToggleLegend={() => setShowLegend(!showLegend)}
         onNotify={notify}
         onSwitchMode={onSwitchMode}
       />

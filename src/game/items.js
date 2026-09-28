@@ -37,6 +37,23 @@ export const ITEM_DEFINITIONS = {
     }
   },
 
+  rapier: {
+    id: 'rapier',
+    name: 'Divine Rapier',
+    icon: '⚡',
+    cost: 5600,
+    cooldown: 0,
+    targetType: 'SELF',
+    desc: 'Дарует божественную мощь: +150 к физическому урону атаки.',
+    execute: (caster) => {
+      const currentDmg = Number(caster.averageDamage || caster.damage || 50);
+      return {
+        updatedCaster: { ...caster, averageDamage: currentDmg + 150, damage: currentDmg + 150 },
+        log: `⚡ ${caster.name} экипировал Divine Rapier (+150 к урону)!`
+      };
+    }
+  },
+
   satanic: {
     id: 'satanic',
     name: 'Satanic',
