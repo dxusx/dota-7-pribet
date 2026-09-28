@@ -81,7 +81,9 @@ export function calculateTerrainAdvantage(attacker, target, mapGrid) {
 
   // Determine if attack is Ranged or Melee
   const range = Number(attacker.range ?? attacker.stats?.range ?? (attacker.creepRole === 'ranged' ? 4 : 1));
-  const isRanged = range > 1.5 || attacker.creepRole === 'ranged';
+  const isRanged = attacker.isRanged !== undefined
+    ? Boolean(attacker.isRanged)
+    : (attacker.attackType ? attacker.attackType === 'ranged' : (range > 1.5 || attacker.creepRole === 'ranged'));
 
   // Both sides of the rule:
   if (!attackerIsHighGround && targetIsHighGround) {

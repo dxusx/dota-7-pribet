@@ -135,27 +135,29 @@ export function advanceCreepsAlongLanes(creeps, heroes, towers, options = {}) {
       return;
     }
 
-    const targetWp = waypoints[wpIdx];
-    const distToWp = getDistance(creep.r, creep.c, targetWp.r, targetWp.c);
+    let currentWp = waypoints[wpIdx];
+    let distToWp = getDistance(creep.r, creep.c, currentWp.r, currentWp.c);
 
-    if (distToWp <= 1 && wpIdx < waypoints.length - 1) {
+    while (distToWp <= 1 && wpIdx < waypoints.length - 1) {
       wpIdx++;
+      currentWp = waypoints[wpIdx];
+      distToWp = getDistance(creep.r, creep.c, currentWp.r, currentWp.c);
     }
 
-    const currentWp = waypoints[wpIdx];
     const dr = Math.sign(currentWp.r - creep.r);
     const dc = Math.sign(currentWp.c - creep.c);
 
-    // Step forward along primary axis
+    // Step forward towards enemy base waypoint using creep speed
+    const stepSize = creep.speed || 3;
     let nextR = creep.r;
     let nextC = creep.c;
 
     if (dr !== 0 && Math.abs(currentWp.r - creep.r) >= Math.abs(currentWp.c - creep.c)) {
-      nextR += dr * Math.min(2, Math.abs(currentWp.r - creep.r));
+      nextR += dr * Math.min(stepSize, Math.abs(currentWp.r - creep.r));
     } else if (dc !== 0) {
-      nextC += dc * Math.min(2, Math.abs(currentWp.c - creep.c));
+      nextC += dc * Math.min(stepSize, Math.abs(currentWp.c - creep.c));
     } else if (dr !== 0) {
-      nextR += dr * Math.min(2, Math.abs(currentWp.r - creep.r));
+      nextR += dr * Math.min(stepSize, Math.abs(currentWp.r - creep.r));
     }
 
     updatedCreeps.push({

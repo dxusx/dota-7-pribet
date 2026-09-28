@@ -15,7 +15,7 @@ import {
   canSpawnNeutralCamp
 } from './combatRules.js';
 import { TOWER_TIER_CONFIGS, generateInitialTowers } from '../data/towerData.js';
-import { processContinuousTowerAttacks, checkTimedSpawns } from './towersAndCreeps.js';
+import { processContinuousTowerAttacks, checkTimedSpawns, advanceCreepsAlongLanes } from './towersAndCreeps.js';
 import { TIME_CONFIG, TERRAIN_CONFIG, CREEP_CONFIG } from '../data/combatConfig.js';
 import { createInitialGameState } from './gameState.js';
 
@@ -112,6 +112,16 @@ assert(
   uphillMiss.isHit === false && uphillMiss.missedDueToHighGround === true && uphillMiss.reason === 'HIGH_GROUND_MISS',
   'Ranged uphill attack misses when 30% high ground check triggers'
 );
+
+// Uphill melee hit: base hit passes, and melee uphill NEVER triggers miss check (0% miss)
+const uphillMeleeHit = rollHit(0.50, { terrainAdvantage: lowToHighMelee, randomFn: () => 0.10 });
+assert(
+  uphillMeleeHit.isHit === true && uphillMeleeHit.missedDueToHighGround === false,
+  'Melee uphill attack NEVER misses due to high ground'
+);
+
+// Base agility/hit formula is completely independent and untouched
+assert(calculateHitChance(20, 10) === 0.5, 'Base calculateHitChance formula (agility/hit) is untouched');
 
 // -----------------------------------------------------------------
 // 3. rollDamage()
@@ -267,31 +277,56 @@ const testHeroes = [
   }
 ];
 
+// At gameTime = 0s -> tower does NOT attack
+const resAt0s = processContinuousTowerAttacks(testTowers, testHeroes, [], 0);
+assert(resAt0s.logs.length === 0, 'Tower does not attack at t=0s');
+
 // At gameTime = 2s (less than nextAttackTime 4s) -> tower does NOT attack
 const resAt2s = processContinuousTowerAttacks(testTowers, testHeroes, [], 2);
-assert(resAt2s.logs.length === 0, 'Tower does not attack before its nextAttackTime (at 2s)');
+assert(resAt2s.logs.length === 0, 'Tower does not attack before 4s (at t=2s)');
 
-// At gameTime = 4.5s (reaches nextAttackTime 4s) -> tower attacks!
-const resAt4s = processContinuousTowerAttacks(testTowers, testHeroes, [], 4.5);
-assert(resAt4s.logs.length > 0, 'Tower attacks when continuous gameTime reaches nextAttackTime (4s)');
-assert(resAt4s.updatedTowers[0].nextAttackTime === 8, 'Tower advances nextAttackTime by 4s to 8s');
+// At gameTime = 4s (reaches nextAttackTime 4s) -> tower attacks!
+const resAt4s = processContinuousTowerAttacks(testTowers, testHeroes, [], 4.0);
+assert(resAt4s.logs.length > 0, 'Tower attacks at t=4s');
+assert(resAt4s.updatedTowers[0].nextAttackTime === 8, 'Tower advances nextAttackTime to 8s');
+
+// At gameTime = 6s -> tower does NOT attack (nextAttackTime is 8s)
+const resAt6s = processContinuousTowerAttacks(resAt4s.updatedTowers, testHeroes, [], 6.0);
+assert(resAt6s.logs.length === 0, 'Tower does not attack at t=6s (before nextAttackTime 8s)');
+
+// At gameTime = 8s -> tower attacks second time!
+const resAt8s = processContinuousTowerAttacks(resAt4s.updatedTowers, testHeroes, [], 8.0);
+assert(resAt8s.logs.length > 0, 'Tower attacks at t=8s');
+assert(resAt8s.updatedTowers[0].nextAttackTime === 12, 'Tower advances nextAttackTime to 12s');
+
+// At gameTime = 10s -> tower does NOT attack (nextAttackTime is 12s)
+const resAt10s = processContinuousTowerAttacks(resAt8s.updatedTowers, testHeroes, [], 10.0);
+assert(resAt10s.logs.length === 0, 'Tower does not attack at t=10s (before nextAttackTime 12s)');
+
+// At gameTime = 12s -> tower attacks third time!
+const resAt12s = processContinuousTowerAttacks(resAt8s.updatedTowers, testHeroes, [], 12.0);
+assert(resAt12s.logs.length > 0, 'Tower attacks at t=12s');
+assert(resAt12s.updatedTowers[0].nextAttackTime === 16, 'Tower advances nextAttackTime to 16s');
 
 // -----------------------------------------------------------------
-// 12. Creep Timed Spawns (Initial 0, First Wave at 60s, Neutrals at 120s)
+// 12. Creep Timed Spawns (no creeps at t=0, first wave at t=60)
 // -----------------------------------------------------------------
 console.log('\n--- 12. Creep Timed Spawns ---');
 const initialGameState = createInitialGameState();
-assert(initialGameState.creeps.length === 0, 'createInitialGameState has 0 initial creeps');
+assert(initialGameState.creeps.length === 0, 'no creeps at t=0: createInitialGameState() initializes with creeps: []');
 assert(initialGameState.gameTimeSeconds === 0, 'Initial gameTimeSeconds is 0');
 
-// checkTimedSpawns at t=30s -> no creeps spawned
-const spawnAt30 = checkTimedSpawns([], [], null, 30, 0, 0, 0, 1);
-assert(spawnAt30.creeps.length === 0, 'No creeps spawn before 60 seconds (t=30s)');
-assert(spawnAt30.creepWaveIndex === 0, 'Creep wave index remains 0 at t=30s');
+const spawnAt0 = checkTimedSpawns([], [], null, 0, 0, 0, 0, 1);
+assert(spawnAt0.creeps.length === 0, 'no creeps at t=0 in checkTimedSpawns');
+
+// checkTimedSpawns at t=59s -> no creeps spawned
+const spawnAt59 = checkTimedSpawns([], [], null, 59, 0, 0, 0, 1);
+assert(spawnAt59.creeps.length === 0, 'no creeps before 60 seconds (t=59s)');
+assert(spawnAt59.creepWaveIndex === 0, 'Creep wave index remains 0 at t=59s');
 
 // checkTimedSpawns at t=60s -> first lane creep wave spawns (30 creeps: 3 lanes * 2 teams * 5 creeps)
 const spawnAt60 = checkTimedSpawns([], [], null, 60, 0, 0, 0, 1);
-assert(spawnAt60.creeps.length === 30, 'First lane creep wave spawns at 60s (exactly 30 creeps: 3 lanes x 2 teams x 5 creeps)');
+assert(spawnAt60.creeps.length === 30, 'first wave at t=60: exactly 30 creeps (3 lanes x 2 teams x 5 creeps)');
 assert(spawnAt60.lastCreepSpawnTime === 60, 'lastCreepSpawnTime updated to 60s');
 assert(spawnAt60.creepWaveIndex === 1, 'creepWaveIndex incremented to 1');
 const wave0Ranged = spawnAt60.creeps.filter(c => c.creepRole === 'ranged').length;
@@ -307,6 +342,35 @@ const totalLaneCreeps120 = spawnAt120.creeps.filter(c => !c.isNeutral).length;
 const totalNeutralCreeps120 = spawnAt120.creeps.filter(c => c.isNeutral).length;
 assert(totalLaneCreeps120 === 60, 'Total lane creeps is 60 after second wave (30 + 30)');
 assert(totalNeutralCreeps120 > 0, 'Neutral camps spawned creeps at 120s');
+
+// -----------------------------------------------------------------
+// 13. Lane Creep Movement along Top/Mid/Bot via Waypoint System
+// -----------------------------------------------------------------
+console.log('\n--- 13. Lane Creep Movement Along Top/Mid/Bot ---');
+const radTopCreep = spawnAt60.creeps.find(c => c.team === 'radiant' && c.lane === 'top');
+const radMidCreep = spawnAt60.creeps.find(c => c.team === 'radiant' && c.lane === 'mid');
+const radBotCreep = spawnAt60.creeps.find(c => c.team === 'radiant' && c.lane === 'bot');
+const direTopCreep = spawnAt60.creeps.find(c => c.team === 'dire' && c.lane === 'top');
+
+const initialRadTopR = radTopCreep.r;
+const initialRadBotC = radBotCreep.c;
+const initialDireTopC = direTopCreep.c;
+
+const movedRes = advanceCreepsAlongLanes([radTopCreep, radMidCreep, radBotCreep, direTopCreep], [], []);
+const movedRadTop = movedRes.updatedCreeps.find(c => c.id === radTopCreep.id);
+const movedRadBot = movedRes.updatedCreeps.find(c => c.id === radBotCreep.id);
+const movedDireTop = movedRes.updatedCreeps.find(c => c.id === direTopCreep.id);
+
+assert(movedRadTop.r < initialRadTopR, 'Radiant top creep advances along top lane towards enemy base (decreasing r)');
+assert(movedRadBot.c > initialRadBotC, 'Radiant bot creep advances along bot lane towards enemy base (increasing c)');
+assert(movedDireTop.c < initialDireTopC, 'Dire top creep advances along top lane towards enemy base (decreasing c)');
+
+// Creep stops to fight if enemy is in range
+const fightingRadCreep = { ...radTopCreep, r: 20, c: 20, creepRole: 'melee', range: 1 };
+const targetHero = { id: 'dire_hero_target', team: 'dire', r: 20, c: 21, hp: 100, maxHp: 100, armor: 5, agility: 5, isDead: false };
+const fightRes = advanceCreepsAlongLanes([fightingRadCreep], [targetHero], []);
+const afterFightRadCreep = fightRes.updatedCreeps[0];
+assert(afterFightRadCreep.r === 20 && afterFightRadCreep.c === 20, 'Creep in attack range does not advance: stops to fight enemy');
 
 // -----------------------------------------------------------------
 // SUMMARY
