@@ -61,6 +61,19 @@ export default function EditorMode({ onSwitchMode }) {
     return objects.find(o => o.id === selectedObjectId) || null;
   }, [objects, selectedObjectId]);
 
+  const hoveredObject = useMemo(() => {
+    return objects.find(o => o.id === hoveredObjectId) || null;
+  }, [objects, hoveredObjectId]);
+
+  const hoveredScreenPos = useMemo(() => {
+    if (!hoveredObject || dragState?.isDragging) return null;
+    const worldX = (hoveredObject.x + 0.5) * CELL_PX;
+    const worldY = (hoveredObject.y + 0.5) * CELL_PX;
+    const screenX = worldX * camera.zoom + camera.x;
+    const screenY = worldY * camera.zoom + camera.y;
+    return { x: screenX, y: screenY };
+  }, [hoveredObject, camera, CELL_PX, dragState?.isDragging]);
+
   // Load avatar images into cache
   useEffect(() => {
     objects.forEach(obj => {
@@ -146,18 +159,18 @@ export default function EditorMode({ onSwitchMode }) {
     });
   }, [camera.zoom, CELL_PX]);
 
-  // Fit entire 95x95 map onto current viewport
+  // Fit entire 95x95 map onto current viewport (maximizing map area, removing black padding)
   const fitMapToScreen = useCallback(() => {
     if (!containerRef.current) return;
     const w = containerRef.current.clientWidth;
     const h = containerRef.current.clientHeight;
 
-    const availW = w - 80;
-    const availH = h - 180;
+    const availW = w - 16;
+    const availH = h - 195;
 
-    const fitZoom = Math.max(0.25, Math.min(availW / MAP_TOTAL_PX, availH / MAP_TOTAL_PX));
+    const fitZoom = Math.max(0.35, Math.min(availW / MAP_TOTAL_PX, availH / MAP_TOTAL_PX));
     const newX = (w - MAP_TOTAL_PX * fitZoom) / 2;
-    const newY = ((h - MAP_TOTAL_PX * fitZoom) / 2) + 20;
+    const newY = 40 + ((h - 185 - MAP_TOTAL_PX * fitZoom) / 2);
 
     dispatch({
       type: 'SET_CAMERA',
@@ -407,7 +420,8 @@ export default function EditorMode({ onSwitchMode }) {
       e.preventDefault();
       const gridPos = viewportToGrid(e.clientX, e.clientY);
       if (gridPos) {
-        const obj = objects.find(o => Math.hypot(o.x - gridPos.x, o.y - gridPos.y) <= 0.6);
+        const hitRadius = Math.max(0.65, 14.5 / (CELL_PX * camera.zoom));
+        const obj = objects.find(o => Math.hypot(o.x - gridPos.x, o.y - gridPos.y) <= hitRadius);
         if (obj) {
           dispatch({ type: 'SELECT_OBJECT', objectId: obj.id });
           setContextMenu({ x: e.clientX, y: e.clientY, object: obj });
@@ -431,10 +445,11 @@ export default function EditorMode({ onSwitchMode }) {
       const gridPos = viewportToGrid(e.clientX, e.clientY);
 
       if (gridPos) {
-        // Check if clicking an existing object (1x1 cell sizing)
+        // Check if clicking an existing object (with dynamic hit radius)
+        const hitRadius = Math.max(0.65, 14.5 / (CELL_PX * camera.zoom));
         const clickedObj = objects.find(o => {
           const dist = Math.hypot(o.x - gridPos.x, o.y - gridPos.y);
-          return dist <= 0.6;
+          return dist <= hitRadius;
         });
 
         if (clickedObj) {
@@ -504,9 +519,10 @@ export default function EditorMode({ onSwitchMode }) {
       return;
     }
 
-    // 4. Update Hovered Object (1x1 cell size)
+    // 4. Update Hovered Object
     if (gridPos) {
-      const obj = objects.find(o => Math.hypot(o.x - gridPos.x, o.y - gridPos.y) <= 0.6);
+      const hitRadius = Math.max(0.65, 14.5 / (CELL_PX * camera.zoom));
+      const obj = objects.find(o => Math.hypot(o.x - gridPos.x, o.y - gridPos.y) <= hitRadius);
       dispatch({ type: 'SET_HOVERED_OBJECT', objectId: obj?.id || null });
     } else {
       dispatch({ type: 'SET_HOVERED_OBJECT', objectId: null });
@@ -675,6 +691,11 @@ export default function EditorMode({ onSwitchMode }) {
     }
 
     // 5. Draw All Placed Map Objects
+    // Dynamic token radius: 1x1 cell at normal zoom, scales up to at least 11.5px screen radius at low zoom
+    const baseWorldRadius = (CELL_PX / 2) - 1.5;
+    const minScreenRadius = 11.5;
+    const tokenRadius = Math.max(baseWorldRadius, minScreenRadius / camera.zoom);
+
     objects.forEach(obj => {
       const isBeingDragged = dragState?.isDragging && dragState?.source === 'MAP' && dragState?.objectId === obj.id;
       // If being dragged, draw at the target cell preview
@@ -687,8 +708,6 @@ export default function EditorMode({ onSwitchMode }) {
       const isDire = obj.team === 'dire';
 
       const isTower = obj.type === OBJECT_TYPES.TOWER;
-      // Object circular token sized exactly 1x1 cell
-      const tokenRadius = (CELL_PX / 2) - 1.5;
 
       ctx.save();
       if (isBeingDragged) {
@@ -697,8 +716,11 @@ export default function EditorMode({ onSwitchMode }) {
 
       // Hard Rectangular / Beveled Selection Ring
       if (isSelected) {
+        ctx.save();
         ctx.strokeStyle = '#dfb652';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = Math.max(2, 2.5 / camera.zoom * 0.6);
+        ctx.shadowColor = 'rgba(223, 182, 82, 0.75)';
+        ctx.shadowBlur = 8;
         ctx.beginPath();
         ctx.arc(ox, oy, tokenRadius + 2.5, 0, Math.PI * 2);
         ctx.stroke();
@@ -707,22 +729,30 @@ export default function EditorMode({ onSwitchMode }) {
         ctx.fillStyle = '#dfb652';
         ctx.beginPath();
         ctx.moveTo(ox, oy - tokenRadius - 3);
-        ctx.lineTo(ox - 4, oy - tokenRadius - 8);
-        ctx.lineTo(ox + 4, oy - tokenRadius - 8);
+        ctx.lineTo(ox - 4, oy - tokenRadius - 9);
+        ctx.lineTo(ox + 4, oy - tokenRadius - 9);
         ctx.closePath();
         ctx.fill();
+        ctx.restore();
       } else if (isHovered) {
+        // Tactical cyan hover outline with subtle aura
+        ctx.save();
         ctx.strokeStyle = '#38bdf8';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = Math.max(1.8, 2 / camera.zoom * 0.6);
+        ctx.shadowColor = 'rgba(56, 189, 248, 0.85)';
+        ctx.shadowBlur = 8;
         ctx.beginPath();
-        ctx.arc(ox, oy, tokenRadius + 1.5, 0, Math.PI * 2);
+        ctx.arc(ox, oy, tokenRadius + 2, 0, Math.PI * 2);
         ctx.stroke();
+        ctx.restore();
       }
 
       // Base Circle Token with hard border
       ctx.fillStyle = isRadiant ? '#0c2417' : isDire ? '#301213' : '#1a1b22';
       ctx.strokeStyle = isSelected 
         ? '#dfb652' 
+        : isHovered
+        ? '#38bdf8'
         : isRadiant 
         ? '#1b5e3f' 
         : isDire 
@@ -750,7 +780,8 @@ export default function EditorMode({ onSwitchMode }) {
         );
         ctx.restore();
       } else {
-        ctx.font = 'bold 11px sans-serif';
+        const iconFontPx = Math.max(9, Math.round(tokenRadius * 0.95));
+        ctx.font = `bold ${iconFontPx}px sans-serif`;
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -759,7 +790,8 @@ export default function EditorMode({ onSwitchMode }) {
 
       // Tier badge for towers
       if (isTower && obj.tier) {
-        ctx.font = 'bold 8px monospace';
+        const tierFontPx = Math.max(7, Math.round(tokenRadius * 0.7));
+        ctx.font = `bold ${tierFontPx}px monospace`;
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -767,10 +799,11 @@ export default function EditorMode({ onSwitchMode }) {
       }
 
       // Nameplate below token
-      ctx.font = "bold 8px 'Cinzel', sans-serif";
-      ctx.fillStyle = isSelected ? '#fde047' : '#e0e2ec';
+      const nameFontPx = Math.max(8, Math.round(8.5 / Math.pow(camera.zoom, 0.7)));
+      ctx.font = `bold ${nameFontPx}px 'Cinzel', sans-serif`;
+      ctx.fillStyle = isSelected ? '#fde047' : isHovered ? '#7dd3fc' : '#e0e2ec';
       ctx.shadowColor = '#000000';
-      ctx.shadowBlur = 3;
+      ctx.shadowBlur = 4;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillText(obj.name, ox, oy + tokenRadius + 2);
@@ -837,6 +870,23 @@ export default function EditorMode({ onSwitchMode }) {
         </div>
       )}
 
+      {/* 2.5 TACTICAL HOVER TOOLTIP */}
+      {hoveredObject && hoveredScreenPos && hoveredObject.id !== selectedObjectId && (
+        <div 
+          className="absolute pointer-events-none z-20 -translate-x-1/2 -translate-y-[140%] bg-[#0c0d12]/95 border border-[#38bdf8]/70 px-2.5 py-1 shadow-[0_4px_16px_rgba(0,0,0,0.95)] text-center whitespace-nowrap backdrop-blur-none"
+          style={{ left: `${hoveredScreenPos.x}px`, top: `${hoveredScreenPos.y}px` }}
+        >
+          <div className="text-[10px] font-black text-white font-mono uppercase tracking-wider flex items-center gap-1.5 justify-center">
+            <span className={`w-1.5 h-1.5 ${hoveredObject.team === 'radiant' ? 'bg-[#34d399]' : hoveredObject.team === 'dire' ? 'bg-[#f43f5e]' : 'bg-[#eab308]'}`}></span>
+            <span>{hoveredObject.name}</span>
+          </div>
+          <div className="text-[8px] font-mono text-[#9ca3af] flex items-center justify-center gap-2 mt-0.5">
+            <span>{hoveredObject.type}</span>
+            <span>[{hoveredObject.x}, {hoveredObject.y}]</span>
+          </div>
+        </div>
+      )}
+
       {/* 3. MAIN CANVAS */}
       <canvas ref={canvasRef} className="absolute inset-0" />
 
@@ -878,6 +928,7 @@ export default function EditorMode({ onSwitchMode }) {
         objects={objects}
         selectedObject={selectedObject}
         onCenterOnCell={centerOnCell}
+        onUpdateObject={(id, updates) => dispatch({ type: 'UPDATE_OBJECT', objectId: id, updates })}
         onDuplicate={() => {
           dispatch({ type: 'DUPLICATE_OBJECT' });
           playClickSound();
@@ -888,6 +939,8 @@ export default function EditorMode({ onSwitchMode }) {
         }}
         onFitMap={fitMapToScreen}
         zoom={camera.zoom}
+        onZoomIn={() => dispatch({ type: 'SET_CAMERA', zoom: Math.min(3.5, camera.zoom * 1.2) })}
+        onZoomOut={() => dispatch({ type: 'SET_CAMERA', zoom: Math.max(0.25, camera.zoom * 0.83) })}
         camera={camera}
       />
 

@@ -70,17 +70,10 @@ export default function EditorTopBar({
           <span>95×95 DOTA BATTLEFIELD</span>
         </div>
 
-        {/* TEAM BALANCE SUMMARY */}
-        <div className="hidden lg:flex items-center gap-2 text-[10px] font-mono">
-          <div className="flex items-center gap-1 bg-[#0c1f17] border border-[#1b5e3f] px-2 py-0.5 text-[#34d399]">
-            <span className="w-1.5 h-1.5 bg-[#34d399]"></span>
-            <span>RAD: {radiantCount}</span>
-          </div>
-          <span className="text-[#4e515d]">VS</span>
-          <div className="flex items-center gap-1 bg-[#2b0f11] border border-[#8a2424] px-2 py-0.5 text-[#f87171]">
-            <span className="w-1.5 h-1.5 bg-[#f87171]"></span>
-            <span>DIRE: {direCount}</span>
-          </div>
+        {/* OBJECTS COUNT BADGE */}
+        <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-[#171820] border border-[#2d303d] text-[10px] font-mono">
+          <span className="text-[#8e93a4] font-bold">OBJECTS:</span>
+          <span className="text-[#dfb652] font-black">{objectsCount}</span>
         </div>
       </div>
 
