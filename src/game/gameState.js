@@ -16,7 +16,7 @@ import { executeAbility, getValidTargetCells, TARGET_TYPES } from './abilities.j
 import { executeItem } from './items.js';
 import { 
   createInitialTowers, createInitialRoshan, spawnCreepWave, 
-  spawnNeutralCreeps, advanceCreepsAlongLanes,
+  spawnNeutralCreeps, advanceCreepsAlongLanes, checkTimedSpawns,
   processContinuousTowerAttacks, executeRoshanTurn 
 } from './towersAndCreeps.js';
 import { generatePixelDotaMap, TILE_TYPES } from '../data/dotaPixelGrid.js';
@@ -656,46 +656,26 @@ export function gameReducer(state, action) {
       let nextLastCreepSpawnTime = state.lastCreepSpawnTime || 0;
       let nextLastNeutralSpawnTime = state.lastNeutralSpawnTime || 0;
 
-      // 1. LANE CREEPS: First wave spawns after 60s, then every 60s
-      if (newGameTimeSeconds >= CREEP_CONFIG.LANE_FIRST_SPAWN_SECONDS &&
-          (nextLastCreepSpawnTime === 0 || (newGameTimeSeconds - nextLastCreepSpawnTime) >= CREEP_CONFIG.LANE_SPAWN_INTERVAL_SECONDS)) {
-        const wave = spawnCreepWave(nextCreepWaveIndex);
-        nextCreeps = [...nextCreeps.filter(c => !c.isDead), ...wave];
-        const { rangedCount, meleeCount } = getNextCreepWave(nextCreepWaveIndex);
-        spawnLogs.push({
-          id: `creep_wave_${Date.now()}`,
-          round: nextRound,
-          text: `⚔️ ВОЛНА КРИПОВ #${nextCreepWaveIndex + 1} (${newGameTimeSeconds}s): ${meleeCount} мечников + ${rangedCount} магов вышли на линии!`,
-          type: 'SYSTEM'
-        });
-        nextCreepWaveIndex++;
-        nextLastCreepSpawnTime = newGameTimeSeconds;
-      }
+      // 1 & 3. TIMED SPAWNS: Lane Creeps (at 60s + every 60s), Neutral Creeps (at 120s + every 60s)
+      const spawnRes = checkTimedSpawns(
+        nextCreeps,
+        workingHeroes,
+        nextRoshan,
+        newGameTimeSeconds,
+        nextLastCreepSpawnTime,
+        nextLastNeutralSpawnTime,
+        nextCreepWaveIndex,
+        nextRound
+      );
+      nextCreeps = spawnRes.creeps;
+      nextLastCreepSpawnTime = spawnRes.lastCreepSpawnTime;
+      nextLastNeutralSpawnTime = spawnRes.lastNeutralSpawnTime;
+      nextCreepWaveIndex = spawnRes.creepWaveIndex;
+      spawnLogs = spawnRes.logs;
 
       // 1. LANE CREEPS MOVEMENT: Advance creeps along lanes towards enemy base
       const creepMoveRes = advanceCreepsAlongLanes(nextCreeps, workingHeroes, nextTowers, { mapGrid: state.mapGrid });
       nextCreeps = creepMoveRes.updatedCreeps;
-
-      // 3. NEUTRAL CREEPS: First spawn after 120s, then every 60s with approved formations
-      if (newGameTimeSeconds >= CREEP_CONFIG.NEUTRAL_FIRST_SPAWN_SECONDS &&
-          (nextLastNeutralSpawnTime === 0 || (newGameTimeSeconds - nextLastNeutralSpawnTime) >= CREEP_CONFIG.NEUTRAL_SPAWN_INTERVAL_SECONDS)) {
-        const allLivingUnits = [
-          ...workingHeroes.filter(h => !h.isDead),
-          ...nextCreeps.filter(c => !c.isDead),
-          ...(nextRoshan && !nextRoshan.isDead ? [nextRoshan] : [])
-        ];
-        const newNeutrals = spawnNeutralCreeps(nextCreeps, allLivingUnits);
-        if (newNeutrals.length > 0) {
-          nextCreeps = [...nextCreeps, ...newNeutrals];
-          spawnLogs.push({
-            id: `neutrals_${Date.now()}`,
-            round: nextRound,
-            text: `🌲 НЕЙТРАЛЬНЫЕ КРИПЫ (${newGameTimeSeconds}s): Лагеря леса возродились по утверждённым уровням!`,
-            type: 'SYSTEM'
-          });
-        }
-        nextLastNeutralSpawnTime = newGameTimeSeconds;
-      }
 
       // 5. CONTINUOUS TOWER ATTACKS: Fire whenever gameTime >= nextAttackTime
       const towerRes = processContinuousTowerAttacks(nextTowers, workingHeroes, nextCreeps, newGameTimeSeconds, { mapGrid: state.mapGrid });

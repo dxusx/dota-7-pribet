@@ -327,6 +327,7 @@ export function spawnNeutralCreeps(existingNeutrals, allMapObjects) {
           id: `neutral_${camp.id}_${unitDef.type}_${Date.now()}_${i}`,
           name: unitDef.name,
           team: 'neutral',
+          isNeutral: true,
           campId: camp.id,
           campType: camp.type,
           campTier: formation.tier,
@@ -439,4 +440,60 @@ export function executeRoshanTurn(roshan, heroes) {
   }
 
   return { roshan, updatedHeroes, logs };
+}
+
+/**
+ * Check and execute timed creep spawns (Lane creeps at 60s + every 60s, Neutrals at 120s + every 60s)
+ */
+export function checkTimedSpawns(currentCreeps, currentHeroes, currentRoshan, currentGameTime, lastCreepSpawnTime, lastNeutralSpawnTime, creepWaveIndex, round = 1) {
+  let creeps = [...currentCreeps];
+  let lastCreep = lastCreepSpawnTime;
+  let lastNeutral = lastNeutralSpawnTime;
+  let waveIdx = creepWaveIndex;
+  let logs = [];
+
+  // 1. Lane Creeps: First wave spawns after 60s, then every 60s
+  if (currentGameTime >= CREEP_CONFIG.LANE_FIRST_SPAWN_SECONDS &&
+      (lastCreep === 0 || (currentGameTime - lastCreep) >= CREEP_CONFIG.LANE_SPAWN_INTERVAL_SECONDS)) {
+    const wave = spawnCreepWave(waveIdx);
+    creeps = [...creeps.filter(c => !c.isDead), ...wave];
+    const { rangedCount, meleeCount } = getNextCreepWave(waveIdx);
+    logs.push({
+      id: `creep_wave_${Date.now()}`,
+      round,
+      text: `⚔️ ВОЛНА КРИПОВ #${waveIdx + 1} (${currentGameTime}s): ${meleeCount} мечников + ${rangedCount} магов вышли на линии!`,
+      type: 'SYSTEM'
+    });
+    waveIdx++;
+    lastCreep = currentGameTime;
+  }
+
+  // 2. Neutral Creeps: First spawn after 120s, then every 60s
+  if (currentGameTime >= CREEP_CONFIG.NEUTRAL_FIRST_SPAWN_SECONDS &&
+      (lastNeutral === 0 || (currentGameTime - lastNeutral) >= CREEP_CONFIG.NEUTRAL_SPAWN_INTERVAL_SECONDS)) {
+    const allLivingUnits = [
+      ...currentHeroes.filter(h => !h.isDead),
+      ...creeps.filter(c => !c.isDead),
+      ...(currentRoshan && !currentRoshan.isDead ? [currentRoshan] : [])
+    ];
+    const newNeutrals = spawnNeutralCreeps(creeps, allLivingUnits);
+    if (newNeutrals.length > 0) {
+      creeps = [...creeps, ...newNeutrals];
+      logs.push({
+        id: `neutrals_${Date.now()}`,
+        round,
+        text: `🌲 НЕЙТРАЛЬНЫЕ КРИПЫ (${currentGameTime}s): Лагеря леса возродились по утверждённым уровням!`,
+        type: 'SYSTEM'
+      });
+    }
+    lastNeutral = currentGameTime;
+  }
+
+  return {
+    creeps,
+    lastCreepSpawnTime: lastCreep,
+    lastNeutralSpawnTime: lastNeutral,
+    creepWaveIndex: waveIdx,
+    logs
+  };
 }

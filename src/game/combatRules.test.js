@@ -15,8 +15,9 @@ import {
   canSpawnNeutralCamp
 } from './combatRules.js';
 import { TOWER_TIER_CONFIGS, generateInitialTowers } from '../data/towerData.js';
-import { processContinuousTowerAttacks } from './towersAndCreeps.js';
+import { processContinuousTowerAttacks, checkTimedSpawns } from './towersAndCreeps.js';
 import { TIME_CONFIG, TERRAIN_CONFIG, CREEP_CONFIG } from '../data/combatConfig.js';
+import { createInitialGameState } from './gameState.js';
 
 let passed = 0;
 let failed = 0;
@@ -274,6 +275,38 @@ assert(resAt2s.logs.length === 0, 'Tower does not attack before its nextAttackTi
 const resAt4s = processContinuousTowerAttacks(testTowers, testHeroes, [], 4.5);
 assert(resAt4s.logs.length > 0, 'Tower attacks when continuous gameTime reaches nextAttackTime (4s)');
 assert(resAt4s.updatedTowers[0].nextAttackTime === 8, 'Tower advances nextAttackTime by 4s to 8s');
+
+// -----------------------------------------------------------------
+// 12. Creep Timed Spawns (Initial 0, First Wave at 60s, Neutrals at 120s)
+// -----------------------------------------------------------------
+console.log('\n--- 12. Creep Timed Spawns ---');
+const initialGameState = createInitialGameState();
+assert(initialGameState.creeps.length === 0, 'createInitialGameState has 0 initial creeps');
+assert(initialGameState.gameTimeSeconds === 0, 'Initial gameTimeSeconds is 0');
+
+// checkTimedSpawns at t=30s -> no creeps spawned
+const spawnAt30 = checkTimedSpawns([], [], null, 30, 0, 0, 0, 1);
+assert(spawnAt30.creeps.length === 0, 'No creeps spawn before 60 seconds (t=30s)');
+assert(spawnAt30.creepWaveIndex === 0, 'Creep wave index remains 0 at t=30s');
+
+// checkTimedSpawns at t=60s -> first lane creep wave spawns (30 creeps: 3 lanes * 2 teams * 5 creeps)
+const spawnAt60 = checkTimedSpawns([], [], null, 60, 0, 0, 0, 1);
+assert(spawnAt60.creeps.length === 30, 'First lane creep wave spawns at 60s (exactly 30 creeps: 3 lanes x 2 teams x 5 creeps)');
+assert(spawnAt60.lastCreepSpawnTime === 60, 'lastCreepSpawnTime updated to 60s');
+assert(spawnAt60.creepWaveIndex === 1, 'creepWaveIndex incremented to 1');
+const wave0Ranged = spawnAt60.creeps.filter(c => c.creepRole === 'ranged').length;
+const wave0Melee = spawnAt60.creeps.filter(c => c.creepRole === 'melee').length;
+assert(wave0Ranged === 6, 'Wave 0 contains exactly 6 ranged creeps (1 per lane per team * 6)');
+assert(wave0Melee === 24, 'Wave 0 contains exactly 24 melee creeps (4 per lane per team * 6)');
+
+// checkTimedSpawns at t=120s -> wave 2 spawns (30 lane creeps) + neutral camps spawn
+const spawnAt120 = checkTimedSpawns(spawnAt60.creeps, [], null, 120, spawnAt60.lastCreepSpawnTime, spawnAt60.lastNeutralSpawnTime, spawnAt60.creepWaveIndex, 2);
+assert(spawnAt120.creepWaveIndex === 2, 'creepWaveIndex incremented to 2 at 120s');
+assert(spawnAt120.lastNeutralSpawnTime === 120, 'lastNeutralSpawnTime recorded as 120s');
+const totalLaneCreeps120 = spawnAt120.creeps.filter(c => !c.isNeutral).length;
+const totalNeutralCreeps120 = spawnAt120.creeps.filter(c => c.isNeutral).length;
+assert(totalLaneCreeps120 === 60, 'Total lane creeps is 60 after second wave (30 + 30)');
+assert(totalNeutralCreeps120 > 0, 'Neutral camps spawned creeps at 120s');
 
 // -----------------------------------------------------------------
 // SUMMARY
