@@ -1,5 +1,5 @@
 // Data-driven Tower & Ancient (Throne) Configurations
-// All specifications, sizing, vision, attack periods, and stats are centralized here
+// Specifications match exact approved game design numbers
 
 export const TOWER_COMMON_SPECS = {
   size: { width: 2, height: 2 },
@@ -9,68 +9,94 @@ export const TOWER_COMMON_SPECS = {
 };
 
 export const TOWER_TIER_CONFIGS = {
+  // T1: 1000 HP / 50 armor / 11 vision / 30 damage / 60 crit / 10 range / 20 penetration / 15 hit / 4 sec
   1: {
     tier: 1,
     name: 'Башня T1',
-    hp: 1800,
-    maxHp: 1800,
-    armor: 14,
-    penetration: 12,
-    hit: 18,
-    averageDamage: 110,
-    range: 8,
-    ...TOWER_COMMON_SPECS
+    hp: 1000,
+    maxHp: 1000,
+    armor: 50,
+    vision: 11,
+    averageDamage: 30,
+    critDamage: 60,
+    range: 10,
+    penetration: 20,
+    hit: 15,
+    attackPeriod: 4,
+    size: { width: 2, height: 2 },
+    immobile: true
   },
+
+  // T2: 1500 / 75 / 11 / 60 / 120 / 10 / 40 / 30 / 4 sec
   2: {
     tier: 2,
     name: 'Башня T2',
-    hp: 2000,
-    maxHp: 2000,
-    armor: 16,
-    penetration: 14,
-    hit: 20,
-    averageDamage: 130,
-    range: 8,
-    ...TOWER_COMMON_SPECS
+    hp: 1500,
+    maxHp: 1500,
+    armor: 75,
+    vision: 11,
+    averageDamage: 60,
+    critDamage: 120,
+    range: 10,
+    penetration: 40,
+    hit: 30,
+    attackPeriod: 4,
+    size: { width: 2, height: 2 },
+    immobile: true
   },
+
+  // T3: 2000 / 75 / 11 / 90 / 180 / 10 / 60 / 45 / 4 sec
   3: {
     tier: 3,
     name: 'Башня T3',
-    hp: 2500,
-    maxHp: 2500,
-    armor: 18,
-    penetration: 16,
-    hit: 22,
-    averageDamage: 155,
-    range: 8,
-    ...TOWER_COMMON_SPECS
+    hp: 2000,
+    maxHp: 2000,
+    armor: 75,
+    vision: 11,
+    averageDamage: 90,
+    critDamage: 180,
+    range: 10,
+    penetration: 60,
+    hit: 45,
+    attackPeriod: 4,
+    size: { width: 2, height: 2 },
+    immobile: true
   },
+
+  // T4: 2500 / 75 / 11 / 90 / 180 / 10 / 60 / 45 / 4 sec
   4: {
     tier: 4,
     name: 'Башня Трона T4',
-    hp: 2600,
-    maxHp: 2600,
-    armor: 20,
-    penetration: 18,
-    hit: 24,
-    averageDamage: 175,
-    range: 8,
-    ...TOWER_COMMON_SPECS
+    hp: 2500,
+    maxHp: 2500,
+    armor: 75,
+    vision: 11,
+    averageDamage: 90,
+    critDamage: 180,
+    range: 10,
+    penetration: 60,
+    hit: 45,
+    attackPeriod: 4,
+    size: { width: 2, height: 2 },
+    immobile: true
   },
+
+  // Throne: 3000 HP / 50 armor
   throne: {
     tier: 'throne',
     name: 'Древний Трон',
-    hp: 4500,
-    maxHp: 4500,
-    armor: 24,
-    penetration: 20,
-    hit: 26,
-    averageDamage: 220,
-    range: 9,
-    size: { width: 3, height: 3 },
-    immobile: true,
-    vision: 12,
-    attackPeriod: 4
+    hp: 3000,
+    maxHp: 3000,
+    armor: 50,
+    vision: 11,
+    averageDamage: 120,
+    critDamage: 240,
+    range: 10,
+    penetration: 60,
+    hit: 45,
+    attackPeriod: 4,
+    size: { width: 2, height: 2 },
+    immobile: true
   }
 };
 
@@ -111,7 +137,7 @@ export const TOWER_PLACEMENTS = [
   { id: 'dire_t4_2', team: 'dire', tier: 4, lane: 'base', r: 12, c: 84, name: 'Вышка Трона Dire T4-2' }
 ];
 
-// Helper to generate full tower instances with stats merged from config
+// Helper to generate initial towers with nextAttackTime tracking for continuous time system
 export function generateInitialTowers() {
   return TOWER_PLACEMENTS.map(placement => {
     const config = TOWER_TIER_CONFIGS[placement.tier] || TOWER_TIER_CONFIGS[1];
@@ -120,7 +146,7 @@ export function generateInitialTowers() {
       ...placement,
       currentHp: config.hp,
       isDead: false,
-      lastAttackTime: 0
+      nextAttackTime: config.attackPeriod // First attack ready after 4 seconds of game time
     };
   });
 }
@@ -133,7 +159,8 @@ export const ANCIENTS_CONFIG = {
     name: 'Древо Жизни (Ancient Radiant)',
     r: 85,
     c: 9,
-    ...TOWER_TIER_CONFIGS.throne
+    ...TOWER_TIER_CONFIGS.throne,
+    nextAttackTime: 4
   },
   dire: {
     id: 'dire_ancient_throne',
@@ -141,6 +168,7 @@ export const ANCIENTS_CONFIG = {
     name: 'Ледяной Трон (Ancient Dire)',
     r: 9,
     c: 85,
-    ...TOWER_TIER_CONFIGS.throne
+    ...TOWER_TIER_CONFIGS.throne,
+    nextAttackTime: 4
   }
 };

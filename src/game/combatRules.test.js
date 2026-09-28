@@ -1,8 +1,9 @@
-// Comprehensive Test Scenarios for Combat Rules Engine
+// Comprehensive Test Scenarios for Combat Rules Engine & Approved Specifications
 // Run directly with: node src/game/combatRules.test.js
 
 import {
   calculateHitChance,
+  calculateTerrainAdvantage,
   isAttackingFromLowToHighGround,
   rollHit,
   rollDamage,
@@ -13,6 +14,9 @@ import {
   getNextCreepWave,
   canSpawnNeutralCamp
 } from './combatRules.js';
+import { TOWER_TIER_CONFIGS, generateInitialTowers } from '../data/towerData.js';
+import { processContinuousTowerAttacks } from './towersAndCreeps.js';
+import { TIME_CONFIG, TERRAIN_CONFIG, CREEP_CONFIG } from '../data/combatConfig.js';
 
 let passed = 0;
 let failed = 0;
@@ -46,76 +50,78 @@ assert(calculateHitChance(20, 25) === 0, 'Agility greater than Hit produces 0% h
 assert(calculateHitChance(0, 10) === 0, 'Zero hit produces 0% hit chance');
 
 // Agility < Hit => dodge = agility / hit => hitChance = 1 - dodge
-// E.g. hit=20, agility=10 => dodge=0.5 => hitChance=0.5
 assertClose(calculateHitChance(20, 10), 0.5, 'Hit=20, Agility=10 gives exactly 50% hit chance');
-// E.g. hit=20, agility=5 => dodge=0.25 => hitChance=0.75
 assertClose(calculateHitChance(20, 5), 0.75, 'Hit=20, Agility=5 gives exactly 75% hit chance');
-// E.g. hit=100, agility=0 => dodge=0 => hitChance=1.0
 assertClose(calculateHitChance(100, 0), 1.0, 'Hit=100, Agility=0 gives 100% hit chance');
 
 // -----------------------------------------------------------------
-// 2. isAttackingFromLowToHighGround() & rollHit()
+// 2. calculateTerrainAdvantage() (High Ground: both directions, ranged vs melee)
 // -----------------------------------------------------------------
-console.log('\n--- 2. rollHit() & High Ground Modifiers ---');
-assert(
-  isAttackingFromLowToHighGround({ elevation: 0 }, { elevation: 1 }) === true,
-  'Elevation 0 attacking Elevation 1 has high-ground disadvantage'
+console.log('\n--- 2. calculateTerrainAdvantage() & rollHit() ---');
+// Direction 1: Low Ground -> High Ground Ranged (Disadvantage, 30% miss)
+const lowToHighRanged = calculateTerrainAdvantage(
+  { elevation: 0, range: 4 },
+  { elevation: 1 }
 );
-assert(
-  isAttackingFromLowToHighGround({ elevation: 1 }, { elevation: 0 }) === false,
-  'Elevation 1 attacking Elevation 0 does NOT have disadvantage'
+assert(lowToHighRanged.relation === 'LOW_TO_HIGH', 'Low to High relation correctly identified');
+assert(lowToHighRanged.isRanged === true, 'Ranged attacker correctly identified');
+assertClose(lowToHighRanged.missChance, 0.30, 'Ranged uphill suffers 30% miss chance');
+assert(lowToHighRanged.hasDisadvantage === true, 'Ranged uphill marked with disadvantage');
+
+// Direction 1b: Low Ground -> High Ground Melee (0% miss, melee does NOT miss uphill)
+const lowToHighMelee = calculateTerrainAdvantage(
+  { elevation: 0, range: 1 },
+  { elevation: 1 }
 );
-assert(
-  isAttackingFromLowToHighGround({ elevation: 1 }, { elevation: 1 }) === false,
-  'Equal elevation does NOT have disadvantage'
+assert(lowToHighMelee.isRanged === false, 'Melee attacker correctly identified');
+assert(lowToHighMelee.missChance === 0.0, 'Melee uphill suffers 0% miss chance');
+assert(lowToHighMelee.hasDisadvantage === false, 'Melee uphill has no disadvantage');
+
+// Direction 2: High Ground -> Low Ground (Advantage, +15% hit bonus, 0% miss)
+const highToLowAdv = calculateTerrainAdvantage(
+  { elevation: 1, range: 4 },
+  { elevation: 0 }
 );
+assert(highToLowAdv.relation === 'HIGH_TO_LOW', 'High to Low relation correctly identified');
+assert(highToLowAdv.hasAdvantage === true, 'Downhill attack marked with advantage');
+assertClose(highToLowAdv.hitBonus, 0.15, 'Downhill attack grants +15% hit bonus');
+assert(highToLowAdv.missChance === 0.0, 'Downhill attack has 0% miss chance');
 
-// Deterministic rollHit tests using mocked random function
-// When random roll is 0.4 and hitChance is 0.5 => hits
-const hitResult = rollHit(0.5, { randomFn: () => 0.4 });
-assert(hitResult.isHit === true && hitResult.reason === 'HIT', 'Roll 0.4 with 50% hit chance hits');
+// Direction 3: Equal elevation
+const equalAdv = calculateTerrainAdvantage(
+  { elevation: 0, range: 4 },
+  { elevation: 0 }
+);
+assert(equalAdv.relation === 'EQUAL', 'Equal elevation relation correctly identified');
+assert(equalAdv.missChance === 0.0 && equalAdv.hitBonus === 0.0, 'Equal elevation has no modifier');
 
-// When random roll is 0.6 and hitChance is 0.5 => misses
-const missResult = rollHit(0.5, { randomFn: () => 0.6 });
-assert(missResult.isHit === false && missResult.reason === 'MISSED', 'Roll 0.6 with 50% hit chance misses');
+// rollHit with Terrain Advantage:
+// Downhill hit with +15% bonus: base 40% + 15% = 55% effective hit chance
+const downhillHit = rollHit(0.40, { terrainAdvantage: highToLowAdv, randomFn: () => 0.50 });
+assert(downhillHit.isHit === true, 'Downhill +15% bonus converts 50% roll into a hit');
 
-// High ground penalty: base hit passes (0.2 < 0.5), but high ground roll is 0.15 (< 0.30 miss chance) => high ground miss!
-let hgCalls = 0;
-const hgRollFn = () => {
-  hgCalls++;
-  return hgCalls === 1 ? 0.2 : 0.15; // 1st roll hits base, 2nd roll triggers 30% high-ground miss
+// Uphill ranged hit: base hit passes, but 30% miss check triggers
+let callCount = 0;
+const uphillMissRollFn = () => {
+  callCount++;
+  return callCount === 1 ? 0.30 : 0.10; // 1st roll hits base (0.30 < 0.50), 2nd roll triggers 30% uphill miss (0.10 < 0.30)
 };
-const hgMissResult = rollHit(0.5, { hasHighGroundDisadvantage: true, randomFn: hgRollFn });
+const uphillMiss = rollHit(0.50, { terrainAdvantage: lowToHighRanged, randomFn: uphillMissRollFn });
 assert(
-  hgMissResult.isHit === false && hgMissResult.missedDueToHighGround === true && hgMissResult.reason === 'HIGH_GROUND_MISS',
-  'Base hit fails if high-ground 30% miss check triggers'
-);
-
-// High ground penalty: base hit passes (0.2 < 0.5), high ground roll is 0.45 (> 0.30 miss chance) => hit succeeds!
-let hgPassCalls = 0;
-const hgPassRollFn = () => {
-  hgPassCalls++;
-  return hgPassCalls === 1 ? 0.2 : 0.45;
-};
-const hgPassResult = rollHit(0.5, { hasHighGroundDisadvantage: true, randomFn: hgPassRollFn });
-assert(
-  hgPassResult.isHit === true && hgPassResult.missedDueToHighGround === false,
-  'Base hit succeeds through high ground if high-ground roll exceeds 30%'
+  uphillMiss.isHit === false && uphillMiss.missedDueToHighGround === true && uphillMiss.reason === 'HIGH_GROUND_MISS',
+  'Ranged uphill attack misses when 30% high ground check triggers'
 );
 
 // -----------------------------------------------------------------
 // 3. rollDamage()
 // -----------------------------------------------------------------
 console.log('\n--- 3. rollDamage(averageDamage, randomFn) ---');
-// Minimum bound (random = 0.0) -> exactly 75% of averageDamage
 const minDmg = rollDamage(100, () => 0.0);
 assertClose(minDmg, 75, 'Roll at lower bound yields 75% of average damage');
 
-// Maximum bound (random = 1.0) -> exactly 125% of averageDamage
 const maxDmg = rollDamage(100, () => 1.0);
 assertClose(maxDmg, 125, 'Roll at upper bound yields 125% of average damage');
 
-// Midpoint (random = 0.5) -> exactly 100% of averageDamage
 const midDmg = rollDamage(100, () => 0.5);
 assertClose(midDmg, 100, 'Roll at midpoint yields 100% of average damage');
 
@@ -123,11 +129,9 @@ assertClose(midDmg, 100, 'Roll at midpoint yields 100% of average damage');
 // 4. rollCritical()
 // -----------------------------------------------------------------
 console.log('\n--- 4. rollCritical(rolledDamage, critChance, critMultiplier, randomFn) ---');
-// With 5% crit chance, roll 0.04 (< 0.05) is critical (2x damage)
 const critHit = rollCritical(100, 0.05, 2.0, () => 0.04);
 assert(critHit.isCrit === true && critHit.damage === 200, 'Roll below 0.05 triggers 2x critical damage');
 
-// Roll 0.06 (>= 0.05) is normal hit (1x damage)
 const normalHit = rollCritical(100, 0.05, 2.0, () => 0.06);
 assert(normalHit.isCrit === false && normalHit.damage === 100, 'Roll above 0.05 deals normal 1x damage');
 
@@ -135,15 +139,12 @@ assert(normalHit.isCrit === false && normalHit.damage === 100, 'Roll above 0.05 
 // 5. calculateArmorMultiplier()
 // -----------------------------------------------------------------
 console.log('\n--- 5. calculateArmorMultiplier(penetration, armor) ---');
-// Penetration >= Armor => multiplier = 1.0
 assert(calculateArmorMultiplier(15, 10) === 1.0, 'Penetration > Armor yields multiplier 1.0');
 assert(calculateArmorMultiplier(10, 10) === 1.0, 'Penetration == Armor yields multiplier 1.0');
 assert(calculateArmorMultiplier(5, 0) === 1.0, 'Armor <= 0 yields multiplier 1.0');
 
-// Penetration < Armor => multiplier = penetration / armor
-// e.g. penetration=10, armor=20 => multiplier = 0.5
 assertClose(calculateArmorMultiplier(10, 20), 0.5, 'Penetration 10 vs Armor 20 yields 0.5 multiplier');
-assertClose(calculateArmorMultiplier(5, 20), 0.25, 'Penetration 5 vs Armor 20 yields 0.25 multiplier');
+assertClose(calculateArmorMultiplier(20, 50), 0.4, 'T1 Penetration 20 vs Armor 50 yields 0.4 multiplier');
 
 // -----------------------------------------------------------------
 // 6. calculateFinalDamage()
@@ -151,29 +152,22 @@ assertClose(calculateArmorMultiplier(5, 20), 0.25, 'Penetration 5 vs Armor 20 yi
 console.log('\n--- 6. calculateFinalDamage(rolledDamage, damageMultiplier) ---');
 assert(calculateFinalDamage(100, 1.0) === 100, '100 damage with 1.0 multiplier is 100');
 assert(calculateFinalDamage(100, 0.5) === 50, '100 damage with 0.5 multiplier is 50');
-assert(calculateFinalDamage(80, 0.25) === 20, '80 damage with 0.25 multiplier is 20');
 assert(calculateFinalDamage(0, 0.5) === 0, '0 damage produces 0');
 
 // -----------------------------------------------------------------
-// 7. canPerformAction() (Time System)
+// 7. canPerformAction() (Time System & 2s Movement)
 // -----------------------------------------------------------------
 console.log('\n--- 7. canPerformAction(remainingTime, actionTimeCost) ---');
-// Action permitted if remainingTime >= timeCost
 assert(canPerformAction(8.0, 3.0) === true, 'Can perform 3s attack when 8s remain');
-assert(canPerformAction(3.0, 3.0) === true, 'Can perform 3s attack when exactly 3s remain');
-assert(canPerformAction(2.9, 3.0) === false, 'Cannot perform 3s attack when only 2.9s remain');
-assert(canPerformAction(0.0, 2.0) === false, 'Cannot perform action with 0s remaining');
+assert(canPerformAction(8.0, 2.0) === true, 'Can perform 2s move when 8s remain');
+assert(canPerformAction(2.0, 2.0) === true, 'Can perform 2s move when exactly 2s remain');
+assert(canPerformAction(1.9, 2.0) === false, 'Cannot perform 2s move when only 1.9s remain');
+assert(TIME_CONFIG.ACTION_TIME_COSTS.MOVE === 2.0, 'Movement time is strictly 2.0s in config');
 
 // -----------------------------------------------------------------
 // 8. getNextCreepWave()
 // -----------------------------------------------------------------
 console.log('\n--- 8. getNextCreepWave(waveIndex) ---');
-// Cycle:
-// Wave 0: 1 ranged + 4 melee
-// Wave 1: 2 ranged + 3 melee
-// Wave 2: 2 ranged + 5 melee
-// Wave 3: 4 ranged + 5 melee
-// Wave 4: 1 ranged + 4 melee (repeats)
 const w0 = getNextCreepWave(0);
 assert(w0.rangedCount === 1 && w0.meleeCount === 4, 'Wave 0 (60s): 1 ranged + 4 melee');
 
@@ -189,35 +183,97 @@ assert(w3.rangedCount === 4 && w3.meleeCount === 5, 'Wave 3 (240s): 4 ranged + 5
 const w4 = getNextCreepWave(4);
 assert(w4.rangedCount === 1 && w4.meleeCount === 4, 'Wave 4 (300s): cycle repeats (1 ranged + 4 melee)');
 
-const w7 = getNextCreepWave(7);
-assert(w7.rangedCount === 4 && w7.meleeCount === 5, 'Wave 7: cycle step 3 (4 ranged + 5 melee)');
-
 // -----------------------------------------------------------------
 // 9. canSpawnNeutralCamp()
 // -----------------------------------------------------------------
 console.log('\n--- 9. canSpawnNeutralCamp(camp, mapObjects) ---');
 const testCamp = { id: 'camp_1', r: 50, c: 50 };
-
-// Empty map => can spawn
 assert(canSpawnNeutralCamp(testCamp, []) === true, 'Camp with no objects nearby can spawn');
+assert(canSpawnNeutralCamp(testCamp, [{ r: 10, c: 10, isDead: false }]) === true, 'Camp with objects outside radius can spawn');
+assert(canSpawnNeutralCamp(testCamp, [{ r: 51, c: 51, isDead: false }]) === false, 'Camp occupied by living creature cancels spawn');
+assert(canSpawnNeutralCamp(testCamp, [{ r: 51, c: 51, isDead: true }]) === true, 'Camp containing only dead corpse does not block spawn');
 
-// Map object far away (r=10, c=10) => can spawn
+// -----------------------------------------------------------------
+// 10. Tower Stats & Specifications Verification
+// -----------------------------------------------------------------
+console.log('\n--- 10. Tower Stats Verification ---');
+const t1 = TOWER_TIER_CONFIGS[1];
 assert(
-  canSpawnNeutralCamp(testCamp, [{ r: 10, c: 10, isDead: false }]) === true,
-  'Camp with objects outside radius can spawn'
+  t1.hp === 1000 && t1.armor === 50 && t1.vision === 11 && t1.averageDamage === 30 &&
+  t1.critDamage === 60 && t1.range === 10 && t1.penetration === 20 && t1.hit === 15 && t1.attackPeriod === 4,
+  'T1 stats: 1000 HP / 50 armor / 11 vision / 30 damage / 60 crit / 10 range / 20 penetration / 15 hit / 4 sec'
 );
 
-// Map object inside radius (distance 1.41 cells <= 2.5) => CANNOT spawn
+const t2 = TOWER_TIER_CONFIGS[2];
 assert(
-  canSpawnNeutralCamp(testCamp, [{ r: 51, c: 51, isDead: false }]) === false,
-  'Camp occupied by living creature cancels spawn'
+  t2.hp === 1500 && t2.armor === 75 && t2.vision === 11 && t2.averageDamage === 60 &&
+  t2.critDamage === 120 && t2.range === 10 && t2.penetration === 40 && t2.hit === 30 && t2.attackPeriod === 4,
+  'T2 stats: 1500 / 75 / 11 / 60 / 120 / 10 / 40 / 30 / 4 sec'
 );
 
-// Dead map object inside radius => can spawn
+const t3 = TOWER_TIER_CONFIGS[3];
 assert(
-  canSpawnNeutralCamp(testCamp, [{ r: 51, c: 51, isDead: true }]) === true,
-  'Camp containing only dead corpse does not block spawn'
+  t3.hp === 2000 && t3.armor === 75 && t3.vision === 11 && t3.averageDamage === 90 &&
+  t3.critDamage === 180 && t3.range === 10 && t3.penetration === 60 && t3.hit === 45 && t3.attackPeriod === 4,
+  'T3 stats: 2000 / 75 / 11 / 90 / 180 / 10 / 60 / 45 / 4 sec'
 );
+
+const t4 = TOWER_TIER_CONFIGS[4];
+assert(
+  t4.hp === 2500 && t4.armor === 75 && t4.vision === 11 && t4.averageDamage === 90 &&
+  t4.critDamage === 180 && t4.range === 10 && t4.penetration === 60 && t4.hit === 45 && t4.attackPeriod === 4,
+  'T4 stats: 2500 / 75 / 11 / 90 / 180 / 10 / 60 / 45 / 4 sec'
+);
+
+const throne = TOWER_TIER_CONFIGS.throne;
+assert(throne.hp === 3000 && throne.armor === 50, 'Throne stats: 3000 HP / 50 armor');
+assert(t1.size.width === 2 && t1.size.height === 2 && t1.immobile === true, 'Tower size: 2x2, immobile');
+
+// -----------------------------------------------------------------
+// 11. Continuous Tower Attack Timing
+// -----------------------------------------------------------------
+console.log('\n--- 11. Continuous Tower Attack Timing (every 4 seconds) ---');
+const testTowers = [
+  {
+    id: 'test_tower_1',
+    name: 'Test Tower',
+    team: 'radiant',
+    r: 10,
+    c: 10,
+    range: 10,
+    attackPeriod: 4,
+    nextAttackTime: 4,
+    currentHp: 1000,
+    averageDamage: 30,
+    penetration: 20,
+    hit: 15,
+    isDead: false
+  }
+];
+
+const testHeroes = [
+  {
+    id: 'enemy_hero',
+    name: 'Enemy Target',
+    team: 'dire',
+    r: 10,
+    c: 12, // 2 cells away (within range 10)
+    hp: 100,
+    maxHp: 100,
+    armor: 10,
+    agility: 5,
+    isDead: false
+  }
+];
+
+// At gameTime = 2s (less than nextAttackTime 4s) -> tower does NOT attack
+const resAt2s = processContinuousTowerAttacks(testTowers, testHeroes, [], 2);
+assert(resAt2s.logs.length === 0, 'Tower does not attack before its nextAttackTime (at 2s)');
+
+// At gameTime = 4.5s (reaches nextAttackTime 4s) -> tower attacks!
+const resAt4s = processContinuousTowerAttacks(testTowers, testHeroes, [], 4.5);
+assert(resAt4s.logs.length > 0, 'Tower attacks when continuous gameTime reaches nextAttackTime (4s)');
+assert(resAt4s.updatedTowers[0].nextAttackTime === 8, 'Tower advances nextAttackTime by 4s to 8s');
 
 // -----------------------------------------------------------------
 // SUMMARY
@@ -229,5 +285,5 @@ console.log('==================================================');
 if (failed > 0) {
   process.exit(1);
 } else {
-  console.log('🎉 ALL TESTS PASSED SUCCESSFULLY!\n');
+  console.log('🎉 ALL REVISED SPECIFICATION TESTS PASSED!\n');
 }

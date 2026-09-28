@@ -1,7 +1,7 @@
-// Pure Standalone Combat, Timing, and Creep Simulation Rules
+// Pure Standalone Combat, Timing, Terrain Advantage, and Creep Simulation Rules
 // Strictly adheres to data-driven config - no hardcoded values
 
-import { COMBAT_CONFIG, TIME_CONFIG, CREEP_CONFIG } from '../data/combatConfig.js';
+import { COMBAT_CONFIG, TIME_CONFIG, CREEP_CONFIG, TERRAIN_CONFIG } from '../data/combatConfig.js';
 import { TILE_TYPES } from '../data/dotaPixelGrid.js';
 
 /**
@@ -30,66 +30,146 @@ export function calculateHitChance(hit, agility) {
 }
 
 /**
- * Determines whether attacker suffers high-ground penalty.
- * Isolated in a dedicated function so rule direction can be easily modified.
+ * 2. Dedicated Terrain Advantage Function (High Ground Mechanics).
+ * Implements both sides of the terrain rule and differentiates between ranged and melee:
+ *   - Low Ground -> High Ground:
+ *       Ranged attacks suffer 30% miss chance (LOW_TO_HIGH_RANGED_MISS_CHANCE = 0.30).
+ *       Melee attacks do NOT suffer miss chance uphill (0%).
+ *   - High Ground -> Low Ground:
+ *       Attacker gains +15% hit chance bonus (HIGH_TO_LOW_HIT_BONUS = 0.15) and 0% miss penalty.
+ *   - Equal ground: No modifier.
  * 
- * @param {Object} attacker - Attacker entity or coordinate { r, c, elevation }
- * @param {Object} target - Target entity or coordinate { r, c, elevation }
- * @param {Uint8Array|Array} [mapGrid] - Optional map terrain grid
- * @returns {boolean} True if low ground is attacking high ground
+ * @param {Object} attacker - Attacker entity { r, c, range, creepRole, elevation }
+ * @param {Object} target - Target entity { r, c, elevation }
+ * @param {Uint8Array|Array} [mapGrid] - Map tile grid
+ * @returns {{
+ *   relation: 'LOW_TO_HIGH' | 'HIGH_TO_LOW' | 'EQUAL',
+ *   isRanged: boolean,
+ *   missChance: number,
+ *   hitBonus: number,
+ *   hasDisadvantage: boolean,
+ *   hasAdvantage: boolean
+ * }}
  */
-export function isAttackingFromLowToHighGround(attacker, target, mapGrid) {
-  if (!attacker || !target) return false;
+export function calculateTerrainAdvantage(attacker, target, mapGrid) {
+  if (!attacker || !target) {
+    return {
+      relation: 'EQUAL',
+      isRanged: false,
+      missChance: 0,
+      hitBonus: 0,
+      hasDisadvantage: false,
+      hasAdvantage: false
+    };
+  }
 
-  // Grid-based check if map grid is provided
+  // Determine elevations
+  let attackerIsHighGround = false;
+  let targetIsHighGround = false;
+
   if (mapGrid && typeof attacker.r === 'number' && typeof target.r === 'number') {
     const attackerTile = mapGrid[attacker.r * 95 + attacker.c];
     const targetTile = mapGrid[target.r * 95 + target.c];
-    const isTargetHighGround = targetTile === TILE_TYPES.HIGHGROUND;
-    const isAttackerHighGround = attackerTile === TILE_TYPES.HIGHGROUND;
-
-    return isTargetHighGround && !isAttackerHighGround;
+    attackerIsHighGround = (attackerTile === TILE_TYPES.HIGHGROUND);
+    targetIsHighGround = (targetTile === TILE_TYPES.HIGHGROUND);
+  } else {
+    const attackerElev = Number(attacker.elevation) || 0;
+    const targetElev = Number(target.elevation) || 0;
+    attackerIsHighGround = (attackerElev > targetElev);
+    targetIsHighGround = (targetElev > attackerElev);
   }
 
-  // Explicit elevation property check
-  const attackerElev = Number(attacker.elevation) || 0;
-  const targetElev = Number(target.elevation) || 0;
-  return attackerElev < targetElev;
+  // Determine if attack is Ranged or Melee
+  const range = Number(attacker.range ?? attacker.stats?.range ?? (attacker.creepRole === 'ranged' ? 4 : 1));
+  const isRanged = range > 1.5 || attacker.creepRole === 'ranged';
+
+  // Both sides of the rule:
+  if (!attackerIsHighGround && targetIsHighGround) {
+    // 1. Low Ground attacking High Ground (Disadvantage)
+    const missChance = isRanged 
+      ? TERRAIN_CONFIG.LOW_TO_HIGH_RANGED_MISS_CHANCE 
+      : TERRAIN_CONFIG.LOW_TO_HIGH_MELEE_MISS_CHANCE;
+
+    return {
+      relation: 'LOW_TO_HIGH',
+      isRanged,
+      missChance,
+      hitBonus: 0,
+      hasDisadvantage: missChance > 0,
+      hasAdvantage: false
+    };
+  } else if (attackerIsHighGround && !targetIsHighGround) {
+    // 2. High Ground attacking Low Ground (Advantage)
+    return {
+      relation: 'HIGH_TO_LOW',
+      isRanged,
+      missChance: TERRAIN_CONFIG.HIGH_TO_LOW_MISS_CHANCE || 0,
+      hitBonus: TERRAIN_CONFIG.HIGH_TO_LOW_HIT_BONUS || 0.15,
+      hasDisadvantage: false,
+      hasAdvantage: true
+    };
+  }
+
+  // 3. Equal elevation
+  return {
+    relation: 'EQUAL',
+    isRanged,
+    missChance: 0,
+    hitBonus: 0,
+    hasDisadvantage: false,
+    hasAdvantage: false
+  };
 }
 
 /**
- * 2. Roll Hit check (separate from damage calculation).
- * Evaluates base hit chance, then applies high-ground miss check if disadvantage applies.
+ * Backward-compatible helper for low-to-high check.
+ */
+export function isAttackingFromLowToHighGround(attacker, target, mapGrid) {
+  const advantage = calculateTerrainAdvantage(attacker, target, mapGrid);
+  return advantage.relation === 'LOW_TO_HIGH';
+}
+
+/**
+ * 3. Roll Hit check (separate from damage calculation).
+ * Evaluates hit chance with terrain advantage / disadvantage.
  * 
- * @param {number} hitChance - Calculated hit chance (0.0 to 1.0)
+ * @param {number} baseHitChance - Calculated hit chance (0.0 to 1.0)
  * @param {Object} [options]
- * @param {boolean} [options.hasHighGroundDisadvantage=false]
- * @param {number} [options.highGroundMissChance=COMBAT_CONFIG.HIGH_GROUND_MISS_CHANCE]
+ * @param {Object} [options.terrainAdvantage] - Object from calculateTerrainAdvantage
  * @param {Function} [options.randomFn=Math.random]
  * @returns {{ isHit: boolean, missedDueToHighGround: boolean, reason: string, roll: number }}
  */
-export function rollHit(hitChance, options = {}) {
+export function rollHit(baseHitChance, options = {}) {
   const {
+    terrainAdvantage = null,
     hasHighGroundDisadvantage = false,
-    highGroundMissChance = COMBAT_CONFIG.HIGH_GROUND_MISS_CHANCE,
+    highGroundMissChance = TERRAIN_CONFIG.LOW_TO_HIGH_RANGED_MISS_CHANCE,
     randomFn = Math.random
   } = options;
 
-  if (hitChance <= 0) {
+  // Apply terrain hit bonus if attacking downhill
+  const hitBonus = terrainAdvantage?.hitBonus || 0;
+  const effectiveHitChance = Math.min(1.0, Math.max(0.0, baseHitChance + hitBonus));
+
+  if (effectiveHitChance <= 0) {
     return { isHit: false, missedDueToHighGround: false, reason: 'DODGED', roll: 0 };
   }
 
   const roll = randomFn();
 
-  // Primary hit check: must roll strictly below hitChance
-  if (roll >= hitChance) {
+  // Primary hit check: must roll strictly below effectiveHitChance
+  if (roll >= effectiveHitChance) {
     return { isHit: false, missedDueToHighGround: false, reason: 'MISSED', roll };
   }
 
-  // Secondary high ground disadvantage check
-  if (hasHighGroundDisadvantage) {
+  // Secondary high ground uphill miss check
+  const missUphillChance = terrainAdvantage !== null 
+    ? terrainAdvantage.missChance 
+    : (hasHighGroundDisadvantage ? highGroundMissChance : 0);
+
+  if (missUphillChance > 0) {
     const hgRoll = randomFn();
-    if (hgRoll < highGroundMissChance) {
+    if (hgRoll < missUphillChance) {
       return { isHit: false, missedDueToHighGround: true, reason: 'HIGH_GROUND_MISS', roll };
     }
   }
@@ -98,7 +178,7 @@ export function rollHit(hitChance, options = {}) {
 }
 
 /**
- * 3. Roll attack damage within 75% to 125% of average damage.
+ * 4. Roll attack damage within 75% to 125% of average damage.
  * Formula: rolledDamage = averageDamage * random(0.75, 1.25)
  * 
  * @param {number} averageDamage - Base average damage
@@ -114,7 +194,7 @@ export function rollDamage(averageDamage, randomFn = Math.random) {
 }
 
 /**
- * 4. Critical Strike Roll:
+ * 5. Critical Strike Roll:
  * 5% probability deals 2x damage.
  * 
  * @param {number} rolledDamage
@@ -135,7 +215,7 @@ export function rollCritical(
 }
 
 /**
- * 5. Armor / Penetration Multiplier:
+ * 6. Armor / Penetration Multiplier:
  * If penetration >= armor: damageMultiplier = 1
  * Else: damageMultiplier = penetration / armor
  * 
@@ -154,7 +234,7 @@ export function calculateArmorMultiplier(penetration, armor) {
 }
 
 /**
- * 6. Calculate Final Damage:
+ * 7. Calculate Final Damage:
  * finalDamage = rolledDamage * damageMultiplier
  * 
  * @param {number} rolledDamage
@@ -168,7 +248,7 @@ export function calculateFinalDamage(rolledDamage, damageMultiplier) {
 }
 
 /**
- * 7. Action Validation for Time System:
+ * 8. Action Validation for Time System:
  * Turn lasts 8 seconds. Action is permitted only if remainingTime >= timeCost.
  * 
  * @param {number} remainingTime - Remaining turn time in seconds
@@ -182,8 +262,8 @@ export function canPerformAction(remainingTime, actionTimeCost) {
 }
 
 /**
- * 8. Lane Creep Wave Formation Generator:
- * First spawn at 60s, then every 60s.
+ * 9. Lane Creep Wave Formation Generator:
+ * First spawn after 60s, then every 60s.
  * Formation cycle:
  *   0: 1 ranged + 4 melee
  *   1: 2 ranged + 3 melee
@@ -191,7 +271,7 @@ export function canPerformAction(remainingTime, actionTimeCost) {
  *   3: 4 ranged + 5 melee
  *   (then repeats)
  * 
- * @param {number} waveIndex - 0-indexed wave number (0 = first wave at 60s)
+ * @param {number} waveIndex - 0-indexed wave number
  * @returns {{ waveIndex: number, cycleStep: number, rangedCount: number, meleeCount: number }}
  */
 export function getNextCreepWave(waveIndex) {
@@ -209,7 +289,7 @@ export function getNextCreepWave(waveIndex) {
 }
 
 /**
- * 9. Neutral Camp Spawn Verification:
+ * 10. Neutral Camp Spawn Verification:
  * First spawn at 120s, then every 60s.
  * If camp is occupied by at least one living creature - spawn is cancelled.
  * 

@@ -1,5 +1,5 @@
 // Towers, Creeps, and Roshan Entities & AI Logic
-// Driven by data configurations from towerData.js and combatRules.js
+// Driven by exact specifications from towerData.js, combatConfig.js, and combatRules.js
 
 import { generateInitialTowers } from '../data/towerData.js';
 import { CREEP_CAMPS_DATA } from '../data/dota95Data.js';
@@ -37,6 +37,139 @@ export function createInitialRoshan() {
 }
 
 /**
+ * Lane Waypoints defining the trajectory towards enemy base for each lane.
+ */
+export const LANE_WAYPOINTS = {
+  radiant: {
+    top: [
+      { r: 76, c: 8 },
+      { r: 8, c: 8 },
+      { r: 8, c: 74 }
+    ],
+    mid: [
+      { r: 76, c: 18 },
+      { r: 47, c: 47 },
+      { r: 18, c: 76 }
+    ],
+    bot: [
+      { r: 86, c: 24 },
+      { r: 86, c: 86 },
+      { r: 24, c: 86 }
+    ]
+  },
+  dire: {
+    top: [
+      { r: 8, c: 74 },
+      { r: 8, c: 8 },
+      { r: 76, c: 8 }
+    ],
+    mid: [
+      { r: 18, c: 76 },
+      { r: 47, c: 47 },
+      { r: 76, c: 18 }
+    ],
+    bot: [
+      { r: 24, c: 86 },
+      { r: 86, c: 86 },
+      { r: 86, c: 24 }
+    ]
+  }
+};
+
+/**
+ * Move creeps along their lane waypoints towards the enemy base.
+ * If an enemy is in attack range, the creep stops to fight.
+ */
+export function advanceCreepsAlongLanes(creeps, heroes, towers, options = {}) {
+  const updatedCreeps = [];
+  const logs = [];
+
+  const allEnemies = (team) => [
+    ...heroes.filter(h => h.team !== team && !h.isDead),
+    ...creeps.filter(c => c.team !== team && !c.isDead),
+    ...towers.filter(t => t.team !== team && !t.isDead)
+  ];
+
+  creeps.forEach(creep => {
+    if (creep.isDead || creep.team === 'neutral') {
+      updatedCreeps.push(creep);
+      return;
+    }
+
+    const enemies = allEnemies(creep.team);
+    const attackRange = creep.range || (creep.creepRole === 'ranged' ? 4 : 1);
+
+    // 1. Check if any enemy is currently in attack range
+    let nearestEnemy = null;
+    let minEnemyDist = 999;
+    enemies.forEach(en => {
+      const dist = getDistance(creep.r, creep.c, en.r, en.c);
+      if (dist <= attackRange && dist < minEnemyDist) {
+        minEnemyDist = dist;
+        nearestEnemy = en;
+      }
+    });
+
+    if (nearestEnemy) {
+      // Fight enemy in range!
+      const atkRes = resolveAttackRoll(creep, nearestEnemy, options);
+      if (atkRes.isHit) {
+        nearestEnemy.hp = Math.max(0, nearestEnemy.hp - atkRes.finalDamage);
+        if (nearestEnemy.hp <= 0) nearestEnemy.isDead = true;
+      }
+      updatedCreeps.push(creep);
+      return;
+    }
+
+    // 2. No enemy in range: advance along lane waypoints
+    const waypoints = LANE_WAYPOINTS[creep.team]?.[creep.lane];
+    if (!waypoints) {
+      updatedCreeps.push(creep);
+      return;
+    }
+
+    // Determine current target waypoint
+    let wpIdx = creep.waypointIndex || 0;
+    if (wpIdx >= waypoints.length) {
+      updatedCreeps.push(creep);
+      return;
+    }
+
+    const targetWp = waypoints[wpIdx];
+    const distToWp = getDistance(creep.r, creep.c, targetWp.r, targetWp.c);
+
+    if (distToWp <= 1 && wpIdx < waypoints.length - 1) {
+      wpIdx++;
+    }
+
+    const currentWp = waypoints[wpIdx];
+    const dr = Math.sign(currentWp.r - creep.r);
+    const dc = Math.sign(currentWp.c - creep.c);
+
+    // Step forward along primary axis
+    let nextR = creep.r;
+    let nextC = creep.c;
+
+    if (dr !== 0 && Math.abs(currentWp.r - creep.r) >= Math.abs(currentWp.c - creep.c)) {
+      nextR += dr * Math.min(2, Math.abs(currentWp.r - creep.r));
+    } else if (dc !== 0) {
+      nextC += dc * Math.min(2, Math.abs(currentWp.c - creep.c));
+    } else if (dr !== 0) {
+      nextR += dr * Math.min(2, Math.abs(currentWp.r - creep.r));
+    }
+
+    updatedCreeps.push({
+      ...creep,
+      r: nextR,
+      c: nextC,
+      waypointIndex: wpIdx
+    });
+  });
+
+  return { updatedCreeps, logs };
+}
+
+/**
  * Spawn wave of lane creeps matching the exact required formation cycle:
  * Cycle:
  *   1: 1 ranged + 4 melee
@@ -52,7 +185,7 @@ export function spawnCreepWave(waveIndex = 0) {
   const lanes = ['top', 'mid', 'bot'];
   const creeps = [];
 
-  const { rangedCount, meleeCount, cycleStep } = getNextCreepWave(waveIndex);
+  const { rangedCount, meleeCount } = getNextCreepWave(waveIndex);
 
   const laneStarts = {
     radiant: {
@@ -76,8 +209,8 @@ export function spawnCreepWave(waveIndex = 0) {
         team: 'radiant',
         lane,
         creepRole: 'melee',
-        r: laneStarts.radiant[lane].r,
-        c: laneStarts.radiant[lane].c,
+        r: laneStarts.radiant[lane].r + (i > 1 ? 1 : 0),
+        c: laneStarts.radiant[lane].c + (i % 2 === 0 ? 0 : 1),
         hp: 60,
         maxHp: 60,
         armor: 4,
@@ -86,7 +219,8 @@ export function spawnCreepWave(waveIndex = 0) {
         averageDamage: 24,
         agility: 8,
         range: 1,
-        speed: 4,
+        speed: 3,
+        waypointIndex: 0,
         isDead: false
       });
     }
@@ -97,7 +231,7 @@ export function spawnCreepWave(waveIndex = 0) {
         team: 'radiant',
         lane,
         creepRole: 'ranged',
-        r: laneStarts.radiant[lane].r,
+        r: laneStarts.radiant[lane].r + (i + 1),
         c: laneStarts.radiant[lane].c,
         hp: 45,
         maxHp: 45,
@@ -107,7 +241,8 @@ export function spawnCreepWave(waveIndex = 0) {
         averageDamage: 28,
         agility: 10,
         range: 4,
-        speed: 4,
+        speed: 3,
+        waypointIndex: 0,
         isDead: false
       });
     }
@@ -120,8 +255,8 @@ export function spawnCreepWave(waveIndex = 0) {
         team: 'dire',
         lane,
         creepRole: 'melee',
-        r: laneStarts.dire[lane].r,
-        c: laneStarts.dire[lane].c,
+        r: laneStarts.dire[lane].r - (i > 1 ? 1 : 0),
+        c: laneStarts.dire[lane].c - (i % 2 === 0 ? 0 : 1),
         hp: 60,
         maxHp: 60,
         armor: 4,
@@ -130,7 +265,8 @@ export function spawnCreepWave(waveIndex = 0) {
         averageDamage: 24,
         agility: 8,
         range: 1,
-        speed: 4,
+        speed: 3,
+        waypointIndex: 0,
         isDead: false
       });
     }
@@ -141,7 +277,7 @@ export function spawnCreepWave(waveIndex = 0) {
         team: 'dire',
         lane,
         creepRole: 'ranged',
-        r: laneStarts.dire[lane].r,
+        r: laneStarts.dire[lane].r - (i + 1),
         c: laneStarts.dire[lane].c,
         hp: 45,
         maxHp: 45,
@@ -151,7 +287,8 @@ export function spawnCreepWave(waveIndex = 0) {
         averageDamage: 28,
         agility: 10,
         range: 4,
-        speed: 4,
+        speed: 3,
+        waypointIndex: 0,
         isDead: false
       });
     }
@@ -161,27 +298,26 @@ export function spawnCreepWave(waveIndex = 0) {
 }
 
 /**
- * Spawn neutral creeps in unoccupied camps.
+ * Spawn neutral creeps in unoccupied camps using APPROVED formations and levels from game design.
  * If camp is occupied by any creature, spawn is cancelled for that camp.
- * Formation is randomly chosen from formation templates.
  */
 export function spawnNeutralCreeps(existingNeutrals, allMapObjects) {
   const newNeutrals = [];
-  const templates = CREEP_CONFIG.NEUTRAL_FORMATION_TEMPLATES;
+  const approvedFormations = CREEP_CONFIG.APPROVED_NEUTRAL_FORMATIONS;
 
   CREEP_CAMPS_DATA.forEach(camp => {
-    if (camp.type === 'roshan') return; // Roshan has independent spawn
+    if (camp.type === 'roshan') return;
 
     // Check if camp is currently occupied
     const canSpawn = canSpawnNeutralCamp(camp, allMapObjects);
     if (!canSpawn) return;
 
-    // Pick random formation template for this camp type
-    const campTemplates = templates[camp.type] || templates.medium;
-    const selectedTemplate = campTemplates[Math.floor(Math.random() * campTemplates.length)];
+    // Use approved formation for this specific camp
+    const formation = approvedFormations[camp.id];
+    if (!formation) return;
 
     let offsetIdx = 0;
-    selectedTemplate.units.forEach(unitDef => {
+    formation.units.forEach(unitDef => {
       for (let i = 0; i < unitDef.count; i++) {
         const offsetR = (offsetIdx % 2 === 0 ? 0 : 1) * (i > 1 ? -1 : 1);
         const offsetC = (offsetIdx % 2 === 1 ? 0 : 1) * (i > 0 ? 1 : 0);
@@ -193,6 +329,7 @@ export function spawnNeutralCreeps(existingNeutrals, allMapObjects) {
           team: 'neutral',
           campId: camp.id,
           campType: camp.type,
+          campTier: formation.tier,
           r: camp.r + offsetR,
           c: camp.c + offsetC,
           hp: unitDef.hp,
@@ -214,54 +351,65 @@ export function spawnNeutralCreeps(existingNeutrals, allMapObjects) {
 }
 
 /**
- * Execute Tower AI attack against nearest enemy unit within range
- * Powered by resolveAttackRoll (hit, damage roll, crits, armor penetration).
+ * Continuous Game Time Tower AI Attack Processor.
+ * Towers have attackPeriod = 4 seconds and attack whenever gameTime >= nextAttackTime.
+ * Separated from player turn 8-second time.
  */
-export function executeTowerAttacks(towers, heroes, creeps, options = {}) {
+export function processContinuousTowerAttacks(towers, heroes, creeps, currentGameTime, options = {}) {
   const logs = [];
   const updatedHeroes = [...heroes];
   const updatedCreeps = [...creeps];
+  const updatedTowers = towers.map(tower => {
+    if (tower.isDead || (tower.currentHp ?? tower.hp) <= 0) return tower;
 
-  towers.forEach(tower => {
-    if (tower.isDead || (tower.currentHp ?? tower.hp) <= 0) return;
+    let currentNextAttack = tower.nextAttackTime ?? tower.attackPeriod;
+    let towerClone = { ...tower };
 
-    // Find nearest living enemy hero or creep
-    const enemyHeroes = updatedHeroes.filter(h => h.team !== tower.team && !h.isDead);
-    const enemyCreeps = updatedCreeps.filter(c => c.team !== tower.team && !c.isDead);
-    const potentialTargets = [...enemyHeroes, ...enemyCreeps];
+    // Fire attack for every 4-second period elapsed
+    while (currentGameTime >= currentNextAttack) {
+      // Find nearest living enemy hero or creep within 10 cells
+      const enemyHeroes = updatedHeroes.filter(h => h.team !== tower.team && !h.isDead);
+      const enemyCreeps = updatedCreeps.filter(c => c.team !== tower.team && !c.isDead);
+      const potentialTargets = [...enemyHeroes, ...enemyCreeps];
 
-    let nearestTarget = null;
-    let minDistance = 999;
+      let nearestTarget = null;
+      let minDistance = 999;
 
-    potentialTargets.forEach(tgt => {
-      const dist = getDistance(tower.r, tower.c, tgt.r, tgt.c);
-      if (dist <= tower.range && dist < minDistance) {
-        minDistance = dist;
-        nearestTarget = tgt;
+      potentialTargets.forEach(tgt => {
+        const dist = getDistance(tower.r, tower.c, tgt.r, tgt.c);
+        if (dist <= (tower.range || 10) && dist < minDistance) {
+          minDistance = dist;
+          nearestTarget = tgt;
+        }
+      });
+
+      if (nearestTarget) {
+        const attackRes = resolveAttackRoll(towerClone, nearestTarget, options);
+        if (attackRes.isHit) {
+          nearestTarget.hp = Math.max(0, nearestTarget.hp - attackRes.finalDamage);
+          if (nearestTarget.hp <= 0) nearestTarget.isDead = true;
+
+          const critText = attackRes.isCrit ? ' 💥 КРИТИЧЕСКИЙ ВЫСТРЕЛ (2x)!' : '';
+          logs.push({
+            type: 'TOWER_ATTACK',
+            text: `🗼 ${tower.name} атакует ${nearestTarget.name} [t=${currentNextAttack}s]: ${attackRes.finalDamage} физ. урона${critText} (HP цели: ${nearestTarget.hp})`
+          });
+        } else {
+          logs.push({
+            type: 'TOWER_ATTACK',
+            text: `🗼 ${tower.name} промахнулась по ${nearestTarget.name} [t=${currentNextAttack}s] (${attackRes.status})!`
+          });
+        }
       }
-    });
 
-    if (nearestTarget) {
-      const attackRes = resolveAttackRoll(tower, nearestTarget, options);
-      if (attackRes.isHit) {
-        nearestTarget.hp = Math.max(0, nearestTarget.hp - attackRes.finalDamage);
-        if (nearestTarget.hp <= 0) nearestTarget.isDead = true;
-
-        const critText = attackRes.isCrit ? ' 💥 КРИТИЧЕСКИЙ УДАР!' : '';
-        logs.push({
-          type: 'TOWER_ATTACK',
-          text: `🗼 ${tower.name} атакует ${nearestTarget.name}: ${attackRes.finalDamage} урона${critText}! (HP: ${nearestTarget.hp})`
-        });
-      } else {
-        logs.push({
-          type: 'TOWER_ATTACK',
-          text: `🗼 ${tower.name} промахнулась по ${nearestTarget.name} (${attackRes.status})!`
-        });
-      }
+      currentNextAttack += tower.attackPeriod;
     }
+
+    towerClone.nextAttackTime = currentNextAttack;
+    return towerClone;
   });
 
-  return { updatedHeroes, updatedCreeps, logs };
+  return { updatedTowers, updatedHeroes, updatedCreeps, logs };
 }
 
 // Execute Roshan retaliation when approached or attacked

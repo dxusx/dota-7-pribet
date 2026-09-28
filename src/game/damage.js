@@ -3,7 +3,7 @@
 
 import {
   calculateHitChance,
-  isAttackingFromLowToHighGround,
+  calculateTerrainAdvantage,
   rollHit,
   rollDamage,
   rollCritical,
@@ -57,7 +57,7 @@ export function mitigateDamage(rawDamage, damageType, target, attacker = {}) {
  * Execute tactical attack roll according to game design specifications:
  * 1. Checks hit (Agility / Hit formula)
  * 2. If miss -> 0 damage
- * 3. Checks high ground miss modifier (0.30)
+ * 3. Applies terrain advantage (both directions + ranged vs melee)
  * 4. If hit -> rolledDamage = averageDamage * random(0.75, 1.25)
  * 5. 5% critical strike -> 2x damage
  * 6. Applies armor/penetration multiplier
@@ -79,19 +79,19 @@ export function resolveAttackRoll(attacker, target, options = {}) {
 
   const hitChance = calculateHitChance(attackerHit, targetAgility);
 
-  // 2. High Ground Directional check
-  const hasHighGroundDisadvantage = isAttackingFromLowToHighGround(attacker, target, options.mapGrid);
+  // 2. Terrain Advantage calculation (dedicated function handling both directions and ranged/melee)
+  const terrainAdvantage = calculateTerrainAdvantage(attacker, target, options.mapGrid);
 
   // 3. Roll Hit (does not mix with damage calculation)
   const hitResult = rollHit(hitChance, {
-    hasHighGroundDisadvantage,
-    highGroundMissChance: COMBAT_CONFIG.HIGH_GROUND_MISS_CHANCE
+    terrainAdvantage,
+    randomFn: options.randomFn || Math.random
   });
 
   // If Miss -> 0 damage
   if (!hitResult.isHit) {
     const status = hitResult.reason === 'HIGH_GROUND_MISS' 
-      ? 'MISS (High Ground 30%)' 
+      ? 'MISS (High Ground Uphill 30%)' 
       : hitResult.reason === 'DODGED' 
       ? 'DODGED' 
       : 'MISS';
@@ -101,7 +101,7 @@ export function resolveAttackRoll(attacker, target, options = {}) {
       isCrit: false,
       status,
       hitChance: Math.round(hitChance * 100),
-      hasHighGroundDisadvantage,
+      terrainAdvantage,
       rawDamage: 0,
       finalDamage: 0,
       damageType: DAMAGE_TYPES.PHYSICAL
@@ -141,7 +141,7 @@ export function resolveAttackRoll(attacker, target, options = {}) {
     isCrit: critResult.isCrit,
     status,
     hitChance: Math.round(hitChance * 100),
-    hasHighGroundDisadvantage,
+    terrainAdvantage,
     averageDamage: Math.round(averageDmg),
     rolledDamage: Math.round(rolledDamage),
     critDamage: Math.round(critResult.damage),

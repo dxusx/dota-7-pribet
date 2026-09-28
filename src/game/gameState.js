@@ -1,5 +1,6 @@
 // Centralized Tactical Game State and Reducer Engine
-// Implements 8-Second Time-based turns, Data-driven combat, High-ground modifiers, and Creep waves
+// Implements 8-Second Player Turns, Continuous Tower Attack Timing (4s),
+// Lane Creep March, and Approved Neutral Formations
 
 import { INITIAL_HEROES_95 } from '../data/dota95Data.js';
 import { HERO_ABILITIES_DATA } from '../data/dotaHeroesAbilities.js';
@@ -15,7 +16,8 @@ import { executeAbility, getValidTargetCells, TARGET_TYPES } from './abilities.j
 import { executeItem } from './items.js';
 import { 
   createInitialTowers, createInitialRoshan, spawnCreepWave, 
-  spawnNeutralCreeps, executeTowerAttacks, executeRoshanTurn 
+  spawnNeutralCreeps, advanceCreepsAlongLanes,
+  processContinuousTowerAttacks, executeRoshanTurn 
 } from './towersAndCreeps.js';
 import { generatePixelDotaMap, TILE_TYPES } from '../data/dotaPixelGrid.js';
 
@@ -78,8 +80,9 @@ export function createInitialGameState() {
 
   return {
     round: 1,
-    phase: 'HERO_TURN', // 'INITIATIVE' | 'HERO_TURN' | 'ROUND_END' | 'VICTORY'
+    phase: 'HERO_TURN',
     turnIndex: 0,
+    // CONTINUOUS GAME TIME (Seconds)
     gameTimeSeconds: 0,
     creepWaveIndex: 0,
     lastCreepSpawnTime: 0,
@@ -87,7 +90,7 @@ export function createInitialGameState() {
     initiativeOrder,
     activeHeroId: activeHero.id,
     selectedHeroId: activeHero.id,
-    // TIME SYSTEM: 8-second turns. Only remainingTime limits actions.
+    // TIME SYSTEM: 8-second player turns. Only remainingTime limits actions.
     turnActions: {
       remainingTime: TIME_CONFIG.TURN_DURATION_SECONDS, // 8.0s
       totalTime: TIME_CONFIG.TURN_DURATION_SECONDS,     // 8.0s
@@ -96,7 +99,8 @@ export function createInitialGameState() {
     },
     heroes,
     towers: createInitialTowers(),
-    creeps: spawnCreepWave(0),
+    // 1. LANE CREEPS: NO initial spawn at 0s! First wave spawns strictly after 60s.
+    creeps: [],
     roshan: createInitialRoshan(),
     mapGrid,
     targetingMode: null,
@@ -105,7 +109,7 @@ export function createInitialGameState() {
       {
         id: 'init_start',
         round: 1,
-        text: `⚔️ Битва началась! Время хода: ${TIME_CONFIG.TURN_DURATION_SECONDS} сек. Первый ход за ${activeHero.name}!`,
+        text: `⚔️ Битва началась! Ход героя: 8.0 сек. Первый ход за ${activeHero.name}. Крипы выйдут на линии через 60 сек!`,
         type: 'SYSTEM'
       }
     ],
@@ -129,7 +133,7 @@ export function gameReducer(state, action) {
     }
 
     // -------------------------------------------------------------
-    // 2. MOVE ACTIVE HERO (Costs 2.0 seconds of turn time)
+    // 2. MOVE ACTIVE HERO (Costs strictly 2.0s per action, not linked to cell count)
     // -------------------------------------------------------------
     case 'MOVE_HERO': {
       const activeHero = state.heroes.find(h => h.id === state.activeHeroId);
@@ -139,6 +143,7 @@ export function gameReducer(state, action) {
         return { ...state, notification: '⛔ Персонаж не может двигаться (Оглушение / Опутывание)!' };
       }
 
+      // Movement time: 2.0s per MOVE action from config
       const timeCost = TIME_CONFIG.ACTION_TIME_COSTS.MOVE;
       if (!canPerformAction(state.turnActions.remainingTime, timeCost)) {
         return { 
@@ -179,8 +184,13 @@ export function gameReducer(state, action) {
         updatedHero.mana = Math.min(updatedHero.maxMana, updatedHero.mana + manaAmt);
       }
 
-      const updatedHeroes = state.heroes.map(h => h.id === activeHero.id ? updatedHero : h);
+      let updatedHeroes = state.heroes.map(h => h.id === activeHero.id ? updatedHero : h);
       const newRemainingTime = Math.max(0, +(state.turnActions.remainingTime - timeCost).toFixed(1));
+      const newGameTimeSeconds = state.gameTimeSeconds + timeCost;
+
+      // 5. Continuous Tower Attacks Check: fire whenever gameTime >= nextAttackTime
+      const towerRes = processContinuousTowerAttacks(state.towers, updatedHeroes, state.creeps, newGameTimeSeconds, { mapGrid: state.mapGrid });
+      updatedHeroes = towerRes.updatedHeroes;
 
       const moveLog = {
         id: `move_${Date.now()}`,
@@ -191,14 +201,17 @@ export function gameReducer(state, action) {
 
       const nextState = {
         ...state,
+        gameTimeSeconds: newGameTimeSeconds,
         heroes: updatedHeroes,
+        towers: towerRes.updatedTowers,
+        creeps: towerRes.updatedCreeps,
         turnActions: {
           ...state.turnActions,
           remainingTime: newRemainingTime,
           movement: remainingMovement
         },
         targetingMode: null,
-        combatLog: [...state.combatLog, moveLog]
+        combatLog: [...state.combatLog, moveLog, ...towerRes.logs]
       };
 
       // Auto-end turn when remaining time runs out
@@ -227,9 +240,9 @@ export function gameReducer(state, action) {
           };
         }
 
-        // Basic attack range (default 2 for melee, up to range for ranged)
         const attackRange = activeHero.range || 2;
         const validCells = [];
+
         // Enemy heroes
         state.heroes.forEach(h => {
           if (!h.isDead && h.team !== activeHero.team) {
@@ -260,7 +273,7 @@ export function gameReducer(state, action) {
           }
         });
 
-        // Also allow targeting Roshan if in range
+        // Roshan if in range
         if (state.roshan && !state.roshan.isDead) {
           const dist = getDistance(activeHero.r, activeHero.c, state.roshan.r, state.roshan.c);
           if (dist <= attackRange) {
@@ -384,137 +397,112 @@ export function gameReducer(state, action) {
 
       const { targetId } = action;
       const newRemainingTime = Math.max(0, +(state.turnActions.remainingTime - timeCost).toFixed(1));
+      const newGameTimeSeconds = state.gameTimeSeconds + timeCost;
+
+      // 5. Continuous Tower Attacks Check
+      let workingTowers = state.towers;
+      let workingCreeps = state.creeps;
+      let workingHeroes = [...state.heroes];
+      let workingRoshan = state.roshan;
+      let atkLogs = [];
 
       // Handle Roshan target
-      if (targetId === 'roshan' && state.roshan && !state.roshan.isDead) {
-        const attackResult = resolveAttackRoll(activeHero, state.roshan, { mapGrid: state.mapGrid });
-        const updatedRoshan = applyDamage(state.roshan, attackResult.finalDamage);
+      if (targetId === 'roshan' && workingRoshan && !workingRoshan.isDead) {
+        const attackResult = resolveAttackRoll(activeHero, workingRoshan, { mapGrid: state.mapGrid });
+        workingRoshan = applyDamage(workingRoshan, attackResult.finalDamage);
 
-        const atkLog = {
+        atkLogs.push({
           id: `atk_${Date.now()}`,
           round: state.round,
           text: `⚔️ ${activeHero.name} атакует Рошана: Точность ${attackResult.hitChance}% → ${attackResult.status}! (${attackResult.finalDamage} физ. урона [броня: x${attackResult.armorMultiplier}], -${timeCost}s, осталось: ${newRemainingTime}s)`,
           type: 'ATTACK'
-        };
-
-        const nextState = {
-          ...state,
-          roshan: updatedRoshan,
-          turnActions: { ...state.turnActions, remainingTime: newRemainingTime },
-          targetingMode: null,
-          combatLog: [...state.combatLog, atkLog]
-        };
-
-        if (newRemainingTime <= 0) return gameReducer(nextState, { type: 'END_TURN' });
-        return nextState;
+        });
       }
 
       // Handle Tower target
-      const targetTower = state.towers.find(t => t.id === targetId);
+      const targetTower = workingTowers.find(t => t.id === targetId);
       if (targetTower && !targetTower.isDead) {
         const attackResult = resolveAttackRoll(activeHero, targetTower, { mapGrid: state.mapGrid });
         const newHp = Math.max(0, (targetTower.currentHp ?? targetTower.hp) - attackResult.finalDamage);
         const isDead = newHp <= 0;
-        const updatedTowers = state.towers.map(t => t.id === targetTower.id ? { ...t, currentHp: newHp, isDead } : t);
+        workingTowers = workingTowers.map(t => t.id === targetTower.id ? { ...t, currentHp: newHp, isDead } : t);
 
-        const atkLog = {
+        atkLogs.push({
           id: `atk_${Date.now()}`,
           round: state.round,
           text: `⚔️ ${activeHero.name} атакует ${targetTower.name}: Точность ${attackResult.hitChance}% → ${attackResult.status}! (${attackResult.finalDamage} физ. урона, HP вышки: ${newHp}, -${timeCost}s, осталось: ${newRemainingTime}s)`,
           type: 'ATTACK'
-        };
-
-        const nextState = {
-          ...state,
-          towers: updatedTowers,
-          turnActions: { ...state.turnActions, remainingTime: newRemainingTime },
-          targetingMode: null,
-          combatLog: [
-            ...state.combatLog, 
-            atkLog,
-            ...(isDead ? [{
-              id: `tw_kill_${Date.now()}`,
-              round: state.round,
-              text: `💥 ${targetTower.name} разрушена героем ${activeHero.name}!`,
-              type: 'DEATH'
-            }] : [])
-          ]
-        };
-
-        if (newRemainingTime <= 0) return gameReducer(nextState, { type: 'END_TURN' });
-        return nextState;
+        });
+        if (isDead) {
+          atkLogs.push({
+            id: `tw_kill_${Date.now()}`,
+            round: state.round,
+            text: `💥 ${targetTower.name} разрушена героем ${activeHero.name}!`,
+            type: 'DEATH'
+          });
+        }
       }
 
       // Handle Creep target
-      const targetCreep = state.creeps.find(c => c.id === targetId);
+      const targetCreep = workingCreeps.find(c => c.id === targetId);
       if (targetCreep && !targetCreep.isDead) {
         const attackResult = resolveAttackRoll(activeHero, targetCreep, { mapGrid: state.mapGrid });
         const newHp = Math.max(0, targetCreep.hp - attackResult.finalDamage);
         const isDead = newHp <= 0;
-        const updatedCreeps = state.creeps.map(c => c.id === targetCreep.id ? { ...c, hp: newHp, isDead } : c);
+        workingCreeps = workingCreeps.map(c => c.id === targetCreep.id ? { ...c, hp: newHp, isDead } : c);
 
-        const atkLog = {
+        atkLogs.push({
           id: `atk_${Date.now()}`,
           round: state.round,
           text: `⚔️ ${activeHero.name} атакует ${targetCreep.name}: Точность ${attackResult.hitChance}% → ${attackResult.status}! (${attackResult.finalDamage} физ. урона, -${timeCost}s, осталось: ${newRemainingTime}s)`,
           type: 'ATTACK'
-        };
-
-        const nextState = {
-          ...state,
-          creeps: updatedCreeps,
-          turnActions: { ...state.turnActions, remainingTime: newRemainingTime },
-          targetingMode: null,
-          combatLog: [
-            ...state.combatLog, 
-            atkLog,
-            ...(isDead ? [{
-              id: `creep_kill_${Date.now()}`,
-              round: state.round,
-              text: `💀 ${targetCreep.name} погиб!`,
-              type: 'DEATH'
-            }] : [])
-          ]
-        };
-
-        if (newRemainingTime <= 0) return gameReducer(nextState, { type: 'END_TURN' });
-        return nextState;
+        });
+        if (isDead) {
+          atkLogs.push({
+            id: `creep_kill_${Date.now()}`,
+            round: state.round,
+            text: `💀 ${targetCreep.name} погиб!`,
+            type: 'DEATH'
+          });
+        }
       }
 
       // Handle Hero target
-      const targetHero = state.heroes.find(h => h.id === targetId);
-      if (!targetHero || targetHero.isDead) return state;
+      const targetHero = workingHeroes.find(h => h.id === targetId);
+      if (targetHero && !targetHero.isDead) {
+        const attackResult = resolveAttackRoll(activeHero, targetHero, { mapGrid: state.mapGrid });
+        const updatedTarget = applyDamage(targetHero, attackResult.finalDamage);
+        workingHeroes = workingHeroes.map(h => h.id === targetHero.id ? updatedTarget : h);
 
-      const attackResult = resolveAttackRoll(activeHero, targetHero, { mapGrid: state.mapGrid });
-      const updatedTarget = applyDamage(targetHero, attackResult.finalDamage);
-
-      const updatedHeroes = state.heroes.map(h => {
-        if (h.id === targetHero.id) return updatedTarget;
-        return h;
-      });
-
-      const atkLog = {
-        id: `atk_${Date.now()}`,
-        round: state.round,
-        text: `⚔️ ${activeHero.name} атакует ${targetHero.name}: Точность ${attackResult.hitChance}% → ${attackResult.status}! (${attackResult.finalDamage} физ. урона, HP: ${targetHero.hp} → ${updatedTarget.hp}, -${timeCost}s, осталось: ${newRemainingTime}s)`,
-        type: 'ATTACK'
-      };
-
-      const nextState = {
-        ...state,
-        heroes: updatedHeroes,
-        turnActions: { ...state.turnActions, remainingTime: newRemainingTime },
-        targetingMode: null,
-        combatLog: [
-          ...state.combatLog,
-          atkLog,
-          ...(updatedTarget.isDead ? [{
+        atkLogs.push({
+          id: `atk_${Date.now()}`,
+          round: state.round,
+          text: `⚔️ ${activeHero.name} атакует ${targetHero.name}: Точность ${attackResult.hitChance}% → ${attackResult.status}! (${attackResult.finalDamage} физ. урона, HP: ${targetHero.hp} → ${updatedTarget.hp}, -${timeCost}s, осталось: ${newRemainingTime}s)`,
+          type: 'ATTACK'
+        });
+        if (updatedTarget.isDead) {
+          atkLogs.push({
             id: `kill_${Date.now()}`,
             round: state.round,
             text: `💀 ${targetHero.name} погибает в бою от руки ${activeHero.name}!`,
             type: 'DEATH'
-          }] : [])
-        ]
+          });
+        }
+      }
+
+      // Check continuous tower attacks during this elapsed action time
+      const towerRes = processContinuousTowerAttacks(workingTowers, workingHeroes, workingCreeps, newGameTimeSeconds, { mapGrid: state.mapGrid });
+
+      const nextState = {
+        ...state,
+        gameTimeSeconds: newGameTimeSeconds,
+        roshan: workingRoshan,
+        towers: towerRes.updatedTowers,
+        creeps: towerRes.updatedCreeps,
+        heroes: towerRes.updatedHeroes,
+        turnActions: { ...state.turnActions, remainingTime: newRemainingTime },
+        targetingMode: null,
+        combatLog: [...state.combatLog, ...atkLogs, ...towerRes.logs]
       };
 
       if (newRemainingTime <= 0) return gameReducer(nextState, { type: 'END_TURN' });
@@ -522,7 +510,7 @@ export function gameReducer(state, action) {
     }
 
     // -------------------------------------------------------------
-    // 5. EXECUTE ABILITY (Costs 4.0 seconds of turn time)
+    // 5. EXECUTE ABILITY (Costs 4.0s of turn time)
     // -------------------------------------------------------------
     case 'EXECUTE_ABILITY': {
       const activeHero = state.heroes.find(h => h.id === state.activeHeroId);
@@ -545,20 +533,27 @@ export function gameReducer(state, action) {
       }
 
       const newRemainingTime = Math.max(0, +(state.turnActions.remainingTime - timeCost).toFixed(1));
+      const newGameTimeSeconds = state.gameTimeSeconds + timeCost;
 
       // Map updated units
       const targetMap = new Map();
       result.updatedTargets.forEach(u => targetMap.set(u.id, u));
 
-      const updatedHeroes = state.heroes.map(h => {
+      let updatedHeroes = state.heroes.map(h => {
         if (h.id === result.updatedCaster.id) return result.updatedCaster;
         if (targetMap.has(h.id)) return targetMap.get(h.id);
         return h;
       });
 
+      // Check continuous tower attacks during this elapsed action time
+      const towerRes = processContinuousTowerAttacks(state.towers, updatedHeroes, state.creeps, newGameTimeSeconds, { mapGrid: state.mapGrid });
+
       const nextState = {
         ...state,
-        heroes: updatedHeroes,
+        gameTimeSeconds: newGameTimeSeconds,
+        heroes: towerRes.updatedHeroes,
+        towers: towerRes.updatedTowers,
+        creeps: towerRes.updatedCreeps,
         turnActions: {
           ...state.turnActions,
           remainingTime: newRemainingTime
@@ -571,7 +566,8 @@ export function gameReducer(state, action) {
             round: state.round, 
             ...l,
             text: `${l.text} (-${timeCost}s, осталось: ${newRemainingTime}s)`
-          }))
+          })),
+          ...towerRes.logs
         ]
       };
 
@@ -580,7 +576,7 @@ export function gameReducer(state, action) {
     }
 
     // -------------------------------------------------------------
-    // 6. USE ITEM (Costs 2.0 seconds of turn time)
+    // 6. USE ITEM (Costs 2.0s of turn time)
     // -------------------------------------------------------------
     case 'USE_ITEM': {
       const activeHero = state.heroes.find(h => h.id === state.activeHeroId);
@@ -598,11 +594,18 @@ export function gameReducer(state, action) {
       if (!itemRes.success) return { ...state, notification: itemRes.reason };
 
       const newRemainingTime = Math.max(0, +(state.turnActions.remainingTime - timeCost).toFixed(1));
-      const updatedHeroes = state.heroes.map(h => h.id === activeHero.id ? itemRes.updatedCaster : h);
+      const newGameTimeSeconds = state.gameTimeSeconds + timeCost;
+      let updatedHeroes = state.heroes.map(h => h.id === activeHero.id ? itemRes.updatedCaster : h);
+
+      // Check continuous tower attacks during this elapsed action time
+      const towerRes = processContinuousTowerAttacks(state.towers, updatedHeroes, state.creeps, newGameTimeSeconds, { mapGrid: state.mapGrid });
 
       const nextState = {
         ...state,
-        heroes: updatedHeroes,
+        gameTimeSeconds: newGameTimeSeconds,
+        heroes: towerRes.updatedHeroes,
+        towers: towerRes.updatedTowers,
+        creeps: towerRes.updatedCreeps,
         turnActions: {
           ...state.turnActions,
           remainingTime: newRemainingTime
@@ -615,7 +618,8 @@ export function gameReducer(state, action) {
             round: state.round,
             text: `${itemRes.log} (-${timeCost}s, осталось: ${newRemainingTime}s)`,
             type: 'ITEM'
-          }
+          },
+          ...towerRes.logs
         ]
       };
 
@@ -624,7 +628,7 @@ export function gameReducer(state, action) {
     }
 
     // -------------------------------------------------------------
-    // 7. END TURN & CYCLE INITIATIVE (Resets 8-second timer & checks spawns)
+    // 7. END TURN & CYCLE INITIATIVE
     // -------------------------------------------------------------
     case 'END_TURN': {
       // Decrement cooldowns of the hero finishing turn
@@ -638,7 +642,6 @@ export function gameReducer(state, action) {
 
       let nextIndex = state.turnIndex + 1;
       let nextRound = state.round;
-      let towerLogs = [];
       let roshanLogs = [];
       let spawnLogs = [];
       let nextTowers = state.towers;
@@ -646,13 +649,14 @@ export function gameReducer(state, action) {
       let nextRoshan = state.roshan;
       let workingHeroes = state.heroes.map(h => h.id === state.activeHeroId ? { ...h, cooldowns: decrementedCooldowns } : h);
 
-      // Advance game clock: each turn adds 8 seconds to match 8s turn system
-      const newGameTimeSeconds = (state.gameTimeSeconds || 0) + TIME_CONFIG.TURN_DURATION_SECONDS;
+      // Advance game clock: add unused turn time so player turn completes its 8.0s window
+      const unusedTime = Math.max(0, +(state.turnActions.remainingTime || 0).toFixed(1));
+      const newGameTimeSeconds = state.gameTimeSeconds + unusedTime;
       let nextCreepWaveIndex = state.creepWaveIndex || 0;
       let nextLastCreepSpawnTime = state.lastCreepSpawnTime || 0;
       let nextLastNeutralSpawnTime = state.lastNeutralSpawnTime || 0;
 
-      // Check Lane Creep spawn (First spawn after 60s, then every 60s)
+      // 1. LANE CREEPS: First wave spawns after 60s, then every 60s
       if (newGameTimeSeconds >= CREEP_CONFIG.LANE_FIRST_SPAWN_SECONDS &&
           (nextLastCreepSpawnTime === 0 || (newGameTimeSeconds - nextLastCreepSpawnTime) >= CREEP_CONFIG.LANE_SPAWN_INTERVAL_SECONDS)) {
         const wave = spawnCreepWave(nextCreepWaveIndex);
@@ -668,7 +672,11 @@ export function gameReducer(state, action) {
         nextLastCreepSpawnTime = newGameTimeSeconds;
       }
 
-      // Check Neutral Creep spawn (First spawn after 120s, then every 60s)
+      // 1. LANE CREEPS MOVEMENT: Advance creeps along lanes towards enemy base
+      const creepMoveRes = advanceCreepsAlongLanes(nextCreeps, workingHeroes, nextTowers, { mapGrid: state.mapGrid });
+      nextCreeps = creepMoveRes.updatedCreeps;
+
+      // 3. NEUTRAL CREEPS: First spawn after 120s, then every 60s with approved formations
       if (newGameTimeSeconds >= CREEP_CONFIG.NEUTRAL_FIRST_SPAWN_SECONDS &&
           (nextLastNeutralSpawnTime === 0 || (newGameTimeSeconds - nextLastNeutralSpawnTime) >= CREEP_CONFIG.NEUTRAL_SPAWN_INTERVAL_SECONDS)) {
         const allLivingUnits = [
@@ -682,23 +690,23 @@ export function gameReducer(state, action) {
           spawnLogs.push({
             id: `neutrals_${Date.now()}`,
             round: nextRound,
-            text: `🌲 НЕЙТРАЛЬНЫЕ КРИПЫ (${newGameTimeSeconds}s): Лагеря леса возродились!`,
+            text: `🌲 НЕЙТРАЛЬНЫЕ КРИПЫ (${newGameTimeSeconds}s): Лагеря леса возродились по утверждённым уровням!`,
             type: 'SYSTEM'
           });
         }
         nextLastNeutralSpawnTime = newGameTimeSeconds;
       }
 
-      // If full round completed, execute Towers, Roshan
+      // 5. CONTINUOUS TOWER ATTACKS: Fire whenever gameTime >= nextAttackTime
+      const towerRes = processContinuousTowerAttacks(nextTowers, workingHeroes, nextCreeps, newGameTimeSeconds, { mapGrid: state.mapGrid });
+      nextTowers = towerRes.updatedTowers;
+      workingHeroes = towerRes.updatedHeroes;
+      nextCreeps = towerRes.updatedCreeps;
+
+      // If full round completed, execute Roshan
       if (nextIndex >= state.initiativeOrder.length) {
         nextIndex = 0;
         nextRound += 1;
-
-        // Towers attack nearest enemies
-        const towerRes = executeTowerAttacks(nextTowers, workingHeroes, nextCreeps, { mapGrid: state.mapGrid });
-        workingHeroes = towerRes.updatedHeroes;
-        nextCreeps = towerRes.updatedCreeps;
-        towerLogs = towerRes.logs;
 
         // Roshan attacks near pit
         const roshanRes = executeRoshanTurn(nextRoshan, workingHeroes);
@@ -742,7 +750,7 @@ export function gameReducer(state, action) {
             creeps: nextCreeps,
             roshan: nextRoshan,
             targetingMode: null,
-            // Reset to 8.0s
+            // Reset player turn time to 8.0s
             turnActions: {
               remainingTime: TIME_CONFIG.TURN_DURATION_SECONDS,
               totalTime: TIME_CONFIG.TURN_DURATION_SECONDS,
@@ -752,13 +760,13 @@ export function gameReducer(state, action) {
             combatLog: [
               ...state.combatLog,
               ...spawnLogs,
-              ...towerLogs.map(l => ({ id: `tw_${Date.now()}_${Math.random()}`, round: nextRound, ...l })),
+              ...towerRes.logs,
               ...roshanLogs.map(l => ({ id: `ro_${Date.now()}_${Math.random()}`, round: nextRound, ...l })),
               ...statusLogs,
               {
                 id: `turn_${Date.now()}`,
                 round: nextRound,
-                text: `▶️ Ход [${nextRound}]: Очередь героя ${tickedHero.name} (${tickedHero.team.toUpperCase()})! Время хода: ${TIME_CONFIG.TURN_DURATION_SECONDS}.0 сек.`,
+                text: `▶️ Ход [${nextRound}]: Очередь героя ${tickedHero.name} (${tickedHero.team.toUpperCase()})! Время хода: 8.0 сек. [Время боя: ${Math.floor(newGameTimeSeconds / 60)}:${String(Math.floor(newGameTimeSeconds % 60)).padStart(2, '0')}]`,
                 type: 'TURN'
               }
             ]
