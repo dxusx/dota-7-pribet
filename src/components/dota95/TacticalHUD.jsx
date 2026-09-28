@@ -353,7 +353,7 @@ export default function TacticalHUD({
             {/* Button 1: [ 🦶 Ход ] */}
             <button
               onClick={handleToggleMove}
-              className={`flex-1 sm:flex-initial min-h-[44px] px-2.5 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+              className={`flex-1 sm:flex-initial min-h-[46px] px-2.5 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                 actionMode === 'MOVE'
                   ? 'bg-cyan-950/80 text-[#00f0ff] border-[#00f0ff] shadow-[0_0_14px_rgba(0,240,255,0.45)]'
                   : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
@@ -366,7 +366,7 @@ export default function TacticalHUD({
             {/* Button 2: [ ⚔️ Удар ] */}
             <button
               onClick={handleToggleAttack}
-              className={`flex-1 sm:flex-initial min-h-[44px] px-2.5 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+              className={`flex-1 sm:flex-initial min-h-[46px] px-2.5 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                 actionMode === 'ATTACK' || targetingMode?.mode === 'ATTACK'
                   ? 'bg-rose-950/80 text-[#ef4444] border-[#ef4444] shadow-[0_0_14px_rgba(239,68,68,0.45)]'
                   : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
@@ -383,7 +383,7 @@ export default function TacticalHUD({
                 setShowShopDrawer(false);
                 setShowSkillDrawer(!showSkillDrawer);
               }}
-              className={`flex-1 sm:flex-initial min-h-[44px] px-2.5 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+              className={`flex-1 sm:flex-initial min-h-[46px] px-2.5 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                 showSkillDrawer
                   ? 'bg-purple-950/80 text-purple-300 border-purple-500 shadow-[0_0_14px_rgba(168,85,247,0.4)]'
                   : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
@@ -405,7 +405,7 @@ export default function TacticalHUD({
                 setShowSkillDrawer(false);
                 setShowShopDrawer(!showShopDrawer);
               }}
-              className={`flex-1 sm:flex-initial min-h-[44px] px-2.5 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
+              className={`flex-1 sm:flex-initial min-h-[46px] px-2.5 sm:px-4 py-2 rounded-xl font-sans font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
                 showShopDrawer
                   ? 'bg-amber-950/80 text-amber-300 border-amber-500 shadow-[0_0_14px_rgba(245,158,11,0.4)]'
                   : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700'
@@ -419,7 +419,7 @@ export default function TacticalHUD({
             <button
               onClick={handleEndTurn}
               style={{ background: 'linear-gradient(to right, #d97706, #f59e0b)' }}
-              className="flex-1 sm:flex-initial min-h-[44px] px-4 sm:px-6 py-2 rounded-xl font-sans font-black text-xs sm:text-sm tracking-wider uppercase text-black shadow-[0_0_16px_rgba(245,158,11,0.5)] active:scale-95 transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+              className="flex-1 sm:flex-initial min-h-[46px] px-4 sm:px-6 py-2 rounded-xl font-sans font-black text-xs sm:text-sm tracking-wider uppercase text-black shadow-[0_0_16px_rgba(245,158,11,0.5)] active:scale-95 transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
             >
               <span>Конец хода</span>
               <ArrowRight className="w-4 h-4 stroke-[3] shrink-0" />

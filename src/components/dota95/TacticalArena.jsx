@@ -29,7 +29,7 @@ export default function TacticalArena({
   const activeHero = heroes.find(h => h.id === activeHeroId) || heroes[0];
 
   // Viewport Center in world grid coordinates (r, c)
-  const [viewCenter, setViewCenter] = useState({ r: activeHero?.r || 56, c: activeHero?.c || 38 });
+  const [viewCenter, setViewCenter] = useState({ r: 49, c: 46 });
 
   // Floating Damage Indicators on Arena
   const [floatingDamage, setFloatingDamage] = useState([]);
@@ -239,10 +239,10 @@ export default function TacticalArena({
               let terrainBg = 'bg-[#151b24] border-slate-800/60';
               let terrainIcon = null;
 
-              if (tileType === TILE_TYPES.RIVER) {
-                terrainBg = 'bg-[#0c2842] border-sky-900/60 text-sky-400/50';
-                terrainIcon = <span className="text-[8px] opacity-40">💧</span>;
-              } else if (tileType === TILE_TYPES.UNPASSABLE) {
+              if (tileType === TILE_TYPES.WATER || tileType === 4) {
+                terrainBg = 'bg-[#0c2842] border-sky-900/60 text-sky-400/60';
+                terrainIcon = <span className="text-[8px] opacity-50">💧</span>;
+              } else if (tileType === TILE_TYPES.UNPASSABLE || tileType === 0) {
                 terrainBg = 'bg-[#1e2530] border-slate-700/60 text-slate-500/60';
                 terrainIcon = <span className="text-[8px] opacity-35">🪨</span>;
               } else if (tileType === TILE_TYPES.HIGHGROUND) {
