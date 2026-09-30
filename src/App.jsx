@@ -518,7 +518,7 @@ export default function App() {
         </div>
 
         {/* Center: Initiative Timeline */}
-        <div className="flex items-center gap-1.5 overflow-x-auto max-w-xl py-1 px-2 bg-slate-950/70 rounded-xl border border-slate-800">
+        <div className="flex items-center gap-1.5 overflow-x-auto max-w-2xl py-1 px-2 bg-slate-950/70 rounded-xl border border-slate-800 no-scrollbar">
           {gameState.initiativeQueue.map((heroId, idx) => {
             const hero = gameState.heroes.find(h => h.instanceId === heroId);
             if (!hero) return null;
@@ -734,7 +734,7 @@ export default function App() {
           </div>
 
           {/* Center Column: Direct Skills Bar (Always visible!) */}
-          <div className="flex items-center gap-2 overflow-x-auto px-2 py-1 max-w-2xl">
+          <div className="flex items-center gap-2 overflow-x-auto px-2 py-1 max-w-2xl no-scrollbar">
             {activeHero.skills.map((skill, sIdx) => {
               const hotkeys = ['Q', 'W', 'E', 'R', 'D'];
               const hotkey = hotkeys[sIdx] || `${sIdx + 1}`;
