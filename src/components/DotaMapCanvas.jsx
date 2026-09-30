@@ -38,6 +38,7 @@ export default function DotaMapCanvas({
       [TERRAIN.GRASS_RADIANT]: '#1c3822',
       [TERRAIN.GRASS_DIRE]: '#291b22',
       [TERRAIN.ROAD]: '#42372c',
+      [TERRAIN.DIRT_PATH]: '#352c23',
       [TERRAIN.CLIFF]: '#383d47',
       [TERRAIN.ROSHAN_PIT]: '#19131d',
       [TERRAIN.BASE_RADIANT]: '#1a4731',
@@ -218,6 +219,22 @@ export default function DotaMapCanvas({
               ctx.fillStyle =
                 tile.object.faction === 'radiant' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)';
               ctx.fill();
+            } else if (tile.object.type === 'NEUTRAL_CAMP') {
+              ctx.beginPath();
+              ctx.arc(px, py, TILE_SIZE * 0.65, 0, Math.PI * 2);
+              ctx.fillStyle = 'rgba(234, 179, 8, 0.2)';
+              ctx.fill();
+              ctx.strokeStyle = 'rgba(234, 179, 8, 0.6)';
+              ctx.lineWidth = 1.5 / zoom;
+              ctx.stroke();
+            } else if (tile.object.type === 'SHOP' || tile.object.type === 'OUTPOST') {
+              ctx.beginPath();
+              ctx.arc(px, py, TILE_SIZE * 0.65, 0, Math.PI * 2);
+              ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
+              ctx.fill();
+              ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+              ctx.lineWidth = 1.5 / zoom;
+              ctx.stroke();
             }
 
             // Draw Symbol
