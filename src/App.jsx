@@ -31,6 +31,7 @@ export default function App() {
   const [hoveredTile, setHoveredTile] = useState(null);
   const [showGrid, setShowGrid] = useState(true);
   const [showTrees, setShowTrees] = useState(true);
+  const [showIcons, setShowIcons] = useState(true);
   const [targetPos, setTargetPos] = useState(null);
 
   // Tactical interaction mode: null | 'move' | 'attack' | 'skill'
@@ -357,6 +358,13 @@ export default function App() {
     setActionMode('skill');
   };
 
+  // End turn
+  const handleEndTurn = useCallback(() => {
+    setGameState(prev => endTurn(prev));
+    setTargetingSkill(null);
+    setActionMode('move');
+  }, []);
+
   // Keyboard Hotkeys
   useEffect(() => {
     const handleKeyDown = e => {
@@ -393,14 +401,7 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeHero, gameState]);
-
-  // End turn
-  const handleEndTurn = () => {
-    setGameState(prev => endTurn(prev));
-    setTargetingSkill(null);
-    setActionMode('move');
-  };
+  }, [activeHero, gameState, handleEndTurn]);
 
   return (
     <div className="flex flex-col w-screen h-screen bg-[#07090e] text-slate-100 overflow-hidden font-sans select-none">
@@ -481,6 +482,18 @@ export default function App() {
             }`}
           >
             <Trees size={14} />
+          </button>
+
+          <button
+            onClick={() => setShowIcons(!showIcons)}
+            title="Значки и объекты"
+            className={`p-1.5 rounded text-xs border font-mono transition-colors ${
+              showIcons
+                ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300'
+                : 'bg-slate-800/60 border-slate-700 text-slate-400'
+            }`}
+          >
+            <Sparkles size={14} />
           </button>
 
           <button

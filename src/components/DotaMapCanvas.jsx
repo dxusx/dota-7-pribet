@@ -99,21 +99,68 @@ export default function DotaMapCanvas({
     });
   }, [targetPos]);
 
+  // Minimap Rendering
+  const renderMinimap = useCallback(() => {
+    const mCanvas = minimapRef.current;
+    const vCanvas = canvasRef.current;
+    if (!mCanvas || !vCanvas || !mapData) return;
+    const mCtx = mCanvas.getContext('2d');
+    const mWidth = mCanvas.width;
+    const mHeight = mCanvas.height;
+
+    mCtx.clearRect(0, 0, mWidth, mHeight);
+
+    if (offscreenCanvasRef.current) {
+      mCtx.drawImage(offscreenCanvasRef.current, 0, 0, mWidth, mHeight);
+    }
+
+    const scale = mWidth / WORLD_SIZE;
+    heroes.forEach(h => {
+      if (h.isDead) return;
+      mCtx.beginPath();
+      mCtx.arc(h.x * TILE_SIZE * scale, h.y * TILE_SIZE * scale, 3, 0, Math.PI * 2);
+      mCtx.fillStyle = h.faction === 'radiant' ? '#22c55e' : '#ef4444';
+      mCtx.fill();
+    });
+
+    const { x: camX, y: camY, zoom } = camera;
+    const safeZoom = Math.max(zoom || 0.45, 0.15);
+    const viewWorldX = -camX / safeZoom;
+    const viewWorldY = -camY / safeZoom;
+    const viewWorldW = vCanvas.width / safeZoom;
+    const viewWorldH = vCanvas.height / safeZoom;
+
+    mCtx.strokeStyle = '#f59e0b';
+    mCtx.lineWidth = 1.5;
+    mCtx.strokeRect(viewWorldX * scale, viewWorldY * scale, viewWorldW * scale, viewWorldH * scale);
+    mCtx.fillStyle = 'rgba(245, 158, 11, 0.1)';
+    mCtx.fillRect(viewWorldX * scale, viewWorldY * scale, viewWorldW * scale, viewWorldH * scale);
+  }, [camera, mapData, heroes]);
+
   // Center initial view to middle of map on mount
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const updateCanvasSize = () => {
-      const rect = canvas.parentElement.getBoundingClientRect();
-      canvas.width = rect.width;
-      canvas.height = rect.height;
+      const parent = canvas.parentElement;
+      const rect = parent ? parent.getBoundingClientRect() : null;
+      const width = Math.max(rect?.width || 0, window.innerWidth || 800);
+      const height = Math.max(rect?.height || 0, (window.innerHeight - 150) || 600);
 
-      const initialZoom = Math.min(rect.width / WORLD_SIZE, rect.height / WORLD_SIZE) * 1.1;
-      setCamera({
-        x: (rect.width - WORLD_SIZE * initialZoom) / 2,
-        y: (rect.height - WORLD_SIZE * initialZoom) / 2,
-        zoom: initialZoom,
+      canvas.width = width;
+      canvas.height = height;
+
+      const fitZoom = Math.max(Math.min(width / WORLD_SIZE, height / WORLD_SIZE) * 1.05, 0.35);
+
+      setCamera(prev => {
+        const hasValidZoom = prev.zoom && prev.zoom > 0.1;
+        const currentZoom = hasValidZoom ? prev.zoom : fitZoom;
+        return {
+          x: prev.x !== 0 ? prev.x : (width - WORLD_SIZE * currentZoom) / 2,
+          y: prev.y !== 0 ? prev.y : (height - WORLD_SIZE * currentZoom) / 2,
+          zoom: currentZoom,
+        };
       });
     };
 
@@ -129,7 +176,8 @@ export default function DotaMapCanvas({
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
-      const { x: camX, y: camY, zoom } = camera;
+      const { x: camX, y: camY } = camera;
+      const zoom = Math.max(camera.zoom || 0.45, 0.15);
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.save();
@@ -449,13 +497,22 @@ export default function DotaMapCanvas({
         ctx.strokeStyle = canAffordPath ? '#38bdf8' : '#ef4444';
         ctx.lineWidth = 1.5 / zoom;
         ctx.beginPath();
-        ctx.roundRect(
-          hx - textWidth / 2 - 6 / zoom,
-          hy - 14 / zoom,
-          textWidth + 12 / zoom,
-          18 / zoom,
-          4 / zoom
-        );
+        if (typeof ctx.roundRect === 'function') {
+          ctx.roundRect(
+            hx - textWidth / 2 - 6 / zoom,
+            hy - 14 / zoom,
+            textWidth + 12 / zoom,
+            18 / zoom,
+            4 / zoom
+          );
+        } else {
+          ctx.rect(
+            hx - textWidth / 2 - 6 / zoom,
+            hy - 14 / zoom,
+            textWidth + 12 / zoom,
+            18 / zoom
+          );
+        }
         ctx.fill();
         ctx.stroke();
 
@@ -514,44 +571,8 @@ export default function DotaMapCanvas({
     pathTimeCost,
     canAffordPath,
     floatingTexts,
+    renderMinimap,
   ]);
-
-  // Minimap Rendering
-  const renderMinimap = useCallback(() => {
-    const mCanvas = minimapRef.current;
-    const vCanvas = canvasRef.current;
-    if (!mCanvas || !vCanvas || !mapData) return;
-    const mCtx = mCanvas.getContext('2d');
-    const mWidth = mCanvas.width;
-    const mHeight = mCanvas.height;
-
-    mCtx.clearRect(0, 0, mWidth, mHeight);
-
-    if (offscreenCanvasRef.current) {
-      mCtx.drawImage(offscreenCanvasRef.current, 0, 0, mWidth, mHeight);
-    }
-
-    const scale = mWidth / WORLD_SIZE;
-    heroes.forEach(h => {
-      if (h.isDead) return;
-      mCtx.beginPath();
-      mCtx.arc(h.x * TILE_SIZE * scale, h.y * TILE_SIZE * scale, 3, 0, Math.PI * 2);
-      mCtx.fillStyle = h.faction === 'radiant' ? '#22c55e' : '#ef4444';
-      mCtx.fill();
-    });
-
-    const { x: camX, y: camY, zoom } = camera;
-    const viewWorldX = -camX / zoom;
-    const viewWorldY = -camY / zoom;
-    const viewWorldW = vCanvas.width / zoom;
-    const viewWorldH = vCanvas.height / zoom;
-
-    mCtx.strokeStyle = '#f59e0b';
-    mCtx.lineWidth = 1.5;
-    mCtx.strokeRect(viewWorldX * scale, viewWorldY * scale, viewWorldW * scale, viewWorldH * scale);
-    mCtx.fillStyle = 'rgba(245, 158, 11, 0.1)';
-    mCtx.fillRect(viewWorldX * scale, viewWorldY * scale, viewWorldW * scale, viewWorldH * scale);
-  }, [camera, mapData, heroes]);
 
   // Pointer & Mouse interactions
   const handleMouseDown = e => {
