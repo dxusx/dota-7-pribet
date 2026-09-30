@@ -34,6 +34,30 @@ export const ELEVATION = {
   HIGH: 2,    // Bases, Ward Cliffs
 };
 
+export const NEUTRAL_CAMPS = [
+  // RADIANT MAIN JUNGLE
+  { id: 'rad_camp_small_pull', x: 35, y: 80, name: 'Radiant Small Pull Camp', tier: 'Easy', faction: 'radiant', pullTo: { x: 35, y: 86 } },
+  { id: 'rad_camp_med_hill', x: 43, y: 74, name: 'Radiant Medium Hill Camp', tier: 'Medium', faction: 'radiant' },
+  { id: 'rad_camp_med_river', x: 54, y: 78, name: 'Radiant Medium River Camp', tier: 'Medium', faction: 'radiant' },
+  { id: 'rad_camp_hard_mid', x: 48, y: 68, name: 'Radiant Hard Mid Camp', tier: 'Hard', faction: 'radiant' },
+  { id: 'rad_camp_hard_pull', x: 62, y: 80, name: 'Radiant Hard Pull Camp', tier: 'Hard', faction: 'radiant', pullTo: { x: 62, y: 86 } },
+
+  // RADIANT TRIANGLE
+  { id: 'rad_camp_ancient', x: 27, y: 64, name: 'Radiant Ancient Camp', tier: 'Ancient', faction: 'radiant' },
+  { id: 'rad_camp_tri_med', x: 23, y: 56, name: 'Radiant Triangle Medium', tier: 'Medium', faction: 'radiant' },
+
+  // DIRE MAIN JUNGLE
+  { id: 'dire_camp_small_pull', x: 65, y: 20, name: 'Dire Small Pull Camp', tier: 'Easy', faction: 'dire', pullTo: { x: 65, y: 14 } },
+  { id: 'dire_camp_med_hill', x: 57, y: 26, name: 'Dire Medium Hill Camp', tier: 'Medium', faction: 'dire' },
+  { id: 'dire_camp_med_river', x: 46, y: 22, name: 'Dire Medium River Camp', tier: 'Medium', faction: 'dire' },
+  { id: 'dire_camp_hard_mid', x: 52, y: 32, name: 'Dire Hard Mid Camp', tier: 'Hard', faction: 'dire' },
+  { id: 'dire_camp_hard_pull', x: 38, y: 20, name: 'Dire Hard Pull Camp', tier: 'Hard', faction: 'dire', pullTo: { x: 38, y: 14 } },
+
+  // DIRE TRIANGLE
+  { id: 'dire_camp_ancient', x: 73, y: 36, name: 'Dire Ancient Camp', tier: 'Ancient', faction: 'dire' },
+  { id: 'dire_camp_tri_med', x: 77, y: 44, name: 'Dire Triangle Medium', tier: 'Medium', faction: 'dire' },
+];
+
 export function generateDotaMap() {
   const size = MAP_SIZE;
   const tiles = new Array(size * size);
@@ -214,30 +238,8 @@ export function generateDotaMap() {
     };
   });
 
-  // 7. Define All Neutral Camps (Authentic 7 per side)
-  const neutralCamps = [
-    // RADIANT MAIN JUNGLE
-    { x: 35, y: 80, name: 'Radiant Small Pull Camp', tier: 'Easy', faction: 'radiant', pullTo: { x: 35, y: 86 } },
-    { x: 43, y: 74, name: 'Radiant Medium Hill Camp', tier: 'Medium', faction: 'radiant' },
-    { x: 54, y: 78, name: 'Radiant Medium River Camp', tier: 'Medium', faction: 'radiant' },
-    { x: 48, y: 68, name: 'Radiant Hard Mid Camp', tier: 'Hard', faction: 'radiant' },
-    { x: 62, y: 80, name: 'Radiant Hard Pull Camp', tier: 'Hard', faction: 'radiant', pullTo: { x: 62, y: 86 } },
-
-    // RADIANT TRIANGLE
-    { x: 27, y: 64, name: 'Radiant Ancient Camp', tier: 'Ancient', faction: 'radiant' },
-    { x: 23, y: 56, name: 'Radiant Triangle Medium', tier: 'Medium', faction: 'radiant' },
-
-    // DIRE MAIN JUNGLE
-    { x: 65, y: 20, name: 'Dire Small Pull Camp', tier: 'Easy', faction: 'dire', pullTo: { x: 65, y: 14 } },
-    { x: 57, y: 26, name: 'Dire Medium Hill Camp', tier: 'Medium', faction: 'dire' },
-    { x: 46, y: 22, name: 'Dire Medium River Camp', tier: 'Medium', faction: 'dire' },
-    { x: 52, y: 32, name: 'Dire Hard Mid Camp', tier: 'Hard', faction: 'dire' },
-    { x: 38, y: 20, name: 'Dire Hard Pull Camp', tier: 'Hard', faction: 'dire', pullTo: { x: 38, y: 14 } },
-
-    // DIRE TRIANGLE
-    { x: 73, y: 36, name: 'Dire Ancient Camp', tier: 'Ancient', faction: 'dire' },
-    { x: 77, y: 44, name: 'Dire Triangle Medium', tier: 'Medium', faction: 'dire' },
-  ];
+  // 7. Neutral Camps (Authentic 7 per side)
+  const neutralCamps = NEUTRAL_CAMPS;
 
   // 8. Carve Comprehensive Jungle Trail Network (Dirt Paths)
   // Radiant Jungle Trails:

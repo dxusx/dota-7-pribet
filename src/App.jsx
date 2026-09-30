@@ -280,11 +280,16 @@ export default function App() {
           h => !h.isDead && h.faction !== activeHero.faction && h.x === tile.x && h.y === tile.y
         );
 
+        const targetCreep = !targetHero && (gameState.creeps || []).find(
+          c => !c.isDead && c.faction !== activeHero.faction && c.x === tile.x && c.y === tile.y
+        );
+
         const result = executeSkill({
           skill: targetingSkill,
           caster: activeHero,
           targetTile: tile,
           targetHero,
+          targetCreep,
           gameState,
           mapData,
         });
@@ -297,6 +302,7 @@ export default function App() {
         setGameState(prev => ({
           ...prev,
           heroes: result.updatedHeroes,
+          creeps: result.updatedCreeps || prev.creeps,
           remainingTurnTime: result.newRemainingTime,
           combatLogs: [{ text: result.logMessage, time: prev.gameTimeSeconds }, ...prev.combatLogs.slice(0, 15)],
         }));
@@ -316,15 +322,27 @@ export default function App() {
             return;
           }
 
+          // Target Hero
           const targetHero = gameState.heroes.find(
             h => !h.isDead && h.faction !== activeHero.faction && h.x === tile.x && h.y === tile.y
           );
 
-          if (targetHero) {
-            const attackerElevation = mapData.tiles[activeHero.y * MAP_SIZE + activeHero.x].elevation;
-            const targetElevation = tile.elevation;
-            const isRanged = activeHero.range > 2;
+          // Target Creep (Lane or Neutral)
+          const targetCreep = !targetHero && (gameState.creeps || []).find(
+            c => !c.isDead && c.faction !== activeHero.faction && c.x === tile.x && c.y === tile.y
+          );
 
+          // Target Tower (2x2 footprint)
+          const targetTower = !targetHero && !targetCreep && (gameState.towers || []).find(
+            t => t.hp > 0 && t.faction !== activeHero.faction &&
+            tile.x >= t.x && tile.x <= t.x + 1 && tile.y >= t.y && tile.y <= t.y + 1
+          );
+
+          const attackerElevation = mapData.tiles[activeHero.y * MAP_SIZE + activeHero.x]?.elevation || 1;
+          const targetElevation = tile.elevation || 1;
+          const isRanged = (activeHero.range || 1) > 2;
+
+          if (targetHero) {
             const res = resolveAttack({
               averageDamage: activeHero.damage,
               penetration: activeHero.penetration,
@@ -359,6 +377,138 @@ export default function App() {
                   combatLogs: [
                     {
                       text: `${activeHero.name} атаковал ${targetHero.name}: ${res.damage} урона (${res.reason}) [-${attackTimeCost}с]`,
+                      time: prev.gameTimeSeconds,
+                    },
+                    ...prev.combatLogs.slice(0, 15),
+                  ],
+                };
+              });
+            }
+            return;
+          }
+
+          if (targetCreep) {
+            const res = resolveAttack({
+              averageDamage: activeHero.damage,
+              penetration: activeHero.penetration,
+              hit: activeHero.hit,
+              targetArmor: targetCreep.armor || 0,
+              targetAgility: targetCreep.agility || 0,
+              attackerElevation,
+              targetElevation,
+              isRanged,
+            });
+
+            if (!res.isHit) {
+              addFloatingText(targetCreep.x, targetCreep.y, 'ПРОМАХ!', '#94a3b8');
+            } else {
+              const text = res.isCrit ? `КРИТ! -${res.damage}` : `-${res.damage}`;
+              const color = res.isCrit ? '#f59e0b' : '#ef4444';
+              addFloatingText(targetCreep.x, targetCreep.y, text, color);
+
+              const willDie = targetCreep.hp - res.damage <= 0;
+              const xpReward = 30 + targetCreep.level * 15;
+
+              if (willDie) {
+                setTimeout(() => {
+                  addFloatingText(targetCreep.x, targetCreep.y, `💀 КРИП УБИТ! +${xpReward} XP`, '#eab308');
+                }, 300);
+              }
+
+              setGameState(prev => {
+                const updatedCreeps = prev.creeps.map(c => {
+                  if (c.id === targetCreep.id) {
+                    const newHp = Math.max(0, c.hp - res.damage);
+                    return { ...c, hp: newHp, isDead: newHp <= 0 };
+                  }
+                  return c;
+                }).filter(c => !c.isDead && c.hp > 0);
+
+                const updatedHeroes = prev.heroes.map(h => {
+                  if (h.instanceId === activeHero.instanceId && willDie) {
+                    const newXp = h.xp + xpReward;
+                    const nextLvlXp = h.level * 100;
+                    if (newXp >= nextLvlXp && h.level < 5) {
+                      return {
+                        ...h,
+                        level: h.level + 1,
+                        xp: newXp - nextLvlXp,
+                        maxHp: h.maxHp + 50,
+                        hp: h.hp + 50,
+                        damage: h.damage + 10,
+                      };
+                    }
+                    return { ...h, xp: newXp };
+                  }
+                  return h;
+                });
+
+                const newTime = deductActionTime(prev.remainingTurnTime, attackTimeCost);
+                const creepName = targetCreep.isNeutral
+                  ? `Лесного крипа (${targetCreep.type} ур.${targetCreep.level})`
+                  : `Крипа (${targetCreep.faction === 'radiant' ? 'Radiant' : 'Dire'} ${targetCreep.type} ур.${targetCreep.level})`;
+
+                return {
+                  ...prev,
+                  creeps: updatedCreeps,
+                  heroes: updatedHeroes,
+                  remainingTurnTime: newTime,
+                  combatLogs: [
+                    {
+                      text: `${activeHero.name} атаковал ${creepName}: ${res.damage} урона (${res.reason})${willDie ? ' [УБИТ]' : ` [${Math.max(0, targetCreep.hp - res.damage)}/${targetCreep.maxHp} HP]`} [-${attackTimeCost}с]`,
+                      time: prev.gameTimeSeconds,
+                    },
+                    ...prev.combatLogs.slice(0, 15),
+                  ],
+                };
+              });
+            }
+            return;
+          }
+
+          if (targetTower) {
+            const res = resolveAttack({
+              averageDamage: activeHero.damage,
+              penetration: activeHero.penetration,
+              hit: activeHero.hit,
+              targetArmor: targetTower.armor,
+              targetAgility: 0,
+              attackerElevation,
+              targetElevation,
+              isRanged,
+            });
+
+            if (!res.isHit) {
+              addFloatingText(tile.x, tile.y, 'ПРОМАХ!', '#94a3b8');
+            } else {
+              const text = res.isCrit ? `КРИТ! -${res.damage}` : `-${res.damage}`;
+              const color = res.isCrit ? '#f59e0b' : '#ef4444';
+              addFloatingText(tile.x, tile.y, text, color);
+
+              const willDestroy = targetTower.hp - res.damage <= 0;
+              if (willDestroy) {
+                setTimeout(() => {
+                  addFloatingText(tile.x, tile.y, '💥 БАШНЯ УНИЧТОЖЕНА!', '#f97316');
+                }, 300);
+              }
+
+              setGameState(prev => {
+                const updatedTowers = prev.towers.map(t => {
+                  if (t.id === targetTower.id) {
+                    const newHp = Math.max(0, t.hp - res.damage);
+                    return { ...t, hp: newHp };
+                  }
+                  return t;
+                });
+
+                const newTime = deductActionTime(prev.remainingTurnTime, attackTimeCost);
+                return {
+                  ...prev,
+                  towers: updatedTowers,
+                  remainingTurnTime: newTime,
+                  combatLogs: [
+                    {
+                      text: `${activeHero.name} атаковал башню [${targetTower.id}]: ${res.damage} урона (${res.reason})${willDestroy ? ' [УНИЧТОЖЕНА]' : ` [${Math.max(0, targetTower.hp - res.damage)}/${targetTower.maxHp} HP]`} [-${attackTimeCost}с]`,
                       time: prev.gameTimeSeconds,
                     },
                     ...prev.combatLogs.slice(0, 15),
@@ -689,54 +839,174 @@ export default function App() {
         />
 
         {/* Selected Tile Inspector */}
-        {selectedTile && (
-          <aside className="absolute top-4 right-4 w-72 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl p-3.5 shadow-2xl z-10 animate-in fade-in slide-in-from-right duration-200">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <span className="text-amber-400 font-mono font-bold text-sm">
-                  [{selectedTile.x}, {selectedTile.y}]
-                </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold uppercase bg-slate-800 text-slate-300 border border-slate-700">
-                  {selectedTile.faction}
-                </span>
-              </div>
-              <button onClick={() => setSelectedTile(null)} className="text-slate-400 hover:text-white p-1 rounded">
-                <X size={14} />
-              </button>
-            </div>
+        {selectedTile && (() => {
+          const tileHero = gameState.heroes.find(h => !h.isDead && h.x === selectedTile.x && h.y === selectedTile.y);
+          const tileCreep = !tileHero && (gameState.creeps || []).find(c => !c.isDead && c.x === selectedTile.x && c.y === selectedTile.y);
+          const tileTower = !tileHero && !tileCreep && (gameState.towers || []).find(t => t.hp > 0 && selectedTile.x >= t.x && selectedTile.x <= t.x + 1 && selectedTile.y >= t.y && selectedTile.y <= t.y + 1);
 
-            <div className="mt-2.5 space-y-2 text-xs font-mono">
-              <div className="flex justify-between items-center bg-slate-950/60 p-2 rounded border border-slate-800/80">
-                <span className="text-slate-400">Террейн:</span>
-                <span className="font-semibold text-slate-200">{selectedTile.terrain.replace('_', ' ')}</span>
-              </div>
-
-              <div className="flex justify-between items-center bg-slate-950/60 p-2 rounded border border-slate-800/80">
-                <span className="text-slate-400">Высота:</span>
-                <span
-                  className={`font-semibold ${
-                    selectedTile.elevation === 2
-                      ? 'text-amber-400'
-                      : selectedTile.elevation === 0
-                      ? 'text-blue-400'
-                      : 'text-slate-200'
-                  }`}
-                >
-                  {selectedTile.elevation === 2 ? 'High Ground (+15% Hit)' : selectedTile.elevation === 0 ? 'Низина (-30% Miss)' : 'Базовый'}
-                </span>
+          return (
+            <aside className="absolute top-4 right-4 w-72 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl p-3.5 shadow-2xl z-10 animate-in fade-in slide-in-from-right duration-200 max-h-[80vh] overflow-y-auto custom-scrollbar">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="text-amber-400 font-mono font-bold text-sm">
+                    [{selectedTile.x}, {selectedTile.y}]
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded font-mono font-bold uppercase bg-slate-800 text-slate-300 border border-slate-700">
+                    {selectedTile.faction}
+                  </span>
+                </div>
+                <button onClick={() => setSelectedTile(null)} className="text-slate-400 hover:text-white p-1 rounded">
+                  <X size={14} />
+                </button>
               </div>
 
-              {selectedTile.object && (
-                <div className="p-2 rounded bg-amber-950/30 border border-amber-800/50 text-amber-200">
-                  <div className="font-bold flex items-center gap-1.5">
-                    <span>{selectedTile.object.symbol}</span>
-                    <span>{selectedTile.object.name}</span>
+              {/* Unit Card: Creep */}
+              {tileCreep && (
+                <div className="mt-2.5 p-2.5 rounded-lg bg-slate-950 border border-amber-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">
+                        {tileCreep.type === 'MELEE' ? '⚔️' : tileCreep.type === 'RANGED' ? '🏹' : '🐺'}
+                      </span>
+                      <div>
+                        <div className="font-bold text-xs text-amber-300">
+                          {tileCreep.isNeutral
+                            ? `Лесной ${tileCreep.type === 'MELEE' ? 'Мечник' : 'Стрелок'}`
+                            : `${tileCreep.faction === 'radiant' ? 'Radiant' : 'Dire'} ${tileCreep.type === 'MELEE' ? 'Мечник' : 'Стрелок'}`}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono">
+                          Уровень {tileCreep.level} • {tileCreep.lane ? `Линия: ${tileCreep.lane.toUpperCase()}` : tileCreep.campName || 'Лагерь'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* HP Bar */}
+                  <div>
+                    <div className="flex justify-between text-[10px] font-mono text-slate-300 mb-1">
+                      <span>Здоровье:</span>
+                      <span className="font-bold text-emerald-400">{tileCreep.hp} / {tileCreep.maxHp} HP</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 transition-all duration-200"
+                        style={{ width: `${Math.max(0, (tileCreep.hp / tileCreep.maxHp) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Stats Grid */}
+                  <div className="grid grid-cols-3 gap-1 text-[10px] font-mono pt-1 border-t border-slate-800/80">
+                    <div className="bg-slate-900 p-1 rounded text-center">
+                      <span className="text-slate-400 block text-[8px]">УРОН</span>
+                      <span className="text-amber-400 font-bold">{tileCreep.damage}</span>
+                    </div>
+                    <div className="bg-slate-900 p-1 rounded text-center">
+                      <span className="text-slate-400 block text-[8px]">БРОНЯ</span>
+                      <span className="text-blue-400 font-bold">{tileCreep.armor}</span>
+                    </div>
+                    <div className="bg-slate-900 p-1 rounded text-center">
+                      <span className="text-slate-400 block text-[8px]">ЛОВКОСТЬ</span>
+                      <span className="text-emerald-400 font-bold">{tileCreep.agility}</span>
+                    </div>
+                    <div className="bg-slate-900 p-1 rounded text-center">
+                      <span className="text-slate-400 block text-[8px]">ДАЛЬНОСТЬ</span>
+                      <span className="text-purple-400 font-bold">{tileCreep.range}</span>
+                    </div>
+                    <div className="bg-slate-900 p-1 rounded text-center">
+                      <span className="text-slate-400 block text-[8px]">ПРОБИТИЕ</span>
+                      <span className="text-rose-400 font-bold">{tileCreep.penetration}</span>
+                    </div>
+                    <div className="bg-slate-900 p-1 rounded text-center">
+                      <span className="text-slate-400 block text-[8px]">СКОРОСТЬ</span>
+                      <span className="text-cyan-400 font-bold">{tileCreep.speed}</span>
+                    </div>
                   </div>
                 </div>
               )}
-            </div>
-          </aside>
-        )}
+
+              {/* Unit Card: Hero */}
+              {tileHero && (
+                <div className="mt-2.5 p-2.5 rounded-lg bg-slate-950 border border-purple-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl">{tileHero.avatarSymbol}</span>
+                    <div>
+                      <div className="font-bold text-xs text-purple-300">{tileHero.name}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">
+                        Ур. {tileHero.level} • {tileHero.title} ({tileHero.faction.toUpperCase()})
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[10px] font-mono text-slate-300 mb-1">
+                      <span>HP: {tileHero.hp}/{tileHero.maxHp}</span>
+                      <span>MP: {tileHero.mana}/{tileHero.maxMana}</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden mb-1">
+                      <div className="h-full bg-emerald-500" style={{ width: `${(tileHero.hp / tileHero.maxHp) * 100}%` }} />
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-blue-500" style={{ width: `${(tileHero.mana / tileHero.maxMana) * 100}%` }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Unit Card: Tower */}
+              {tileTower && (
+                <div className="mt-2.5 p-2.5 rounded-lg bg-slate-950 border border-red-500/30 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{tileTower.faction === 'radiant' ? '🛡️' : '⚔️'}</span>
+                    <div>
+                      <div className="font-bold text-xs text-red-300">Башня {tileTower.id}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">{tileTower.faction.toUpperCase()} • T{tileTower.tier || 1}</div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[10px] font-mono text-slate-300 mb-1">
+                      <span>Прочность:</span>
+                      <span className="font-bold text-red-400">{tileTower.hp} / {tileTower.maxHp} HP</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-red-500" style={{ width: `${(tileTower.hp / tileTower.maxHp) * 100}%` }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-2.5 space-y-2 text-xs font-mono">
+                <div className="flex justify-between items-center bg-slate-950/60 p-2 rounded border border-slate-800/80">
+                  <span className="text-slate-400">Террейн:</span>
+                  <span className="font-semibold text-slate-200">{selectedTile.terrain.replace('_', ' ')}</span>
+                </div>
+
+                <div className="flex justify-between items-center bg-slate-950/60 p-2 rounded border border-slate-800/80">
+                  <span className="text-slate-400">Высота:</span>
+                  <span
+                    className={`font-semibold ${
+                      selectedTile.elevation === 2
+                        ? 'text-amber-400'
+                        : selectedTile.elevation === 0
+                        ? 'text-blue-400'
+                        : 'text-slate-200'
+                    }`}
+                  >
+                    {selectedTile.elevation === 2 ? 'High Ground (+15% Hit)' : selectedTile.elevation === 0 ? 'Низина (-30% Miss)' : 'Базовый'}
+                  </span>
+                </div>
+
+                {selectedTile.object && (
+                  <div className="p-2 rounded bg-amber-950/30 border border-amber-800/50 text-amber-200">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <span>{selectedTile.object.symbol}</span>
+                      <span>{selectedTile.object.name}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </aside>
+          );
+        })()}
       </div>
 
       {/* 3. Bottom Deck — Permanent Command Console & Skills Bar */}

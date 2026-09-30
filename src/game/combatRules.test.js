@@ -14,6 +14,7 @@ import {
 import { TOWER_STATS } from './towerData.js';
 import { CREEP_STATS, LANE_WAVE_FORMATIONS, NEUTRAL_CAMP_FORMATIONS } from './creepData.js';
 import { HEROES_ROSTER } from './heroesData.js';
+import { SQUAD_FORMATION_OFFSETS } from './gameState.js';
 
 test('1. Time System mechanics', () => {
   assert.equal(TURN_DURATION_SECONDS, 8.0);
@@ -155,4 +156,64 @@ test('9. Hero Speed and Step Verification for Every Character', () => {
     const singleStepCost = Number(((1 * TURN_DURATION_SECONDS) / hero.stats.speed).toFixed(2));
     assert.ok(singleStepCost <= 8.0 / expectedSpeed + 0.01);
   });
+});
+
+test('10. Creep Squad Formation & Separation (No Collapsed Single Circles)', () => {
+  // Verify Radiant and Dire offsets in SQUAD_FORMATION_OFFSETS are distinct
+  ['radiant', 'dire'].forEach(faction => {
+    const meleeOffsets = SQUAD_FORMATION_OFFSETS[faction].melee;
+    const rangedOffsets = SQUAD_FORMATION_OFFSETS[faction].ranged;
+
+    const keySet = new Set();
+    meleeOffsets.forEach(o => {
+      const key = `${o.ox},${o.oy}`;
+      assert.ok(!keySet.has(key), `Duplicate melee offset: ${key}`);
+      keySet.add(key);
+    });
+
+    rangedOffsets.forEach(o => {
+      const key = `${o.ox},${o.oy}`;
+      assert.ok(!keySet.has(key), `Duplicate ranged offset: ${key}`);
+      keySet.add(key);
+    });
+
+    // 9 distinct positions for a max wave of 4R 5M!
+    assert.equal(keySet.size, 9);
+  });
+});
+
+test('11. Creep Combat, Damage Resolution, and Death State', () => {
+  const creep = {
+    id: 'creep_test_1',
+    hp: 100,
+    maxHp: 100,
+    armor: 0,
+    agility: 0,
+    isDead: false,
+  };
+
+  const attackResult = resolveAttack({
+    averageDamage: 40,
+    penetration: 10,
+    hit: 50,
+    targetArmor: creep.armor,
+    targetAgility: creep.agility,
+    attackerElevation: 1,
+    targetElevation: 1,
+    isRanged: false,
+  });
+
+  assert.ok(attackResult.isHit, 'Attack against 0 agility creep should hit');
+  assert.ok(attackResult.damage >= 30 && attackResult.damage <= 100, 'Damage must be within expected range');
+
+  creep.hp = Math.max(0, creep.hp - attackResult.damage);
+  assert.ok(creep.hp < 100, 'Creep HP must decrease when taking damage');
+
+  // Fatal damage
+  const fatalAttack = 150;
+  creep.hp = Math.max(0, creep.hp - fatalAttack);
+  creep.isDead = creep.hp <= 0;
+
+  assert.equal(creep.hp, 0);
+  assert.equal(creep.isDead, true, 'Creep must be marked dead when HP <= 0');
 });

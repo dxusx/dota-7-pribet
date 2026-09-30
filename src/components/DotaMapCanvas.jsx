@@ -391,26 +391,76 @@ export default function DotaMapCanvas({
         ctx.fillRect(px - 14, py + 14, 28 * hpPct, 4);
       });
 
-      // 8. Draw Lane Creeps
+      // 8. Draw Creeps (Melee, Ranged, and Neutrals with Distinct Formations & Visuals)
       creeps.forEach(creep => {
+        if (creep.isDead || creep.hp <= 0) return;
+
         const px = creep.x * TILE_SIZE + TILE_SIZE / 2;
         const py = creep.y * TILE_SIZE + TILE_SIZE / 2;
         const isRad = creep.faction === 'radiant';
+        const isNeutral = creep.faction === 'neutral' || creep.isNeutral;
+        const isMelee = creep.type === 'MELEE';
+        const isHovered = hoveredTile && hoveredTile.x === creep.x && hoveredTile.y === creep.y;
+        const isSelected = selectedTile && selectedTile.x === creep.x && selectedTile.y === creep.y;
 
+        // Hover / Selection Reticle
+        if (isHovered || isSelected) {
+          ctx.beginPath();
+          ctx.arc(px, py, TILE_SIZE * 0.52, 0, Math.PI * 2);
+          ctx.strokeStyle = isHovered ? '#f59e0b' : '#38bdf8';
+          ctx.lineWidth = 2 / zoom;
+          ctx.stroke();
+        }
+
+        // Distinct colors & icons per unit type
+        let fillColor = '#166534';
+        let strokeColor = '#4ade80';
+        let icon = '⚔️';
+
+        if (isNeutral) {
+          fillColor = isMelee ? '#78350f' : '#713f12';
+          strokeColor = '#facc15';
+          icon = isMelee ? (creep.level >= 4 ? '👹' : '🐺') : '🏹';
+        } else if (isRad) {
+          fillColor = isMelee ? '#15803d' : '#0f766e';
+          strokeColor = isMelee ? '#4ade80' : '#38bdf8';
+          icon = isMelee ? '⚔️' : '🏹';
+        } else {
+          fillColor = isMelee ? '#991b1b' : '#831843';
+          strokeColor = isMelee ? '#f87171' : '#fb7185';
+          icon = isMelee ? '⚔️' : '🏹';
+        }
+
+        const radius = TILE_SIZE * 0.40;
+
+        // Creep Token Circle
         ctx.beginPath();
-        ctx.arc(px, py, TILE_SIZE * 0.38, 0, Math.PI * 2);
-        ctx.fillStyle = isRad ? '#15803d' : '#991b1b';
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.fillStyle = fillColor;
         ctx.fill();
-        ctx.strokeStyle = isRad ? '#4ade80' : '#f87171';
-        ctx.lineWidth = 1 / zoom;
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 1.5 / zoom;
         ctx.stroke();
 
-        // Mini HP Bar
-        const hpPct = Math.max(0, creep.hp / creep.maxHp);
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(px - 8, py - 12, 16, 3);
-        ctx.fillStyle = isRad ? '#4ade80' : '#f87171';
-        ctx.fillRect(px - 8, py - 12, 16 * hpPct, 3);
+        // Creep Type Symbol
+        ctx.font = `${Math.round(TILE_SIZE * 0.46)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(icon, px, py + 1);
+
+        // Level Badge
+        ctx.font = `bold ${Math.max(7, Math.round(8 / zoom))}px monospace`;
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillText(`L${creep.level}`, px + radius * 0.65, py - radius * 0.65);
+
+        // High-Contrast Health Bar
+        const barW = 20;
+        const barH = 3.5;
+        const hpPct = Math.max(0, Math.min(1, creep.hp / creep.maxHp));
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(px - barW / 2, py - radius - 6, barW, barH);
+        ctx.fillStyle = hpPct > 0.5 ? '#22c55e' : hpPct > 0.25 ? '#f59e0b' : '#ef4444';
+        ctx.fillRect(px - barW / 2, py - radius - 6, barW * hpPct, barH);
       });
 
       // 9. Draw Heroes

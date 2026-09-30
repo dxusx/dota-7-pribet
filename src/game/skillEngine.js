@@ -16,6 +16,7 @@ export function executeSkill({
   caster,
   targetTile = null,
   targetHero = null,
+  targetCreep = null,
   gameState,
   mapData,
 }) {
@@ -34,6 +35,7 @@ export function executeSkill({
   }
 
   let updatedHeroes = [...gameState.heroes];
+  let updatedCreeps = [...(gameState.creeps || [])];
   let floatingTexts = [];
   let logMessage = '';
 
@@ -94,40 +96,75 @@ export function executeSkill({
       return h;
     });
 
+    updatedCreeps = updatedCreeps.map(c => {
+      if (!c.isDead && c.faction !== caster.faction) {
+        const dist = Math.abs(c.x - caster.x) + Math.abs(c.y - caster.y);
+        if (dist <= radius) {
+          tauntedCount++;
+          floatingTexts.push({ x: c.x, y: c.y, text: 'ПРОВОКАЦИЯ!', color: '#f97316' });
+        }
+      }
+      return c;
+    });
+
     logMessage = `${caster.name} применил [Berserker's Call], спровоцировав ${tauntedCount} врагов!`;
     floatingTexts.push({ x: caster.x, y: caster.y, text: "🪓 BERSERKER'S CALL!", color: '#f97316' });
   }
 
   // 4. Battle Hunger (Axe targeted DoT & slow)
-  else if (skill.id === 'battle-hunger' && targetHero) {
+  else if (skill.id === 'battle-hunger' && (targetHero || targetCreep)) {
     const damage = 20;
-    updatedHeroes = updatedHeroes.map(h => {
-      if (h.instanceId === targetHero.instanceId) {
-        const newHp = Math.max(0, h.hp - damage);
-        return { ...h, hp: newHp, speed: Math.max(1, h.speed - 2), isDead: newHp <= 0 };
-      }
-      return h;
-    });
-    logMessage = `${caster.name} наложил [Battle Hunger] на ${targetHero.name}: -${damage} HP и замедление!`;
-    floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `-${damage} HP (Замедление)`, color: '#ea580c' });
+    if (targetHero) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          const newHp = Math.max(0, h.hp - damage);
+          return { ...h, hp: newHp, speed: Math.max(1, h.speed - 2), isDead: newHp <= 0 };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} наложил [Battle Hunger] на ${targetHero.name}: -${damage} HP и замедление!`;
+      floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `-${damage} HP (Замедление)`, color: '#ea580c' });
+    } else if (targetCreep) {
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === targetCreep.id) {
+          const newHp = Math.max(0, c.hp - damage);
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+        return c;
+      });
+      logMessage = `${caster.name} наложил [Battle Hunger] на крипа: -${damage} HP!`;
+      floatingTexts.push({ x: targetCreep.x, y: targetCreep.y, text: `-${damage} HP`, color: '#ea580c' });
+    }
   }
 
   // 5. Culling Blade (Axe Ultimate execution)
-  else if (skill.id === 'culling-blade' && targetHero) {
+  else if (skill.id === 'culling-blade' && (targetHero || targetCreep)) {
     const damage = 100;
     let resetCooldown = false;
 
-    updatedHeroes = updatedHeroes.map(h => {
-      if (h.instanceId === targetHero.instanceId) {
-        const newHp = Math.max(0, h.hp - damage);
-        if (newHp <= 0) resetCooldown = true;
-        return { ...h, hp: newHp, isDead: newHp <= 0 };
-      }
-      return h;
-    });
-
-    logMessage = `${caster.name} разрубил ${targetHero.name} [Culling Blade]: -${damage} урона!`;
-    floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `🪓 CULLING BLADE! -${damage}`, color: '#dc2626' });
+    if (targetHero) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          const newHp = Math.max(0, h.hp - damage);
+          if (newHp <= 0) resetCooldown = true;
+          return { ...h, hp: newHp, isDead: newHp <= 0 };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} разрубил ${targetHero.name} [Culling Blade]: -${damage} урона!`;
+      floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `🪓 CULLING BLADE! -${damage}`, color: '#dc2626' });
+    } else if (targetCreep) {
+      resetCooldown = true;
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === targetCreep.id) {
+          const newHp = Math.max(0, c.hp - damage);
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+        return c;
+      });
+      logMessage = `${caster.name} разрубил крипа [Culling Blade]: -${damage} урона!`;
+      floatingTexts.push({ x: targetCreep.x, y: targetCreep.y, text: `🪓 CULLING BLADE! -${damage}`, color: '#dc2626' });
+    }
 
     if (resetCooldown) {
       logMessage += ` Добивание! Перезарядка сброшена!`;
@@ -151,63 +188,95 @@ export function executeSkill({
   // 7. Shunpo (Katarina Teleport + Strike)
   else if (skill.id === 'shunpo' && targetTile) {
     const damage = 25;
-    // Find closest enemy near destination
-    let hitEnemy = null;
+    let hitHero = null;
+    let hitCreep = null;
     let minDist = 3.0;
 
-    updatedHeroes = updatedHeroes.map(h => {
+    updatedHeroes.forEach(h => {
       if (!h.isDead && h.faction !== caster.faction) {
-        const dist = Math.sqrt((h.x - targetTile.x) ** 2 + (h.y - targetTile.y) ** 2);
+        const dist = Math.hypot(h.x - targetTile.x, h.y - targetTile.y);
         if (dist <= minDist) {
           minDist = dist;
-          hitEnemy = h;
+          hitHero = h;
+          hitCreep = null;
         }
       }
-      return h;
+    });
+
+    updatedCreeps.forEach(c => {
+      if (!c.isDead && c.faction !== caster.faction) {
+        const dist = Math.hypot(c.x - targetTile.x, c.y - targetTile.y);
+        if (dist <= minDist) {
+          minDist = dist;
+          hitCreep = c;
+          hitHero = null;
+        }
+      }
     });
 
     updatedHeroes = updatedHeroes.map(h => {
       if (h.instanceId === caster.instanceId) {
         return { ...h, x: targetTile.x, y: targetTile.y };
       }
-      if (hitEnemy && h.instanceId === hitEnemy.instanceId) {
+      if (hitHero && h.instanceId === hitHero.instanceId) {
         const newHp = Math.max(0, h.hp - damage);
         return { ...h, hp: newHp, isDead: newHp <= 0 };
       }
       return h;
     });
+
+    if (hitCreep) {
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === hitCreep.id) {
+          const newHp = Math.max(0, c.hp - damage);
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+        return c;
+      });
+    }
 
     logMessage = `${caster.name} телепортировался с помощью [Шунпо] в [${targetTile.x}, ${targetTile.y}]`;
     floatingTexts.push({ x: targetTile.x, y: targetTile.y, text: '🗡️ ШУНПО!', color: '#f43f5e' });
-    if (hitEnemy) {
-      floatingTexts.push({ x: hitEnemy.x, y: hitEnemy.y, text: `-${damage}`, color: '#ef4444' });
+    if (hitHero) floatingTexts.push({ x: hitHero.x, y: hitHero.y, text: `-${damage}`, color: '#ef4444' });
+    if (hitCreep) floatingTexts.push({ x: hitCreep.x, y: hitCreep.y, text: `-${damage}`, color: '#ef4444' });
+  }
+
+  // 8. Bouncing Blade (Katarina)
+  else if (skill.id === 'bouncing-blade' && (targetHero || targetCreep)) {
+    const damage = 40;
+    if (targetHero) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          const newHp = Math.max(0, h.hp - damage);
+          return { ...h, hp: newHp, isDead: newHp <= 0 };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} метнул [Танцующий клинок] в ${targetHero.name}: -${damage} урона!`;
+      floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `🗡️ -${damage}`, color: '#f43f5e' });
+    } else if (targetCreep) {
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === targetCreep.id) {
+          const newHp = Math.max(0, c.hp - damage);
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+        return c;
+      });
+      logMessage = `${caster.name} метнул [Танцующий клинок] в крипа: -${damage} урона!`;
+      floatingTexts.push({ x: targetCreep.x, y: targetCreep.y, text: `🗡️ -${damage}`, color: '#f43f5e' });
     }
   }
 
-  // 7. Bouncing Blade (Katarina)
-  else if (skill.id === 'bouncing-blade' && targetHero) {
-    const damage = 40;
-    updatedHeroes = updatedHeroes.map(h => {
-      if (h.instanceId === targetHero.instanceId) {
-        const newHp = Math.max(0, h.hp - damage);
-        return { ...h, hp: newHp, isDead: newHp <= 0 };
-      }
-      return h;
-    });
-    logMessage = `${caster.name} метнул [Танцующий клинок] в ${targetHero.name}: -${damage} урона!`;
-    floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `🗡️ -${damage}`, color: '#f43f5e' });
-  }
-
-  // 8. Death Lotus (Katarina Ultimate AoE)
+  // 9. Death Lotus (Katarina Ultimate AoE)
   else if (skill.id === 'death-lotus') {
     const radius = 5;
     let hitCount = 0;
+    const dmg = 45;
     updatedHeroes = updatedHeroes.map(h => {
       if (!h.isDead && h.faction !== caster.faction) {
-        const dist = Math.sqrt((h.x - caster.x) ** 2 + (h.y - caster.y) ** 2);
+        const dist = Math.hypot(h.x - caster.x, h.y - caster.y);
         if (dist <= radius) {
           hitCount++;
-          const dmg = 45;
           const newHp = Math.max(0, h.hp - dmg);
           floatingTexts.push({ x: h.x, y: h.y, text: `🌸 -${dmg} (Страшные раны -40%)`, color: '#e11d48' });
           return { ...h, hp: newHp, isDead: newHp <= 0, grievousWounds: 0.4 };
@@ -215,25 +284,52 @@ export function executeSkill({
       }
       return h;
     });
+
+    updatedCreeps = updatedCreeps.map(c => {
+      if (!c.isDead && c.faction !== caster.faction) {
+        const dist = Math.hypot(c.x - caster.x, c.y - caster.y);
+        if (dist <= radius) {
+          hitCount++;
+          const newHp = Math.max(0, c.hp - dmg);
+          floatingTexts.push({ x: c.x, y: c.y, text: `🌸 -${dmg}`, color: '#e11d48' });
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+      }
+      return c;
+    });
+
     logMessage = `${caster.name} применил [Цветок смерти] по ${hitCount} врагам!`;
     floatingTexts.push({ x: caster.x, y: caster.y, text: '🌸 DEATH LOTUS!', color: '#e11d48' });
   }
 
-  // 9. Bayonet Throw (Anderson)
-  else if (skill.id === 'bayonet-throw' && targetHero) {
-    const damage = Math.max(20, Math.round(targetHero.hp * 0.20));
-    updatedHeroes = updatedHeroes.map(h => {
-      if (h.instanceId === targetHero.instanceId) {
-        const newHp = Math.max(0, h.hp - damage);
-        return { ...h, hp: newHp, isDead: newHp <= 0 };
-      }
-      return h;
-    });
-    logMessage = `${caster.name} бросил [Противовампирский штык] в ${targetHero.name}: -${damage} урона и замедление!`;
-    floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `✝️ -${damage} HP`, color: '#eab308' });
+  // 10. Bayonet Throw (Anderson)
+  else if (skill.id === 'bayonet-throw' && (targetHero || targetCreep)) {
+    if (targetHero) {
+      const damage = Math.max(20, Math.round(targetHero.hp * 0.20));
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          const newHp = Math.max(0, h.hp - damage);
+          return { ...h, hp: newHp, isDead: newHp <= 0 };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} бросил [Противовампирский штык] в ${targetHero.name}: -${damage} урона и замедление!`;
+      floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `✝️ -${damage} HP`, color: '#eab308' });
+    } else if (targetCreep) {
+      const damage = 35;
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === targetCreep.id) {
+          const newHp = Math.max(0, c.hp - damage);
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+        return c;
+      });
+      logMessage = `${caster.name} бросил [Противовампирский штык] в крипа: -${damage} урона!`;
+      floatingTexts.push({ x: targetCreep.x, y: targetCreep.y, text: `✝️ -${damage} HP`, color: '#eab308' });
+    }
   }
 
-  // 10. Whirlwind Slash (Anderson AoE)
+  // 11. Whirlwind Slash (Anderson AoE)
   else if (skill.id === 'whirlwind-slash') {
     const radius = 2;
     const damage = 50;
@@ -248,11 +344,24 @@ export function executeSkill({
       }
       return h;
     });
+
+    updatedCreeps = updatedCreeps.map(c => {
+      if (!c.isDead && c.faction !== caster.faction) {
+        const dist = Math.abs(c.x - caster.x) + Math.abs(c.y - caster.y);
+        if (dist <= radius) {
+          const newHp = Math.max(0, c.hp - damage);
+          floatingTexts.push({ x: c.x, y: c.y, text: `-${damage}`, color: '#eab308' });
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+      }
+      return c;
+    });
+
     logMessage = `${caster.name} совершил [Круговую атаку]: 50 урона по всем в радиусе 2!`;
     floatingTexts.push({ x: caster.x, y: caster.y, text: '⚔️ КРУГОВАЯ АТАКА!', color: '#eab308' });
   }
 
-  // 11. Divine Regeneration (Anderson Ultimate)
+  // 12. Divine Regeneration (Anderson Ultimate)
   else if (skill.id === 'divine-regen') {
     const healAmount = Math.round((caster.maxHp - caster.hp) * 0.35) + 30;
     updatedHeroes = updatedHeroes.map(h => {
@@ -270,67 +379,114 @@ export function executeSkill({
     floatingTexts.push({ x: caster.x, y: caster.y, text: `✨ +${healAmount} HP!`, color: '#22c55e' });
   }
 
-  // 12. Meat Hook (Pudge: pull enemy to Pudge)
-  else if (skill.id === 'meat-hook' && targetHero) {
+  // 13. Meat Hook (Pudge: pull enemy to Pudge)
+  else if (skill.id === 'meat-hook' && (targetHero || targetCreep)) {
     const damage = 60;
-    // Pull target to tile adjacent to Pudge
-    const pullX = caster.x > targetHero.x ? caster.x - 1 : caster.x < targetHero.x ? caster.x + 1 : caster.x;
-    const pullY = caster.y > targetHero.y ? caster.y - 1 : caster.y < targetHero.y ? caster.y + 1 : caster.y;
+    const target = targetHero || targetCreep;
+    const pullX = caster.x > target.x ? caster.x - 1 : caster.x < target.x ? caster.x + 1 : caster.x;
+    const pullY = caster.y > target.y ? caster.y - 1 : caster.y < target.y ? caster.y + 1 : caster.y;
 
-    updatedHeroes = updatedHeroes.map(h => {
-      if (h.instanceId === targetHero.instanceId) {
-        const newHp = Math.max(0, h.hp - damage);
-        return { ...h, x: pullX, y: pullY, hp: newHp, isDead: newHp <= 0 };
-      }
-      return h;
-    });
-    logMessage = `${caster.name} притянул ${targetHero.name} [Meat Hook]: -${damage} урона!`;
+    if (targetHero) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          const newHp = Math.max(0, h.hp - damage);
+          return { ...h, x: pullX, y: pullY, hp: newHp, isDead: newHp <= 0 };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} притянул ${targetHero.name} [Meat Hook]: -${damage} урона!`;
+    } else {
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === targetCreep.id) {
+          const newHp = Math.max(0, c.hp - damage);
+          return { ...c, x: pullX, y: pullY, hp: newHp, isDead: newHp <= 0 };
+        }
+        return c;
+      });
+      logMessage = `${caster.name} притянул крипа [Meat Hook]: -${damage} урона!`;
+    }
     floatingTexts.push({ x: pullX, y: pullY, text: `🪝 HOOK! -${damage}`, color: '#84cc16' });
   }
 
-  // 13. Lapse: Blue (Gojo pull)
-  else if (skill.id === 'lapse-blue' && targetHero) {
+  // 14. Lapse: Blue (Gojo pull)
+  else if (skill.id === 'lapse-blue' && (targetHero || targetCreep)) {
     const damage = 45;
-    const pullX = Math.round((targetHero.x + caster.x) / 2);
-    const pullY = Math.round((targetHero.y + caster.y) / 2);
+    const target = targetHero || targetCreep;
+    const pullX = Math.round((target.x + caster.x) / 2);
+    const pullY = Math.round((target.y + caster.y) / 2);
 
-    updatedHeroes = updatedHeroes.map(h => {
-      if (h.instanceId === targetHero.instanceId) {
-        const newHp = Math.max(0, h.hp - damage);
-        return { ...h, x: pullX, y: pullY, hp: newHp, isDead: newHp <= 0 };
-      }
-      return h;
-    });
-    logMessage = `${caster.name} применил [Lapse: Blue] на ${targetHero.name}: -${damage} урона и притяжение!`;
+    if (targetHero) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          const newHp = Math.max(0, h.hp - damage);
+          return { ...h, x: pullX, y: pullY, hp: newHp, isDead: newHp <= 0 };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} применил [Lapse: Blue] на ${targetHero.name}: -${damage} урона и притяжение!`;
+    } else {
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === targetCreep.id) {
+          const newHp = Math.max(0, c.hp - damage);
+          return { ...c, x: pullX, y: pullY, hp: newHp, isDead: newHp <= 0 };
+        }
+        return c;
+      });
+      logMessage = `${caster.name} применил [Lapse: Blue] на крипа: -${damage} урона!`;
+    }
     floatingTexts.push({ x: pullX, y: pullY, text: `🔵 BLUE! -${damage}`, color: '#38bdf8' });
   }
 
-  // 14. Dismantle / Cleave (Sukuna)
-  else if ((skill.id === 'dismantle' || skill.id === 'cleave') && targetHero) {
+  // 15. Dismantle / Cleave (Sukuna)
+  else if ((skill.id === 'dismantle' || skill.id === 'cleave') && (targetHero || targetCreep)) {
     const damage = skill.id === 'cleave' ? 45 : 40;
-    updatedHeroes = updatedHeroes.map(h => {
-      if (h.instanceId === targetHero.instanceId) {
-        const newHp = Math.max(0, h.hp - damage);
-        return { ...h, hp: newHp, isDead: newHp <= 0 };
-      }
-      return h;
-    });
-    logMessage = `${caster.name} рассёк ${targetHero.name} [${skill.name}]: -${damage} урона!`;
-    floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `🩸 -${damage}`, color: '#dc2626' });
+    if (targetHero) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          const newHp = Math.max(0, h.hp - damage);
+          return { ...h, hp: newHp, isDead: newHp <= 0 };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} рассёк ${targetHero.name} [${skill.name}]: -${damage} урона!`;
+      floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `🩸 -${damage}`, color: '#dc2626' });
+    } else {
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === targetCreep.id) {
+          const newHp = Math.max(0, c.hp - damage);
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+        return c;
+      });
+      logMessage = `${caster.name} рассёк крипа [${skill.name}]: -${damage} урона!`;
+      floatingTexts.push({ x: targetCreep.x, y: targetCreep.y, text: `🩸 -${damage}`, color: '#dc2626' });
+    }
   }
 
   // Generic fallback for other skills
-  else if (targetHero) {
+  else if (targetHero || targetCreep) {
     const damage = skill.damage || 40;
-    updatedHeroes = updatedHeroes.map(h => {
-      if (h.instanceId === targetHero.instanceId) {
-        const newHp = Math.max(0, h.hp - damage);
-        return { ...h, hp: newHp, isDead: newHp <= 0 };
-      }
-      return h;
-    });
-    logMessage = `${caster.name} применил [${skill.name}] по ${targetHero.name}: -${damage} урона!`;
-    floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `✨ -${damage}`, color: '#a855f7' });
+    if (targetHero) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          const newHp = Math.max(0, h.hp - damage);
+          return { ...h, hp: newHp, isDead: newHp <= 0 };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} применил [${skill.name}] по ${targetHero.name}: -${damage} урона!`;
+      floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `✨ -${damage}`, color: '#a855f7' });
+    } else {
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === targetCreep.id) {
+          const newHp = Math.max(0, c.hp - damage);
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+        return c;
+      });
+      logMessage = `${caster.name} применил [${skill.name}] по крипу: -${damage} урона!`;
+      floatingTexts.push({ x: targetCreep.x, y: targetCreep.y, text: `✨ -${damage}`, color: '#a855f7' });
+    }
   } else {
     logMessage = `${caster.name} применил [${skill.name}]!`;
     floatingTexts.push({ x: caster.x, y: caster.y, text: `✨ ${skill.name}`, color: '#a855f7' });
@@ -356,10 +512,14 @@ export function executeSkill({
 
   const newRemainingTime = deductActionTime(remainingTurnTime, timeCost);
 
+  // Filter dead creeps
+  updatedCreeps = updatedCreeps.filter(c => !c.isDead && c.hp > 0);
+
   return {
     success: true,
     newRemainingTime,
     updatedHeroes,
+    updatedCreeps,
     floatingTexts,
     logMessage,
   };
