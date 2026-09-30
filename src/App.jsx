@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { generateDotaMap, MAP_SIZE, TERRAIN } from './map/dotaMapData';
 import DotaMapCanvas from './components/DotaMapCanvas';
 import { createInitialGameState, endTurn } from './game/gameState';
@@ -8,22 +8,19 @@ import {
   resolveAttack,
   TURN_DURATION_SECONDS,
 } from './game/combatRules';
+import { executeSkill } from './game/skillEngine';
 import {
-  Compass,
   Grid,
   Trees,
-  Layers,
   Maximize2,
   X,
-  Target,
   Footprints,
   Swords,
-  Sparkles,
   ChevronRight,
-  Shield,
   Clock,
-  Heart,
-  Zap,
+  Target,
+  Sparkles,
+  Info,
 } from 'lucide-react';
 
 export default function App() {
@@ -31,15 +28,15 @@ export default function App() {
   const [gameState, setGameState] = useState(() => createInitialGameState());
 
   const [selectedTile, setSelectedTile] = useState(null);
+  const [hoveredTile, setHoveredTile] = useState(null);
   const [showGrid, setShowGrid] = useState(true);
-  const [showIcons, setShowIcons] = useState(true);
   const [showTrees, setShowTrees] = useState(true);
   const [targetPos, setTargetPos] = useState(null);
 
   // Tactical interaction mode: null | 'move' | 'attack' | 'skill'
-  const [actionMode, setActionMode] = useState(null);
-  const [selectedSkill, setSelectedSkill] = useState(null);
-  const [showSkillsDrawer, setShowSkillsDrawer] = useState(false);
+  const [actionMode, setActionMode] = useState('move'); // Default to move mode for smooth 1-click navigation
+  const [targetingSkill, setTargetingSkill] = useState(null);
+  const [hoveredSkillTooltip, setHoveredSkillTooltip] = useState(null);
   const [floatingTexts, setFloatingTexts] = useState([]);
 
   // Active hero
@@ -49,35 +46,88 @@ export default function App() {
   // Helper to add floating combat text
   const addFloatingText = useCallback((x, y, text, color = '#f59e0b') => {
     const id = `${Date.now()}_${Math.random()}`;
-    setFloatingTexts(prev => [...prev.slice(-12), { id, x, y, text, color, createdAt: Date.now() }]);
+    setFloatingTexts(prev => [...prev.slice(-15), { id, x, y, text, color, createdAt: Date.now() }]);
   }, []);
 
-  // Compute Reachable Movement Cells (BFS within speed range)
-  const reachableMoveCells = useMemo(() => {
-    if (actionMode !== 'move' || !activeHero || activeHero.isDead) return [];
-    const maxSteps = activeHero.speed || 6;
+  // Compute 1-Click Hover Path and Time Cost
+  const { hoverPath, pathTimeCost, canAffordPath, pctOfTurn } = useMemo(() => {
+    if (!hoveredTile || !activeHero || activeHero.isDead || actionMode !== 'move' || targetingSkill) {
+      return { hoverPath: [], pathTimeCost: null, canAffordPath: true, pctOfTurn: 0 };
+    }
+
+    if (hoveredTile.x === activeHero.x && hoveredTile.y === activeHero.y) {
+      return { hoverPath: [], pathTimeCost: null, canAffordPath: true, pctOfTurn: 0 };
+    }
+
+    // Do not path onto cliffs or trees
+    if (hoveredTile.hasTree || hoveredTile.terrain === TERRAIN.CLIFF) {
+      return { hoverPath: [], pathTimeCost: null, canAffordPath: false, pctOfTurn: 0 };
+    }
+
+    // Bresenham line path
+    const path = [];
+    let x0 = activeHero.x;
+    let y0 = activeHero.y;
+    const x1 = hoveredTile.x;
+    const y1 = hoveredTile.y;
+
+    const dx = Math.abs(x1 - x0);
+    const dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1;
+    const sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+
+    while (x0 !== x1 || y0 !== y1) {
+      const e2 = 2 * err;
+      if (e2 > -dy) {
+        err -= dy;
+        x0 += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        y0 += sy;
+      }
+      path.push({ x: x0, y: y0 });
+    }
+
+    const steps = path.length;
+    // Each step costs 8.0 / hero.speed seconds
+    const speed = activeHero.speed || 6;
+    const cost = Number(((steps * 8.0) / speed).toFixed(1));
+    const canAfford = cost <= gameState.remainingTurnTime;
+    const pct = Math.min(100, Math.round((cost / TURN_DURATION_SECONDS) * 100));
+
+    return {
+      hoverPath: path,
+      pathTimeCost: cost,
+      canAffordPath: canAfford,
+      pctOfTurn: pct,
+    };
+  }, [hoveredTile, activeHero, actionMode, targetingSkill, gameState.remainingTurnTime]);
+
+  // Compute Skill Target Range Cells
+  const skillTargetCells = useMemo(() => {
+    if (!targetingSkill || !activeHero) return [];
+    const range = targetingSkill.range || targetingSkill.radius || 4;
     const cells = [];
     const { x: startX, y: startY } = activeHero;
 
-    for (let dy = -maxSteps; dy <= maxSteps; dy++) {
-      for (let dx = -maxSteps; dx <= maxSteps; dx++) {
-        const dist = Math.abs(dx) + Math.abs(dy); // Manhattan distance
-        if (dist > 0 && dist <= maxSteps) {
+    for (let dy = -range; dy <= range; dy++) {
+      for (let dx = -range; dx <= range; dx++) {
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist <= range + 0.5) {
           const px = startX + dx;
           const py = startY + dy;
           if (px >= 0 && px < MAP_SIZE && py >= 0 && py < MAP_SIZE) {
-            const tile = mapData.tiles[py * MAP_SIZE + px];
-            if (!tile.hasTree && tile.terrain !== TERRAIN.CLIFF) {
-              cells.push({ x: px, y: py });
-            }
+            cells.push({ x: px, y: py });
           }
         }
       }
     }
     return cells;
-  }, [actionMode, activeHero, mapData]);
+  }, [targetingSkill, activeHero]);
 
-  // Compute Reachable Attack Cells
+  // Compute Attack Range Cells
   const reachableAttackCells = useMemo(() => {
     if (actionMode !== 'attack' || !activeHero || activeHero.isDead) return [];
     const range = activeHero.range || 1;
@@ -99,60 +149,59 @@ export default function App() {
     return cells;
   }, [actionMode, activeHero]);
 
-  // Handle cell clicks for tactical actions
+  // Handle Cell Click (Move in 1 click, or Attack, or Cast Skill)
   const handleCellClick = useCallback(
     tile => {
       if (!activeHero || activeHero.isDead) return;
 
-      // 1. Move Action
-      if (actionMode === 'move') {
-        const isReachable = reachableMoveCells.some(c => c.x === tile.x && c.y === tile.y);
-        if (isReachable) {
-          const moveTimeCost = 1.0;
-          if (!canPerformAction(gameState.remainingTurnTime, moveTimeCost)) {
-            addFloatingText(activeHero.x, activeHero.y, 'Нет времени!', '#ef4444');
-            return;
-          }
-
-          setGameState(prev => {
-            const updatedHeroes = prev.heroes.map(h => {
-              if (h.instanceId === activeHero.instanceId) {
-                return { ...h, x: tile.x, y: tile.y };
-              }
-              return h;
-            });
-            const newTime = deductActionTime(prev.remainingTurnTime, moveTimeCost);
-            return {
-              ...prev,
-              heroes: updatedHeroes,
-              remainingTurnTime: newTime,
-              combatLogs: [
-                {
-                  text: `${activeHero.name} переместился в [${tile.x}, ${tile.y}] (-${moveTimeCost}с)`,
-                  time: prev.gameTimeSeconds,
-                },
-                ...prev.combatLogs.slice(0, 15),
-              ],
-            };
-          });
-
-          addFloatingText(tile.x, tile.y, 'Шаг (-1с)', '#60a5fa');
-          setActionMode(null);
+      // 1. Cast Targeted Skill
+      if (targetingSkill) {
+        const isWithinRange = skillTargetCells.some(c => c.x === tile.x && c.y === tile.y);
+        if (!isWithinRange) {
+          addFloatingText(tile.x, tile.y, 'Вне радиуса!', '#ef4444');
           return;
         }
+
+        const targetHero = gameState.heroes.find(
+          h => !h.isDead && h.faction !== activeHero.faction && h.x === tile.x && h.y === tile.y
+        );
+
+        const result = executeSkill({
+          skill: targetingSkill,
+          caster: activeHero,
+          targetTile: tile,
+          targetHero,
+          gameState,
+          mapData,
+        });
+
+        if (!result.success) {
+          addFloatingText(activeHero.x, activeHero.y, result.reason, '#ef4444');
+          return;
+        }
+
+        setGameState(prev => ({
+          ...prev,
+          heroes: result.updatedHeroes,
+          remainingTurnTime: result.newRemainingTime,
+          combatLogs: [{ text: result.logMessage, time: prev.gameTimeSeconds }, ...prev.combatLogs.slice(0, 15)],
+        }));
+
+        result.floatingTexts.forEach(ft => addFloatingText(ft.x, ft.y, ft.text, ft.color));
+        setTargetingSkill(null);
+        return;
       }
 
-      // 2. Attack Action
+      // 2. Attack Mode
       if (actionMode === 'attack') {
         const isWithinRange = reachableAttackCells.some(c => c.x === tile.x && c.y === tile.y);
         if (isWithinRange) {
           const attackTimeCost = activeHero.period || 4.0;
           if (!canPerformAction(gameState.remainingTurnTime, attackTimeCost)) {
-            addFloatingText(activeHero.x, activeHero.y, 'Нет времени!', '#ef4444');
+            addFloatingText(activeHero.x, activeHero.y, 'Нет времени на атаку!', '#ef4444');
             return;
           }
 
-          // Find target enemy hero or tower or creep at this tile
           const targetHero = gameState.heroes.find(
             h => !h.isDead && h.faction !== activeHero.faction && h.x === tile.x && h.y === tile.y
           );
@@ -162,7 +211,7 @@ export default function App() {
             const targetElevation = tile.elevation;
             const isRanged = activeHero.range > 2;
 
-            const result = resolveAttack({
+            const res = resolveAttack({
               averageDamage: activeHero.damage,
               penetration: activeHero.penetration,
               hit: activeHero.hit,
@@ -173,23 +222,21 @@ export default function App() {
               isRanged,
             });
 
-            if (!result.isHit) {
+            if (!res.isHit) {
               addFloatingText(targetHero.x, targetHero.y, 'ПРОМАХ!', '#94a3b8');
             } else {
-              const text = result.isCrit ? `КРИТ! -${result.damage}` : `-${result.damage}`;
-              const color = result.isCrit ? '#f59e0b' : '#ef4444';
+              const text = res.isCrit ? `КРИТ! -${res.damage}` : `-${res.damage}`;
+              const color = res.isCrit ? '#f59e0b' : '#ef4444';
               addFloatingText(targetHero.x, targetHero.y, text, color);
 
-              // Apply damage
               setGameState(prev => {
                 const updatedHeroes = prev.heroes.map(h => {
                   if (h.instanceId === targetHero.instanceId) {
-                    const newHp = Math.max(0, h.hp - result.damage);
+                    const newHp = Math.max(0, h.hp - res.damage);
                     return { ...h, hp: newHp, isDead: newHp <= 0 };
                   }
                   return h;
                 });
-
                 const newTime = deductActionTime(prev.remainingTurnTime, attackTimeCost);
                 return {
                   ...prev,
@@ -197,7 +244,7 @@ export default function App() {
                   remainingTurnTime: newTime,
                   combatLogs: [
                     {
-                      text: `${activeHero.name} атаковал ${targetHero.name}: ${result.damage} урона (${result.reason})`,
+                      text: `${activeHero.name} атаковал ${targetHero.name}: ${res.damage} урона (${res.reason}) [-${attackTimeCost}с]`,
                       time: prev.gameTimeSeconds,
                     },
                     ...prev.combatLogs.slice(0, 15),
@@ -205,30 +252,66 @@ export default function App() {
                 };
               });
             }
-
-            setActionMode(null);
             return;
           }
         }
       }
+
+      // 3. Move in One Click
+      if (actionMode === 'move' && hoverPath.length > 0 && pathTimeCost !== null) {
+        if (!canAffordPath) {
+          addFloatingText(tile.x, tile.y, `Не хватает времени! (-${pathTimeCost}с)`, '#ef4444');
+          return;
+        }
+
+        setGameState(prev => {
+          const updatedHeroes = prev.heroes.map(h => {
+            if (h.instanceId === activeHero.instanceId) {
+              return { ...h, x: tile.x, y: tile.y };
+            }
+            return h;
+          });
+          const newTime = deductActionTime(prev.remainingTurnTime, pathTimeCost);
+          return {
+            ...prev,
+            heroes: updatedHeroes,
+            remainingTurnTime: newTime,
+            combatLogs: [
+              {
+                text: `${activeHero.name} прошел ${hoverPath.length} шагов до [${tile.x}, ${tile.y}] (-${pathTimeCost}с, ${pctOfTurn}% хода)`,
+                time: prev.gameTimeSeconds,
+              },
+              ...prev.combatLogs.slice(0, 15),
+            ],
+          };
+        });
+
+        addFloatingText(tile.x, tile.y, `🚶 -${pathTimeCost}с`, '#38bdf8');
+      }
     },
     [
       activeHero,
+      targetingSkill,
+      skillTargetCells,
       actionMode,
-      reachableMoveCells,
       reachableAttackCells,
-      gameState.remainingTurnTime,
-      gameState.heroes,
+      hoverPath,
+      pathTimeCost,
+      canAffordPath,
+      pctOfTurn,
+      gameState,
       mapData,
       addFloatingText,
     ]
   );
 
-  // Cast Skill
-  const handleCastSkill = skill => {
+  // Skill click from bottom bar
+  const handleSkillClick = skill => {
     if (!activeHero || activeHero.isDead) return;
+    if (skill.type === 'PASSIVE') return;
+
     if (activeHero.mana < skill.manaCost) {
-      addFloatingText(activeHero.x, activeHero.y, 'Мало маны!', '#38bdf8');
+      addFloatingText(activeHero.x, activeHero.y, 'Недостаточно маны!', '#38bdf8');
       return;
     }
     if (skill.currentCooldown > 0) {
@@ -236,71 +319,98 @@ export default function App() {
       return;
     }
     if (!canPerformAction(gameState.remainingTurnTime, skill.timeCost)) {
-      addFloatingText(activeHero.x, activeHero.y, 'Нет времени!', '#ef4444');
+      addFloatingText(activeHero.x, activeHero.y, `Мало времени! Нужно ${skill.timeCost}с`, '#ef4444');
       return;
     }
 
-    // Apply skill
-    setGameState(prev => {
-      const updatedHeroes = prev.heroes.map(h => {
-        if (h.instanceId === activeHero.instanceId) {
-          const newSkills = h.skills.map(s => {
-            if (s.id === skill.id) {
-              return { ...s, currentCooldown: s.cooldown || 16.0 };
-            }
-            return s;
-          });
-          return {
-            ...h,
-            mana: h.mana - skill.manaCost,
-            skills: newSkills,
-          };
-        }
-        return h;
+    // If instant/self skill (timeCost 0 or self buff or weapon toggle)
+    const isSelfCast =
+      skill.id === 'stars-agent' ||
+      skill.id === 'mastermind' ||
+      skill.id === 'preparation' ||
+      skill.id === 'divine-regen' ||
+      skill.id === 'rot' ||
+      skill.id === 'clutch-master';
+
+    if (isSelfCast) {
+      const res = executeSkill({
+        skill,
+        caster: activeHero,
+        gameState,
+        mapData,
       });
 
-      const newTime = deductActionTime(prev.remainingTurnTime, skill.timeCost);
-      return {
-        ...prev,
-        heroes: updatedHeroes,
-        remainingTurnTime: newTime,
-        combatLogs: [
-          {
-            text: `${activeHero.name} применил [${skill.name}] (-${skill.timeCost}с)`,
-            time: prev.gameTimeSeconds,
-          },
-          ...prev.combatLogs.slice(0, 15),
-        ],
-      };
-    });
+      if (res.success) {
+        setGameState(prev => ({
+          ...prev,
+          heroes: res.updatedHeroes,
+          remainingTurnTime: res.newRemainingTime,
+          combatLogs: [{ text: res.logMessage, time: prev.gameTimeSeconds }, ...prev.combatLogs.slice(0, 15)],
+        }));
+        res.floatingTexts.forEach(ft => addFloatingText(ft.x, ft.y, ft.text, ft.color));
+      }
+      return;
+    }
 
-    addFloatingText(activeHero.x, activeHero.y, `✨ ${skill.name}`, '#a855f7');
-    setShowSkillsDrawer(false);
+    // Otherwise, enter targeting mode!
+    setTargetingSkill(skill);
+    setActionMode('skill');
   };
 
-  // Jump camera
-  const handleJumpTo = landmark => {
-    setTargetPos({ x: landmark.x, y: landmark.y });
-    const idx = landmark.y * mapData.size + landmark.x;
-    setSelectedTile(mapData.tiles[idx]);
-  };
+  // Keyboard Hotkeys
+  useEffect(() => {
+    const handleKeyDown = e => {
+      if (!activeHero || activeHero.isDead) return;
+
+      if (e.key === 'Escape') {
+        setTargetingSkill(null);
+        setActionMode('move');
+        return;
+      }
+      if (e.code === 'Space') {
+        e.preventDefault();
+        handleEndTurn();
+        return;
+      }
+      if (e.key === '1' || e.key.toLowerCase() === 'm') {
+        setActionMode('move');
+        setTargetingSkill(null);
+        return;
+      }
+      if (e.key === '2' || e.key.toLowerCase() === 'a') {
+        setActionMode('attack');
+        setTargetingSkill(null);
+        return;
+      }
+
+      // Skills: Q, W, E, R, D
+      const hotkeys = ['q', 'w', 'e', 'r', 'd'];
+      const keyIndex = hotkeys.indexOf(e.key.toLowerCase());
+      if (keyIndex !== -1 && activeHero.skills[keyIndex]) {
+        handleSkillClick(activeHero.skills[keyIndex]);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeHero, gameState]);
 
   // End turn
   const handleEndTurn = () => {
     setGameState(prev => endTurn(prev));
-    setActionMode(null);
-    setShowSkillsDrawer(false);
+    setTargetingSkill(null);
+    setActionMode('move');
   };
 
   return (
     <div className="flex flex-col w-screen h-screen bg-[#07090e] text-slate-100 overflow-hidden font-sans select-none">
       {/* 1. Header Toolbar & Timeline */}
-      <header className="h-16 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 flex items-center justify-between shrink-0 z-20">
+      <header className="h-14 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 flex items-center justify-between shrink-0 z-20">
         {/* Left: Round & Turn Info */}
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-600 to-red-600 flex flex-col items-center justify-center font-bold shadow-lg border border-amber-400/40">
-            <span className="text-[9px] uppercase tracking-tighter text-amber-200">Раунд</span>
-            <span className="text-sm leading-tight text-white">{gameState.roundNumber}</span>
+          <div className="w-8 h-8 rounded bg-gradient-to-br from-amber-600 to-red-600 flex flex-col items-center justify-center font-bold shadow-md border border-amber-400/40">
+            <span className="text-[8px] uppercase tracking-tighter text-amber-200">Рнд</span>
+            <span className="text-xs leading-none text-white">{gameState.roundNumber}</span>
           </div>
 
           <div className="hidden sm:block">
@@ -311,7 +421,7 @@ export default function App() {
               </span>
             </div>
             <div className="text-[10px] text-slate-400 font-mono">
-              Волна крипов через: {Math.max(0, Math.round(gameState.nextLaneWaveTime - gameState.gameTimeSeconds))}с
+              Крипы: {Math.max(0, Math.round(gameState.nextLaneWaveTime - gameState.gameTimeSeconds))}с
             </div>
           </div>
         </div>
@@ -341,11 +451,7 @@ export default function App() {
                 <span className={`text-xs font-bold font-mono ${isActive ? 'text-amber-300' : 'text-slate-300'}`}>
                   {hero.name.split(' ')[0]}
                 </span>
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    isRad ? 'bg-emerald-400' : 'bg-red-400'
-                  }`}
-                />
+                <span className={`w-2 h-2 rounded-full ${isRad ? 'bg-emerald-400' : 'bg-red-400'}`} />
               </button>
             );
           })}
@@ -356,7 +462,7 @@ export default function App() {
           <button
             onClick={() => setShowGrid(!showGrid)}
             title="Сетка 100x100"
-            className={`p-2 rounded text-xs border font-mono transition-colors ${
+            className={`p-1.5 rounded text-xs border font-mono transition-colors ${
               showGrid
                 ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
                 : 'bg-slate-800/60 border-slate-700 text-slate-400'
@@ -368,7 +474,7 @@ export default function App() {
           <button
             onClick={() => setShowTrees(!showTrees)}
             title="Лес"
-            className={`p-2 rounded text-xs border font-mono transition-colors ${
+            className={`p-1.5 rounded text-xs border font-mono transition-colors ${
               showTrees
                 ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
                 : 'bg-slate-800/60 border-slate-700 text-slate-400'
@@ -378,14 +484,31 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => handleJumpTo({ x: 50, y: 50 })}
+            onClick={() => setTargetPos({ x: 50, y: 50 })}
             title="Центр карты"
-            className="p-2 rounded text-xs border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200"
+            className="p-1.5 rounded text-xs border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200"
           >
             <Maximize2 size={14} />
           </button>
         </div>
       </header>
+
+      {/* Targeting Banner if targeting skill */}
+      {targetingSkill && (
+        <div className="bg-purple-900/90 border-b border-purple-500/50 py-1.5 px-4 text-center text-xs font-mono font-bold text-purple-200 flex items-center justify-center gap-3 z-20 animate-in fade-in duration-150">
+          <Sparkles size={14} className="text-purple-300 animate-spin" />
+          <span>🎯 Выберите цель для способности: {targetingSkill.name} (Дальность: {targetingSkill.range || 4})</span>
+          <button
+            onClick={() => {
+              setTargetingSkill(null);
+              setActionMode('move');
+            }}
+            className="px-2 py-0.5 rounded bg-purple-950 hover:bg-purple-800 text-[10px] uppercase border border-purple-400/50 text-white"
+          >
+            Отмена [Esc]
+          </button>
+        </div>
+      )}
 
       {/* 2. Main Battlefield Viewport */}
       <div className="relative flex-1 w-full h-full overflow-hidden">
@@ -401,15 +524,20 @@ export default function App() {
           creeps={gameState.creeps}
           towers={gameState.towers}
           activeHeroId={activeHero?.instanceId}
-          reachableMoveCells={reachableMoveCells}
+          reachableMoveCells={actionMode === 'move' ? [] : []}
           reachableAttackCells={reachableAttackCells}
+          skillTargetCells={skillTargetCells}
+          hoverPath={hoverPath}
+          pathTimeCost={pathTimeCost}
+          canAffordPath={canAffordPath}
           floatingTexts={floatingTexts}
           onCellClick={handleCellClick}
+          onHoverTile={setHoveredTile}
         />
 
         {/* Selected Tile Inspector */}
         {selectedTile && (
-          <aside className="absolute top-4 right-4 w-72 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl p-4 shadow-2xl z-10 animate-in fade-in slide-in-from-right duration-200">
+          <aside className="absolute top-4 right-4 w-72 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl p-3.5 shadow-2xl z-10 animate-in fade-in slide-in-from-right duration-200">
             <div className="flex items-center justify-between pb-2 border-b border-slate-800">
               <div className="flex items-center gap-2">
                 <span className="text-amber-400 font-mono font-bold text-sm">
@@ -424,7 +552,7 @@ export default function App() {
               </button>
             </div>
 
-            <div className="mt-3 space-y-2 text-xs font-mono">
+            <div className="mt-2.5 space-y-2 text-xs font-mono">
               <div className="flex justify-between items-center bg-slate-950/60 p-2 rounded border border-slate-800/80">
                 <span className="text-slate-400">Террейн:</span>
                 <span className="font-semibold text-slate-200">{selectedTile.terrain.replace('_', ' ')}</span>
@@ -456,86 +584,13 @@ export default function App() {
             </div>
           </aside>
         )}
-
-        {/* Skills Drawer Modal */}
-        {showSkillsDrawer && activeHero && (
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm z-30 flex items-end justify-center p-4 animate-in fade-in duration-150">
-            <div className="w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-2xl p-5 shadow-2xl space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{activeHero.avatarSymbol}</span>
-                  <div>
-                    <h3 className="font-bold text-base text-slate-100">{activeHero.name} — Способности</h3>
-                    <p className="text-xs text-slate-400 font-mono">Доступное время: {gameState.remainingTurnTime.toFixed(1)}с</p>
-                  </div>
-                </div>
-                <button onClick={() => setShowSkillsDrawer(false)} className="text-slate-400 hover:text-white p-1 rounded-lg">
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto pr-1">
-                {activeHero.skills.map(skill => {
-                  const isPassive = skill.type === 'PASSIVE';
-                  const canCast =
-                    !isPassive &&
-                    skill.currentCooldown === 0 &&
-                    activeHero.mana >= skill.manaCost &&
-                    gameState.remainingTurnTime >= skill.timeCost;
-
-                  return (
-                    <div
-                      key={skill.id}
-                      className={`p-3 rounded-xl border flex flex-col justify-between transition-colors ${
-                        isPassive
-                          ? 'bg-slate-950/60 border-slate-800/80 opacity-80'
-                          : canCast
-                          ? 'bg-slate-800/80 border-slate-700 hover:border-amber-500/50'
-                          : 'bg-slate-950/60 border-slate-800/80 opacity-60'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-sm text-slate-200">{skill.name}</span>
-                          <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-800">
-                            {skill.type}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs font-mono text-slate-400 mt-1">
-                          {skill.manaCost > 0 && <span className="text-blue-400">💧 {skill.manaCost} MP</span>}
-                          {skill.timeCost > 0 && <span className="text-amber-400">⏳ {skill.timeCost}с</span>}
-                          {skill.cooldown > 0 && <span className="text-slate-400">⏱️ {skill.cooldown}с КД</span>}
-                        </div>
-                        <p className="text-xs text-slate-300 mt-2 leading-relaxed">{skill.desc}</p>
-                      </div>
-
-                      {!isPassive && (
-                        <button
-                          disabled={!canCast}
-                          onClick={() => handleCastSkill(skill)}
-                          className={`mt-3 w-full py-2 rounded-lg font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors ${
-                            canCast
-                              ? 'bg-amber-500 hover:bg-amber-400 text-black shadow-md'
-                              : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                          }`}
-                        >
-                          <Sparkles size={13} /> Применить
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* 3. Bottom Deck — Command HUD */}
+      {/* 3. Bottom Deck — Permanent Command Console & Skills Bar */}
       {activeHero && (
-        <footer className="h-20 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-4 flex items-center justify-between shrink-0 z-20">
-          {/* Active Hero Status Card */}
-          <div className="flex items-center gap-3 w-72">
+        <footer className="h-24 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-4 flex items-center justify-between shrink-0 z-20 relative">
+          {/* Left Column: Active Hero Profile */}
+          <div className="flex items-center gap-3 w-64 shrink-0">
             <div className="w-12 h-12 rounded-xl bg-slate-900 border-2 border-amber-400/80 flex items-center justify-center text-2xl shadow-lg shrink-0">
               {activeHero.avatarSymbol}
             </div>
@@ -547,7 +602,7 @@ export default function App() {
               </div>
 
               {/* HP Bar */}
-              <div className="relative w-full h-2.5 bg-slate-800 rounded-full overflow-hidden mt-1">
+              <div className="relative w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-1">
                 <div
                   className="h-full bg-emerald-500 transition-all duration-300 rounded-full"
                   style={{ width: `${Math.max(0, (activeHero.hp / activeHero.maxHp) * 100)}%` }}
@@ -563,70 +618,157 @@ export default function App() {
               </div>
 
               <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mt-1">
-                <span>HP: {activeHero.hp}/{activeHero.maxHp}</span>
-                <span>MP: {activeHero.mana}/{activeHero.maxMana}</span>
-                <span>🛡️ {activeHero.armor}</span>
+                <span className="text-emerald-400 font-bold">HP: {activeHero.hp}/{activeHero.maxHp}</span>
+                <span className="text-blue-400 font-bold">MP: {activeHero.mana}/{activeHero.maxMana}</span>
+                <span>🛡️ {activeHero.armor} | 🦶 {activeHero.speed}</span>
               </div>
             </div>
           </div>
 
-          {/* Turn Time Budget Progress */}
-          <div className="hidden md:flex flex-col items-center gap-1 w-64">
-            <div className="flex items-center justify-between w-full text-xs font-mono">
-              <span className="text-slate-400 flex items-center gap-1">
-                <Clock size={13} className="text-amber-400" /> Время хода:
-              </span>
-              <span className="font-bold text-amber-400 text-sm">
-                {gameState.remainingTurnTime.toFixed(1)} / 8.0s
-              </span>
-            </div>
-            <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-amber-500 to-red-500 transition-all duration-200"
-                style={{ width: `${(gameState.remainingTurnTime / TURN_DURATION_SECONDS) * 100}%` }}
-              />
-            </div>
+          {/* Center Column: Direct Skills Bar (Always visible!) */}
+          <div className="flex items-center gap-2 overflow-x-auto px-2 py-1 max-w-2xl">
+            {activeHero.skills.map((skill, sIdx) => {
+              const hotkeys = ['Q', 'W', 'E', 'R', 'D'];
+              const hotkey = hotkeys[sIdx] || `${sIdx + 1}`;
+              const isPassive = skill.type === 'PASSIVE';
+              const onCooldown = skill.currentCooldown > 0;
+              const hasMana = activeHero.mana >= (skill.manaCost || 0);
+              const hasTime = canPerformAction(gameState.remainingTurnTime, skill.timeCost || 0);
+              const isTargetingThis = targetingSkill?.id === skill.id;
+
+              return (
+                <div key={skill.id} className="relative group">
+                  <button
+                    disabled={isPassive || onCooldown || !hasMana || !hasTime}
+                    onClick={() => handleSkillClick(skill)}
+                    onMouseEnter={() => setHoveredSkillTooltip(skill)}
+                    onMouseLeave={() => setHoveredSkillTooltip(null)}
+                    className={`h-16 w-20 rounded-xl border flex flex-col items-center justify-between p-1.5 transition-all text-left relative overflow-hidden ${
+                      isTargetingThis
+                        ? 'bg-purple-600 border-purple-300 shadow-lg shadow-purple-500/40 scale-105 ring-2 ring-purple-400'
+                        : isPassive
+                        ? 'bg-slate-900/60 border-slate-800 opacity-60 cursor-default'
+                        : onCooldown || !hasMana || !hasTime
+                        ? 'bg-slate-900/80 border-slate-800 opacity-50 cursor-not-allowed'
+                        : 'bg-slate-900/90 border-slate-700 hover:border-amber-400 hover:bg-slate-800'
+                    }`}
+                  >
+                    {/* Top row: Hotkey & Mana */}
+                    <div className="w-full flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold px-1 rounded bg-slate-950 text-amber-400 border border-slate-800">
+                        [{hotkey}]
+                      </span>
+                      {skill.manaCost > 0 && (
+                        <span className="text-[9px] font-mono text-blue-400 font-bold">
+                          💧{skill.manaCost}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Skill Name */}
+                    <span className="text-[10px] font-bold text-slate-100 truncate w-full text-center leading-tight">
+                      {skill.name.split(' ')[0]}
+                    </span>
+
+                    {/* Bottom: Time Cost */}
+                    <div className="w-full text-center">
+                      {isPassive ? (
+                        <span className="text-[8px] text-slate-400 uppercase font-mono">Пассивно</span>
+                      ) : (
+                        <span className="text-[9px] font-mono text-amber-300">
+                          ⏳{skill.timeCost}с
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Cooldown Overlay */}
+                    {onCooldown && (
+                      <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center text-amber-400 font-mono font-bold text-xs">
+                        <span>⏱️</span>
+                        <span>{skill.currentCooldown.toFixed(0)}с</span>
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Tooltip on Hover */}
+                  {hoveredSkillTooltip?.id === skill.id && (
+                    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-64 bg-slate-900/95 border border-slate-700 rounded-xl p-3 shadow-2xl text-xs font-mono pointer-events-none z-30 space-y-1.5">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-1">
+                        <span className="font-bold text-amber-300">{skill.name}</span>
+                        <span className="text-[9px] uppercase px-1 rounded bg-slate-800 text-slate-300">
+                          {skill.type}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                        {skill.timeCost > 0 && <span className="text-amber-400">⏳ Время: {skill.timeCost}с</span>}
+                        {skill.manaCost > 0 && <span className="text-blue-400">💧 Мана: {skill.manaCost}</span>}
+                        {skill.cooldown > 0 && <span>⏱️ КД: {skill.cooldown}с</span>}
+                      </div>
+                      <p className="text-[11px] text-slate-300 font-sans leading-relaxed">{skill.desc}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActionMode(actionMode === 'move' ? null : 'move')}
-              className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider border transition-all ${
-                actionMode === 'move'
-                  ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-600/30'
-                  : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              <Footprints size={15} />
-              <span>Ход</span>
-              <span className="text-[10px] opacity-70 font-mono">(-1с)</span>
-            </button>
+          {/* Right Column: Time Budget, Actions & End Turn */}
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Action buttons (Move & Attack) */}
+            <div className="flex flex-col gap-1">
+              <button
+                onClick={() => {
+                  setActionMode(actionMode === 'move' ? null : 'move');
+                  setTargetingSkill(null);
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono border transition-all ${
+                  actionMode === 'move' && !targetingSkill
+                    ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                <Footprints size={13} />
+                <span>Ход [M]</span>
+              </button>
 
-            <button
-              onClick={() => setActionMode(actionMode === 'attack' ? null : 'attack')}
-              className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider border transition-all ${
-                actionMode === 'attack'
-                  ? 'bg-red-600 border-red-400 text-white shadow-lg shadow-red-600/30'
-                  : 'bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              <Swords size={15} />
-              <span>Атака</span>
-              <span className="text-[10px] opacity-70 font-mono">(-4с)</span>
-            </button>
+              <button
+                onClick={() => {
+                  setActionMode(actionMode === 'attack' ? null : 'attack');
+                  setTargetingSkill(null);
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono border transition-all ${
+                  actionMode === 'attack' && !targetingSkill
+                    ? 'bg-red-600 border-red-400 text-white shadow-md'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                <Swords size={13} />
+                <span>Атака [A]</span>
+              </button>
+            </div>
 
-            <button
-              onClick={() => setShowSkillsDrawer(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider border bg-purple-950/60 border-purple-700/80 text-purple-200 hover:bg-purple-900/60 transition-all"
-            >
-              <Sparkles size={15} />
-              <span>Скиллы</span>
-            </button>
+            {/* Turn Time Display */}
+            <div className="flex flex-col items-center gap-1 w-36">
+              <div className="flex items-center justify-between w-full text-xs font-mono">
+                <span className="text-slate-400 flex items-center gap-1">
+                  <Clock size={12} className="text-amber-400" /> Ход:
+                </span>
+                <span className="font-bold text-amber-400">
+                  {gameState.remainingTurnTime.toFixed(1)} / 8.0s
+                </span>
+              </div>
+              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-amber-500 to-red-500 transition-all duration-200"
+                  style={{ width: `${(gameState.remainingTurnTime / TURN_DURATION_SECONDS) * 100}%` }}
+                />
+              </div>
+            </div>
 
+            {/* End Turn Golden Button */}
             <button
               onClick={handleEndTurn}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-black shadow-lg shadow-amber-500/20 transition-all"
+              className="h-14 px-4 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-black shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
             >
               <span>Конец хода</span>
               <ChevronRight size={16} />

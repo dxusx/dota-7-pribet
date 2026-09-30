@@ -18,8 +18,13 @@ export default function DotaMapCanvas({
   activeHeroId = null,
   reachableMoveCells = [],
   reachableAttackCells = [],
+  skillTargetCells = [],
+  hoverPath = [],
+  pathTimeCost = null,
+  canAffordPath = true,
   floatingTexts = [],
   onCellClick = null,
+  onHoverTile = null,
 }) {
   const canvasRef = useRef(null);
   const minimapRef = useRef(null);
@@ -104,7 +109,6 @@ export default function DotaMapCanvas({
       canvas.width = rect.width;
       canvas.height = rect.height;
 
-      // Fit map initially
       const initialZoom = Math.min(rect.width / WORLD_SIZE, rect.height / WORLD_SIZE) * 1.1;
       setCamera({
         x: (rect.width - WORLD_SIZE * initialZoom) / 2,
@@ -143,9 +147,22 @@ export default function DotaMapCanvas({
         ctx.drawImage(offscreenCanvasRef.current, 0, 0);
       }
 
-      // 2. Tactical Range Overlays (Move & Attack zones)
+      // 2. Tactical Range Overlays (Skill Target Cells)
+      if (skillTargetCells.length > 0) {
+        ctx.fillStyle = 'rgba(168, 85, 247, 0.28)';
+        ctx.strokeStyle = '#a855f7';
+        ctx.lineWidth = 1.5 / zoom;
+        skillTargetCells.forEach(cell => {
+          const px = cell.x * TILE_SIZE;
+          const py = cell.y * TILE_SIZE;
+          ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+          ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+        });
+      }
+
+      // Move Cells
       if (reachableMoveCells.length > 0) {
-        ctx.fillStyle = 'rgba(59, 130, 246, 0.28)';
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.22)';
         ctx.strokeStyle = '#3b82f6';
         ctx.lineWidth = 1.5 / zoom;
         reachableMoveCells.forEach(cell => {
@@ -156,8 +173,9 @@ export default function DotaMapCanvas({
         });
       }
 
+      // Attack Cells
       if (reachableAttackCells.length > 0) {
-        ctx.fillStyle = 'rgba(239, 68, 68, 0.28)';
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 1.5 / zoom;
         reachableAttackCells.forEach(cell => {
@@ -168,7 +186,35 @@ export default function DotaMapCanvas({
         });
       }
 
-      // 3. Grid lines
+      // 3. Hover Path Preview (One-Click Walking Line)
+      if (hoverPath.length > 0) {
+        ctx.fillStyle = canAffordPath ? 'rgba(56, 189, 248, 0.35)' : 'rgba(239, 68, 68, 0.35)';
+        ctx.strokeStyle = canAffordPath ? '#38bdf8' : '#ef4444';
+        ctx.lineWidth = 2 / zoom;
+
+        hoverPath.forEach(cell => {
+          const px = cell.x * TILE_SIZE;
+          const py = cell.y * TILE_SIZE;
+          ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+          ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+        });
+
+        // Draw dotted path line
+        ctx.beginPath();
+        ctx.setLineDash([4 / zoom, 3 / zoom]);
+        ctx.strokeStyle = canAffordPath ? '#38bdf8' : '#ef4444';
+        ctx.lineWidth = 2.5 / zoom;
+        hoverPath.forEach((cell, idx) => {
+          const cx = cell.x * TILE_SIZE + TILE_SIZE / 2;
+          const cy = cell.y * TILE_SIZE + TILE_SIZE / 2;
+          if (idx === 0) ctx.moveTo(cx, cy);
+          else ctx.lineTo(cx, cy);
+        });
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // 4. Grid lines
       if (showGrid) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
         ctx.lineWidth = 1 / zoom;
@@ -196,7 +242,7 @@ export default function DotaMapCanvas({
         ctx.stroke();
       }
 
-      // 4. Draw Trees
+      // 5. Draw Trees
       if (showTrees && mapData?.tiles) {
         for (let i = 0; i < mapData.tiles.length; i++) {
           const tile = mapData.tiles[i];
@@ -210,7 +256,6 @@ export default function DotaMapCanvas({
             ctx.fillStyle = tile.treeType === 'spooky' ? '#472b38' : '#1f542a';
             ctx.fill();
 
-            // Tree inner highlight
             ctx.beginPath();
             ctx.arc(px - 1.5, py - 1.5, r * 0.5, 0, Math.PI * 2);
             ctx.fillStyle = tile.treeType === 'spooky' ? '#693e53' : '#2e7a3d';
@@ -219,7 +264,7 @@ export default function DotaMapCanvas({
         }
       }
 
-      // 5. Draw Objects & Buildings
+      // 6. Draw Objects & Buildings
       if (showIcons && mapData?.tiles) {
         ctx.font = `${Math.round(TILE_SIZE * 0.8)}px sans-serif`;
         ctx.textAlign = 'center';
@@ -268,7 +313,7 @@ export default function DotaMapCanvas({
         }
       }
 
-      // 6. Draw Towers on map
+      // 7. Draw Towers
       towers.forEach(t => {
         const px = t.x * TILE_SIZE + TILE_SIZE;
         const py = t.y * TILE_SIZE + TILE_SIZE;
@@ -295,7 +340,7 @@ export default function DotaMapCanvas({
         ctx.fillRect(px - 14, py + 14, 28 * hpPct, 4);
       });
 
-      // 7. Draw Lane Creeps
+      // 8. Draw Lane Creeps
       creeps.forEach(creep => {
         const px = creep.x * TILE_SIZE + TILE_SIZE / 2;
         const py = creep.y * TILE_SIZE + TILE_SIZE / 2;
@@ -317,7 +362,7 @@ export default function DotaMapCanvas({
         ctx.fillRect(px - 8, py - 12, 16 * hpPct, 3);
       });
 
-      // 8. Draw Heroes
+      // 9. Draw Heroes
       const timeMs = Date.now();
       heroes.forEach(hero => {
         if (hero.isDead) return;
@@ -326,7 +371,6 @@ export default function DotaMapCanvas({
         const isActive = hero.instanceId === activeHeroId;
         const isRad = hero.faction === 'radiant';
 
-        // Active hero golden pulsing ring
         if (isActive) {
           const pulse = Math.sin(timeMs / 200) * 0.2 + 0.8;
           ctx.beginPath();
@@ -338,7 +382,6 @@ export default function DotaMapCanvas({
           ctx.fill();
         }
 
-        // Hero circle token
         ctx.beginPath();
         ctx.arc(px, py, TILE_SIZE * 0.55, 0, Math.PI * 2);
         ctx.fillStyle = hero.themeColor || (isRad ? '#065f46' : '#7f1d1d');
@@ -347,20 +390,17 @@ export default function DotaMapCanvas({
         ctx.lineWidth = 2 / zoom;
         ctx.stroke();
 
-        // Symbol
         ctx.font = `${Math.round(TILE_SIZE * 0.7)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(hero.avatarSymbol || '👤', px, py);
 
-        // Hero Name Tag & Level
         if (zoom > 0.55) {
           ctx.font = `bold ${Math.round(TILE_SIZE * 0.32)}px sans-serif`;
           ctx.fillStyle = '#ffffff';
           ctx.fillText(hero.name, px, py - TILE_SIZE * 0.7);
         }
 
-        // Hero HP & Mana bar
         const hpPct = Math.max(0, hero.hp / hero.maxHp);
         const manaPct = Math.max(0, hero.mana / hero.maxMana);
 
@@ -375,7 +415,7 @@ export default function DotaMapCanvas({
         ctx.fillRect(px - 12, py + TILE_SIZE * 0.55 + 4, 24 * manaPct, 2);
       });
 
-      // 9. Floating Combat Texts
+      // 10. Floating Combat Texts
       const now = Date.now();
       floatingTexts.forEach(ft => {
         const elapsed = (now - ft.createdAt) / 1000;
@@ -393,7 +433,39 @@ export default function DotaMapCanvas({
         }
       });
 
-      // 10. Hovered & Selected Cell
+      // 11. Move Badge on Hovered Destination Cell
+      if (hoveredTile && pathTimeCost !== null) {
+        const hx = hoveredTile.x * TILE_SIZE + TILE_SIZE / 2;
+        const hy = hoveredTile.y * TILE_SIZE - 12;
+
+        const badgeText = canAffordPath
+          ? `🚶 ${hoverPath.length} шагов • ⏳ -${pathTimeCost}с`
+          : `⚠️ Мало времени! (-${pathTimeCost}с)`;
+
+        ctx.font = `bold ${Math.round(11 / zoom)}px monospace`;
+        const textWidth = ctx.measureText(badgeText).width;
+
+        ctx.fillStyle = canAffordPath ? 'rgba(15, 23, 42, 0.9)' : 'rgba(69, 10, 10, 0.95)';
+        ctx.strokeStyle = canAffordPath ? '#38bdf8' : '#ef4444';
+        ctx.lineWidth = 1.5 / zoom;
+        ctx.beginPath();
+        ctx.roundRect(
+          hx - textWidth / 2 - 6 / zoom,
+          hy - 14 / zoom,
+          textWidth + 12 / zoom,
+          18 / zoom,
+          4 / zoom
+        );
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = canAffordPath ? '#38bdf8' : '#f87171';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(badgeText, hx, hy - 5 / zoom);
+      }
+
+      // 12. Hovered & Selected Cell
       if (hoveredTile) {
         const hx = hoveredTile.x * TILE_SIZE;
         const hy = hoveredTile.y * TILE_SIZE;
@@ -437,6 +509,10 @@ export default function DotaMapCanvas({
     activeHeroId,
     reachableMoveCells,
     reachableAttackCells,
+    skillTargetCells,
+    hoverPath,
+    pathTimeCost,
+    canAffordPath,
     floatingTexts,
   ]);
 
@@ -451,12 +527,10 @@ export default function DotaMapCanvas({
 
     mCtx.clearRect(0, 0, mWidth, mHeight);
 
-    // Draw offscreen preview scaled
     if (offscreenCanvasRef.current) {
       mCtx.drawImage(offscreenCanvasRef.current, 0, 0, mWidth, mHeight);
     }
 
-    // Draw Heroes on Minimap
     const scale = mWidth / WORLD_SIZE;
     heroes.forEach(h => {
       if (h.isDead) return;
@@ -466,7 +540,6 @@ export default function DotaMapCanvas({
       mCtx.fill();
     });
 
-    // Draw Viewport Camera Box on Minimap
     const { x: camX, y: camY, zoom } = camera;
     const viewWorldX = -camX / zoom;
     const viewWorldY = -camY / zoom;
@@ -515,9 +588,12 @@ export default function DotaMapCanvas({
 
       if (tileX >= 0 && tileX < MAP_SIZE && tileY >= 0 && tileY < MAP_SIZE) {
         const idx = tileY * MAP_SIZE + tileX;
-        setHoveredTile(mapData.tiles[idx]);
+        const tile = mapData.tiles[idx];
+        setHoveredTile(tile);
+        if (onHoverTile) onHoverTile(tile);
       } else {
         setHoveredTile(null);
+        if (onHoverTile) onHoverTile(null);
       }
     }
   };
@@ -585,6 +661,7 @@ export default function DotaMapCanvas({
         onMouseLeave={() => {
           isDraggingRef.current = false;
           setHoveredTile(null);
+          if (onHoverTile) onHoverTile(null);
         }}
         onClick={handleClick}
         onWheel={handleWheel}
@@ -592,7 +669,7 @@ export default function DotaMapCanvas({
 
       {/* Floating Hover Readout */}
       {hoveredTile && (
-        <div className="absolute top-4 left-4 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 px-3 py-2 rounded-lg shadow-xl text-xs font-mono pointer-events-none flex items-center gap-3">
+        <div className="absolute top-4 left-4 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 px-3 py-2 rounded-lg shadow-xl text-xs font-mono pointer-events-none flex items-center gap-3 z-10">
           <span className="text-amber-400 font-bold">
             [{hoveredTile.x}, {hoveredTile.y}]
           </span>
@@ -610,7 +687,7 @@ export default function DotaMapCanvas({
       )}
 
       {/* Minimap Box in Bottom-Right */}
-      <div className="absolute bottom-20 right-4 bg-slate-900/90 backdrop-blur-md p-2 rounded-xl border border-slate-700 shadow-2xl flex flex-col items-center z-10">
+      <div className="absolute bottom-28 right-4 bg-slate-900/90 backdrop-blur-md p-2 rounded-xl border border-slate-700 shadow-2xl flex flex-col items-center z-10">
         <div className="text-[10px] text-slate-400 font-mono font-semibold uppercase tracking-wider mb-1 flex items-center justify-between w-full">
           <span>Minimap (100×100)</span>
           <span className="text-amber-500">Radar</span>
