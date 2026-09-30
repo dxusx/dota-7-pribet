@@ -252,7 +252,8 @@ export function createInitialGameState() {
  * End current turn and advance to next alive hero in the initiative queue.
  */
 export function endTurn(state) {
-  const nextGameTime = Number((state.gameTimeSeconds + (TURN_DURATION_SECONDS - state.remainingTurnTime)).toFixed(1));
+  // Each turn in the initiative queue elapses the full 8.0 seconds of tactical time
+  const nextGameTime = Number((state.gameTimeSeconds + TURN_DURATION_SECONDS).toFixed(1));
 
   let nextActiveIndex = (state.activeUnitIndex + 1) % state.initiativeQueue.length;
   let nextRound = state.roundNumber;

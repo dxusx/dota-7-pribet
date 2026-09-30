@@ -219,6 +219,11 @@ export default function App() {
     };
   }, [hoveredTile, activeHero, actionMode, targetingSkill, maxSteps, heroSpeed, gameState.remainingTurnTime, isCellWalkable, findWalkPath]);
 
+  // Current game time in match (including fractional seconds used in current turn)
+  const currentMatchTime = useMemo(() => {
+    return Number((gameState.gameTimeSeconds + (TURN_DURATION_SECONDS - gameState.remainingTurnTime)).toFixed(1));
+  }, [gameState.gameTimeSeconds, gameState.remainingTurnTime]);
+
   // Compute Skill Target Range Cells
   const skillTargetCells = useMemo(() => {
     if (!targetingSkill || !activeHero) return [];
@@ -683,11 +688,13 @@ export default function App() {
             <div className="text-xs font-bold text-slate-200 flex items-center gap-2">
               <span>ХОД {gameState.turnNumber}</span>
               <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30 font-mono">
-                ⏱️ {gameState.gameTimeSeconds.toFixed(1)}с
+                ⏱️ {currentMatchTime.toFixed(1)}с
               </span>
             </div>
-            <div className="text-[10px] text-slate-400 font-mono">
-              Крипы: {Math.max(0, Math.round(gameState.nextLaneWaveTime - gameState.gameTimeSeconds))}с
+            <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2">
+              <span>⚔️ Крипы: {Math.max(0, Math.round(gameState.nextLaneWaveTime - currentMatchTime))}с</span>
+              <span className="text-slate-600">•</span>
+              <span>🐺 Лес: {Math.max(0, Math.round(gameState.nextNeutralSpawnTime - currentMatchTime))}с</span>
             </div>
           </div>
         </div>
