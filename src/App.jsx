@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { generateDotaMap, MAP_SIZE, TERRAIN } from './map/dotaMapData';
 import DotaMapCanvas from './components/DotaMapCanvas';
 import { createInitialGameState, endTurn } from './game/gameState';
@@ -16,6 +16,7 @@ import {
   X,
   Footprints,
   Swords,
+  ChevronLeft,
   ChevronRight,
   Clock,
   Target,
@@ -49,6 +50,30 @@ export default function App() {
     const id = `${Date.now()}_${Math.random()}`;
     setFloatingTexts(prev => [...prev.slice(-15), { id, x, y, text, color, createdAt: Date.now() }]);
   }, []);
+
+  const timelineRef = useRef(null);
+
+  const handleTimelineWheel = useCallback(e => {
+    if (timelineRef.current) {
+      timelineRef.current.scrollLeft += e.deltaY;
+    }
+  }, []);
+
+  const scrollTimeline = useCallback(offset => {
+    if (timelineRef.current) {
+      timelineRef.current.scrollBy({ left: offset, behavior: 'smooth' });
+    }
+  }, []);
+
+  // Auto-scroll active hero into view when turn changes
+  useEffect(() => {
+    if (timelineRef.current) {
+      const activeEl = timelineRef.current.querySelector('[data-active="true"]');
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+  }, [gameState.activeUnitIndex]);
 
   // Helper to check if a tile is walkable (not tree, not cliff, inside bounds)
   const isCellWalkable = useCallback(
@@ -517,35 +542,58 @@ export default function App() {
           </div>
         </div>
 
-        {/* Center: Initiative Timeline */}
-        <div className="flex items-center gap-1.5 overflow-x-auto max-w-2xl py-1 px-2 bg-slate-950/70 rounded-xl border border-slate-800 no-scrollbar">
-          {gameState.initiativeQueue.map((heroId, idx) => {
-            const hero = gameState.heroes.find(h => h.instanceId === heroId);
-            if (!hero) return null;
-            const isActive = idx === gameState.activeUnitIndex;
-            const isRad = hero.faction === 'radiant';
+        {/* Center: Initiative Timeline with Left/Right arrows and horizontal wheel scroll */}
+        <div className="flex items-center gap-1 max-w-xl lg:max-w-2xl px-1">
+          <button
+            onClick={() => scrollTimeline(-120)}
+            className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+            title="Прокрутить очередь влево"
+          >
+            <ChevronLeft size={16} />
+          </button>
 
-            return (
-              <button
-                key={hero.instanceId}
-                onClick={() => setTargetPos({ x: hero.x, y: hero.y })}
-                title={`${hero.name} (Инициатива: ${hero.initiativeRoll})`}
-                className={`relative px-2 py-1 rounded-lg flex items-center gap-1.5 transition-all shrink-0 ${
-                  isActive
-                    ? 'bg-amber-500/25 border-2 border-amber-400 shadow-md scale-105'
-                    : hero.isDead
-                    ? 'opacity-40 bg-slate-900 border border-slate-800'
-                    : 'bg-slate-900/80 border border-slate-800 hover:border-slate-700'
-                }`}
-              >
-                <span className="text-base">{hero.avatarSymbol}</span>
-                <span className={`text-xs font-bold font-mono ${isActive ? 'text-amber-300' : 'text-slate-300'}`}>
-                  {hero.name.split(' ')[0]}
-                </span>
-                <span className={`w-2 h-2 rounded-full ${isRad ? 'bg-emerald-400' : 'bg-red-400'}`} />
-              </button>
-            );
-          })}
+          <div
+            ref={timelineRef}
+            onWheel={handleTimelineWheel}
+            className="flex items-center gap-1.5 overflow-x-auto py-1 px-1.5 bg-slate-950/80 rounded-xl border border-slate-800 custom-scrollbar scroll-smooth"
+          >
+            {gameState.initiativeQueue.map((heroId, idx) => {
+              const hero = gameState.heroes.find(h => h.instanceId === heroId);
+              if (!hero) return null;
+              const isActive = idx === gameState.activeUnitIndex;
+              const isRad = hero.faction === 'radiant';
+
+              return (
+                <button
+                  key={hero.instanceId}
+                  data-active={isActive ? 'true' : undefined}
+                  onClick={() => setTargetPos({ x: hero.x, y: hero.y })}
+                  title={`${hero.name} (Инициатива: ${hero.initiativeRoll})`}
+                  className={`relative px-2 py-1 rounded-lg flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
+                    isActive
+                      ? 'bg-amber-500/25 border-2 border-amber-400 shadow-md scale-105'
+                      : hero.isDead
+                      ? 'opacity-40 bg-slate-900 border border-slate-800'
+                      : 'bg-slate-900/80 border border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <span className="text-base">{hero.avatarSymbol}</span>
+                  <span className={`text-xs font-bold font-mono ${isActive ? 'text-amber-300' : 'text-slate-300'}`}>
+                    {hero.name.split(' ')[0]}
+                  </span>
+                  <span className={`w-2 h-2 rounded-full ${isRad ? 'bg-emerald-400' : 'bg-red-400'}`} />
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={() => scrollTimeline(120)}
+            className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
+            title="Прокрутить очередь вправо"
+          >
+            <ChevronRight size={16} />
+          </button>
         </div>
 
         {/* Right: Map Toggles */}
