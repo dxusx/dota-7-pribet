@@ -120,3 +120,39 @@ test('8. Creep Formations & Roster Integrity', () => {
   assert.ok(axe);
   assert.equal(axe.stats.armor, 5);
 });
+
+test('9. Hero Speed and Step Verification for Every Character', () => {
+  const expectedSpeeds = {
+    wesker: 6,
+    axe: 6,
+    katarina: 6,
+    anderson: 6,
+    gojo: 7,
+    sukuna: 6,
+    pudge: 5,
+    invoker: 6,
+    rubick: 6,
+    sf: 6,
+    monesy: 7,
+    minos: 8,
+  };
+
+  HEROES_ROSTER.forEach(hero => {
+    const expectedSpeed = expectedSpeeds[hero.id];
+    assert.ok(expectedSpeed !== undefined, `Unknown hero id: ${hero.id}`);
+    assert.equal(hero.stats.speed, expectedSpeed, `Hero ${hero.name} speed must be ${expectedSpeed}`);
+
+    // Verify turn budget step capacity:
+    // With 8.0s turn, max reachable steps MUST equal speed:
+    const fullTurnSteps = Math.floor((TURN_DURATION_SECONDS * hero.stats.speed) / TURN_DURATION_SECONDS + 0.001);
+    assert.equal(fullTurnSteps, expectedSpeed, `Hero ${hero.name} must walk exactly ${expectedSpeed} steps per 8.0s turn`);
+
+    // Verify time cost of walking their full speed equals 8.0s:
+    const fullCost = Number(((expectedSpeed * TURN_DURATION_SECONDS) / hero.stats.speed).toFixed(1));
+    assert.equal(fullCost, 8.0, `Walking full steps for ${hero.name} must cost 8.0s`);
+
+    // Verify partial steps (e.g. 1 step):
+    const singleStepCost = Number(((1 * TURN_DURATION_SECONDS) / hero.stats.speed).toFixed(2));
+    assert.ok(singleStepCost <= 8.0 / expectedSpeed + 0.01);
+  });
+});

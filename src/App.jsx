@@ -50,52 +50,139 @@ export default function App() {
     setFloatingTexts(prev => [...prev.slice(-15), { id, x, y, text, color, createdAt: Date.now() }]);
   }, []);
 
+  // Helper to check if a tile is walkable (not tree, not cliff, inside bounds)
+  const isCellWalkable = useCallback(
+    (x, y) => {
+      if (x < 0 || x >= MAP_SIZE || y < 0 || y >= MAP_SIZE) return false;
+      const tile = mapData?.tiles?.[y * MAP_SIZE + x];
+      if (!tile || tile.hasTree || tile.terrain === TERRAIN.CLIFF) return false;
+      return true;
+    },
+    [mapData]
+  );
+
+  // Active hero speed and max reachable steps for the remaining turn time
+  const heroSpeed = activeHero?.speed || 6;
+  const maxSteps = useMemo(() => {
+    if (!activeHero || activeHero.isDead || gameState.remainingTurnTime <= 0) return 0;
+    return Math.floor((gameState.remainingTurnTime * heroSpeed) / TURN_DURATION_SECONDS + 0.001);
+  }, [activeHero, heroSpeed, gameState.remainingTurnTime]);
+
+  // Compute Reachable Movement Range Cells using BFS
+  const reachableMoveCells = useMemo(() => {
+    if (actionMode !== 'move' || !activeHero || activeHero.isDead || maxSteps <= 0) return [];
+
+    const queue = [{ x: activeHero.x, y: activeHero.y, dist: 0 }];
+    const visited = new Set();
+    const startKey = activeHero.y * MAP_SIZE + activeHero.x;
+    visited.add(startKey);
+    const reachable = [];
+
+    while (queue.length > 0) {
+      const { x, y, dist } = queue.shift();
+      if (dist > 0) {
+        reachable.push({ x, y, dist });
+      }
+      if (dist >= maxSteps) continue;
+
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const nx = x + dx;
+          const ny = y + dy;
+          const key = ny * MAP_SIZE + nx;
+          if (!visited.has(key) && isCellWalkable(nx, ny)) {
+            visited.add(key);
+            queue.push({ x: nx, y: ny, dist: dist + 1 });
+          }
+        }
+      }
+    }
+    return reachable;
+  }, [actionMode, activeHero, maxSteps, isCellWalkable]);
+
+  // BFS Pathfinding from start to target
+  const findWalkPath = useCallback(
+    (startX, startY, targetX, targetY) => {
+      if (startX === targetX && startY === targetY) return [];
+      if (!isCellWalkable(targetX, targetY)) return [];
+
+      const queue = [{ x: startX, y: startY }];
+      const cameFrom = new Map();
+      const startKey = startY * MAP_SIZE + startX;
+      const targetKey = targetY * MAP_SIZE + targetX;
+      cameFrom.set(startKey, null);
+
+      let found = false;
+      let limit = 2500;
+
+      while (queue.length > 0 && limit-- > 0) {
+        const current = queue.shift();
+        const currKey = current.y * MAP_SIZE + current.x;
+        if (currKey === targetKey) {
+          found = true;
+          break;
+        }
+
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = current.x + dx;
+            const ny = current.y + dy;
+            const nKey = ny * MAP_SIZE + nx;
+            if (!cameFrom.has(nKey) && isCellWalkable(nx, ny)) {
+              cameFrom.set(nKey, current);
+              queue.push({ x: nx, y: ny });
+            }
+          }
+        }
+      }
+
+      if (!found) return [];
+
+      const path = [];
+      let curr = { x: targetX, y: targetY };
+      while (curr) {
+        const key = curr.y * MAP_SIZE + curr.x;
+        const prev = cameFrom.get(key);
+        if (prev) {
+          path.unshift(curr);
+          curr = prev;
+        } else {
+          break;
+        }
+      }
+      return path;
+    },
+    [isCellWalkable]
+  );
+
   // Compute 1-Click Hover Path and Time Cost
-  const { hoverPath, pathTimeCost, canAffordPath, pctOfTurn } = useMemo(() => {
+  const { hoverPath, pathTimeCost, canAffordPath, pctOfTurn, isMaxCapReached } = useMemo(() => {
     if (!hoveredTile || !activeHero || activeHero.isDead || actionMode !== 'move' || targetingSkill) {
-      return { hoverPath: [], pathTimeCost: null, canAffordPath: true, pctOfTurn: 0 };
+      return { hoverPath: [], pathTimeCost: null, canAffordPath: true, pctOfTurn: 0, isMaxCapReached: false };
     }
 
     if (hoveredTile.x === activeHero.x && hoveredTile.y === activeHero.y) {
-      return { hoverPath: [], pathTimeCost: null, canAffordPath: true, pctOfTurn: 0 };
+      return { hoverPath: [], pathTimeCost: null, canAffordPath: true, pctOfTurn: 0, isMaxCapReached: false };
     }
 
-    // Do not path onto cliffs or trees
-    if (hoveredTile.hasTree || hoveredTile.terrain === TERRAIN.CLIFF) {
-      return { hoverPath: [], pathTimeCost: null, canAffordPath: false, pctOfTurn: 0 };
+    if (!isCellWalkable(hoveredTile.x, hoveredTile.y)) {
+      return { hoverPath: [], pathTimeCost: null, canAffordPath: false, pctOfTurn: 0, isMaxCapReached: false };
     }
 
-    // Bresenham line path
-    const path = [];
-    let x0 = activeHero.x;
-    let y0 = activeHero.y;
-    const x1 = hoveredTile.x;
-    const y1 = hoveredTile.y;
-
-    const dx = Math.abs(x1 - x0);
-    const dy = Math.abs(y1 - y0);
-    const sx = x0 < x1 ? 1 : -1;
-    const sy = y0 < y1 ? 1 : -1;
-    let err = dx - dy;
-
-    while (x0 !== x1 || y0 !== y1) {
-      const e2 = 2 * err;
-      if (e2 > -dy) {
-        err -= dy;
-        x0 += sx;
-      }
-      if (e2 < dx) {
-        err += dx;
-        y0 += sy;
-      }
-      path.push({ x: x0, y: y0 });
+    const fullPath = findWalkPath(activeHero.x, activeHero.y, hoveredTile.x, hoveredTile.y);
+    if (fullPath.length === 0) {
+      return { hoverPath: [], pathTimeCost: null, canAffordPath: false, pctOfTurn: 0, isMaxCapReached: false };
     }
 
-    const steps = path.length;
-    // Each step costs 8.0 / hero.speed seconds
-    const speed = activeHero.speed || 6;
-    const cost = Number(((steps * 8.0) / speed).toFixed(1));
-    const canAfford = cost <= gameState.remainingTurnTime;
+    // Hero walks up to maxSteps for this turn
+    const isExceeding = fullPath.length > maxSteps;
+    const effectiveSteps = Math.min(fullPath.length, maxSteps);
+    const path = fullPath.slice(0, effectiveSteps);
+
+    const cost = Number(((effectiveSteps * TURN_DURATION_SECONDS) / heroSpeed).toFixed(1));
+    const canAfford = effectiveSteps > 0 && cost <= gameState.remainingTurnTime;
     const pct = Math.min(100, Math.round((cost / TURN_DURATION_SECONDS) * 100));
 
     return {
@@ -103,8 +190,9 @@ export default function App() {
       pathTimeCost: cost,
       canAffordPath: canAfford,
       pctOfTurn: pct,
+      isMaxCapReached: isExceeding,
     };
-  }, [hoveredTile, activeHero, actionMode, targetingSkill, gameState.remainingTurnTime]);
+  }, [hoveredTile, activeHero, actionMode, targetingSkill, maxSteps, heroSpeed, gameState.remainingTurnTime, isCellWalkable, findWalkPath]);
 
   // Compute Skill Target Range Cells
   const skillTargetCells = useMemo(() => {
@@ -260,15 +348,17 @@ export default function App() {
 
       // 3. Move in One Click
       if (actionMode === 'move' && hoverPath.length > 0 && pathTimeCost !== null) {
-        if (!canAffordPath) {
-          addFloatingText(tile.x, tile.y, `Не хватает времени! (-${pathTimeCost}с)`, '#ef4444');
+        if (!canAffordPath || hoverPath.length === 0) {
+          addFloatingText(tile.x, tile.y, 'Не хватает времени!', '#ef4444');
           return;
         }
+
+        const destinationCell = hoverPath[hoverPath.length - 1];
 
         setGameState(prev => {
           const updatedHeroes = prev.heroes.map(h => {
             if (h.instanceId === activeHero.instanceId) {
-              return { ...h, x: tile.x, y: tile.y };
+              return { ...h, x: destinationCell.x, y: destinationCell.y };
             }
             return h;
           });
@@ -279,7 +369,7 @@ export default function App() {
             remainingTurnTime: newTime,
             combatLogs: [
               {
-                text: `${activeHero.name} прошел ${hoverPath.length} шагов до [${tile.x}, ${tile.y}] (-${pathTimeCost}с, ${pctOfTurn}% хода)`,
+                text: `${activeHero.name} прошел ${hoverPath.length} шагов до [${destinationCell.x}, ${destinationCell.y}] (-${pathTimeCost}с, ${pctOfTurn}% хода)`,
                 time: prev.gameTimeSeconds,
               },
               ...prev.combatLogs.slice(0, 15),
@@ -287,7 +377,7 @@ export default function App() {
           };
         });
 
-        addFloatingText(tile.x, tile.y, `🚶 -${pathTimeCost}с`, '#38bdf8');
+        addFloatingText(destinationCell.x, destinationCell.y, `🚶 -${pathTimeCost}с (${hoverPath.length} ш.)`, '#38bdf8');
       }
     },
     [
@@ -536,13 +626,15 @@ export default function App() {
           heroes={gameState.heroes}
           creeps={gameState.creeps}
           towers={gameState.towers}
-          activeHeroId={activeHero?.instanceId}
-          reachableMoveCells={actionMode === 'move' ? [] : []}
+          reachableMoveCells={reachableMoveCells}
           reachableAttackCells={reachableAttackCells}
           skillTargetCells={skillTargetCells}
           hoverPath={hoverPath}
           pathTimeCost={pathTimeCost}
           canAffordPath={canAffordPath}
+          maxSteps={maxSteps}
+          heroSpeed={heroSpeed}
+          isMaxCapReached={isMaxCapReached}
           floatingTexts={floatingTexts}
           onCellClick={handleCellClick}
           onHoverTile={setHoveredTile}
@@ -633,7 +725,10 @@ export default function App() {
               <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mt-1">
                 <span className="text-emerald-400 font-bold">HP: {activeHero.hp}/{activeHero.maxHp}</span>
                 <span className="text-blue-400 font-bold">MP: {activeHero.mana}/{activeHero.maxMana}</span>
-                <span>🛡️ {activeHero.armor} | 🦶 {activeHero.speed}</span>
+                <span>🛡️ {activeHero.armor}</span>
+                <span className="text-amber-300 font-bold bg-amber-500/10 px-1 rounded border border-amber-500/20" title="Скорость героя (клеток в ход) и доступно шагов">
+                  🦶 {activeHero.speed} кл/ход ({maxSteps} ш.)
+                </span>
               </div>
             </div>
           </div>

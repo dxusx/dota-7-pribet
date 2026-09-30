@@ -22,6 +22,9 @@ export default function DotaMapCanvas({
   hoverPath = [],
   pathTimeCost = null,
   canAffordPath = true,
+  maxSteps = 6,
+  heroSpeed = 6,
+  isMaxCapReached = false,
   floatingTexts = [],
   onCellClick = null,
   onHoverTile = null,
@@ -483,12 +486,18 @@ export default function DotaMapCanvas({
 
       // 11. Move Badge on Hovered Destination Cell
       if (hoveredTile && pathTimeCost !== null) {
-        const hx = hoveredTile.x * TILE_SIZE + TILE_SIZE / 2;
-        const hy = hoveredTile.y * TILE_SIZE - 12;
+        const destCell = hoverPath.length > 0 ? hoverPath[hoverPath.length - 1] : hoveredTile;
+        const hx = destCell.x * TILE_SIZE + TILE_SIZE / 2;
+        const hy = destCell.y * TILE_SIZE - 12;
 
-        const badgeText = canAffordPath
-          ? `🚶 ${hoverPath.length} шагов • ⏳ -${pathTimeCost}с`
-          : `⚠️ Мало времени! (-${pathTimeCost}с)`;
+        let badgeText;
+        if (!canAffordPath || hoverPath.length === 0) {
+          badgeText = `⚠️ Не хватает времени! (-${pathTimeCost}с)`;
+        } else if (isMaxCapReached) {
+          badgeText = `🚶 ${hoverPath.length} шагов (макс. на ход) • ⏳ -${pathTimeCost}с`;
+        } else {
+          badgeText = `🚶 ${hoverPath.length} / ${heroSpeed || 6} шагов • ⏳ -${pathTimeCost}с`;
+        }
 
         ctx.font = `bold ${Math.round(11 / zoom)}px monospace`;
         const textWidth = ctx.measureText(badgeText).width;

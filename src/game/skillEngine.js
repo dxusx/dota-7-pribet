@@ -135,7 +135,20 @@ export function executeSkill({
     }
   }
 
-  // 6. Shunpo (Katarina Teleport + Strike)
+  // 6. Preparation (Katarina: toss dagger & gain +50% move speed)
+  else if (skill.id === 'preparation') {
+    const newSpeed = Math.round(caster.speed * 1.5);
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.instanceId === caster.instanceId) {
+        return { ...h, speed: newSpeed };
+      }
+      return h;
+    });
+    logMessage = `${caster.name} применила [Подготовка]: скорость +50% (до ${newSpeed} шагов в ход)!`;
+    floatingTexts.push({ x: caster.x, y: caster.y, text: `🗡️ ПОДГОТОВКА! Скорость: ${newSpeed} шагов`, color: '#f43f5e' });
+  }
+
+  // 7. Shunpo (Katarina Teleport + Strike)
   else if (skill.id === 'shunpo' && targetTile) {
     const damage = 25;
     // Find closest enemy near destination
