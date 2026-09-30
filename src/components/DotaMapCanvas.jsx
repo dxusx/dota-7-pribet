@@ -15,6 +15,7 @@ export default function DotaMapCanvas({
   heroes = [],
   creeps = [],
   towers = [],
+  roshan = null,
   activeHeroId = null,
   reachableMoveCells = [],
   reachableAttackCells = [],
@@ -48,20 +49,20 @@ export default function DotaMapCanvas({
     offscreen.height = WORLD_SIZE;
     const ctx = offscreen.getContext('2d');
 
-    // Color palette
+    // High-fidelity terrain color palette
     const colors = {
-      [TERRAIN.WATER]: '#133a52',
-      [TERRAIN.GRASS_RADIANT]: '#1c3822',
-      [TERRAIN.GRASS_DIRE]: '#291b22',
-      [TERRAIN.ROAD]: '#42372c',
-      [TERRAIN.DIRT_PATH]: '#352c23',
-      [TERRAIN.CLIFF]: '#383d47',
-      [TERRAIN.ROSHAN_PIT]: '#19131d',
-      [TERRAIN.BASE_RADIANT]: '#1a4731',
-      [TERRAIN.BASE_DIRE]: '#421a1f',
+      [TERRAIN.WATER]: '#0d324d',
+      [TERRAIN.GRASS_RADIANT]: '#1a3c22',
+      [TERRAIN.GRASS_DIRE]: '#2a1a25',
+      [TERRAIN.ROAD]: '#473d32',
+      [TERRAIN.DIRT_PATH]: '#382e23',
+      [TERRAIN.CLIFF]: '#323742',
+      [TERRAIN.ROSHAN_PIT]: '#1b1322',
+      [TERRAIN.BASE_RADIANT]: '#174730',
+      [TERRAIN.BASE_DIRE]: '#42171e',
     };
 
-    // Draw tiles
+    // Draw base tiles
     for (let i = 0; i < mapData.tiles.length; i++) {
       const tile = mapData.tiles[i];
       const px = tile.x * TILE_SIZE;
@@ -70,18 +71,83 @@ export default function DotaMapCanvas({
       ctx.fillStyle = colors[tile.terrain] || '#1a1f26';
       ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
 
-      // Subtle texture / elevation tint
+      // Subtle elevation tint
       if (tile.elevation === ELEVATION.HIGH) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
         ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
       } else if (tile.elevation === ELEVATION.LOW) {
-        ctx.fillStyle = 'rgba(0, 50, 100, 0.15)';
+        ctx.fillStyle = 'rgba(2, 44, 77, 0.22)';
         ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
       }
 
       // Base borders / tile contour
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.15)';
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
       ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE, TILE_SIZE);
+    }
+
+    // 3D Cliff highlights, drop shadows, and river waterline details
+    const size = MAP_SIZE;
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const idx = y * size + x;
+        const tile = mapData.tiles[idx];
+        const px = x * TILE_SIZE;
+        const py = y * TILE_SIZE;
+
+        // 3D Cliff highlights and drop shadows
+        if (tile.elevation === ELEVATION.HIGH) {
+          const tileAbove = y > 0 ? mapData.tiles[(y - 1) * size + x] : null;
+          if (!tileAbove || tileAbove.elevation < ELEVATION.HIGH) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+            ctx.fillRect(px, py, TILE_SIZE, 3);
+          }
+          const tileBelow = y < size - 1 ? mapData.tiles[(y + 1) * size + x] : null;
+          if (tileBelow && tileBelow.elevation < ELEVATION.HIGH) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.38)';
+            ctx.fillRect(px, py + TILE_SIZE - 4, TILE_SIZE, 4);
+          }
+          const tileLeft = x > 0 ? mapData.tiles[y * size + (x - 1)] : null;
+          if (!tileLeft || tileLeft.elevation < ELEVATION.HIGH) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+            ctx.fillRect(px, py, 2, TILE_SIZE);
+          }
+          const tileRight = x < size - 1 ? mapData.tiles[y * size + (x + 1)] : null;
+          if (tileRight && tileRight.elevation < ELEVATION.HIGH) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+            ctx.fillRect(px + TILE_SIZE - 2, py, 2, TILE_SIZE);
+          }
+        }
+
+        // River water ripples and subtle foam shorelines
+        if (tile.terrain === TERRAIN.WATER) {
+          // Curved ripple line in the center of the water cell
+          ctx.strokeStyle = 'rgba(125, 211, 252, 0.16)';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.arc(px + TILE_SIZE * 0.5, py + TILE_SIZE * 0.4, TILE_SIZE * 0.3, 0.3, Math.PI - 0.3);
+          ctx.stroke();
+
+          // River shoreline foam if bordering land
+          const neighbors = [
+            { nx: x, ny: y - 1, side: 'top' },
+            { nx: x, ny: y + 1, side: 'bottom' },
+            { nx: x - 1, ny: y, side: 'left' },
+            { nx: x + 1, ny: y, side: 'right' },
+          ];
+          for (const n of neighbors) {
+            if (n.nx >= 0 && n.nx < size && n.ny >= 0 && n.ny < size) {
+              const nt = mapData.tiles[n.ny * size + n.nx];
+              if (nt.terrain !== TERRAIN.WATER) {
+                ctx.fillStyle = 'rgba(186, 230, 253, 0.22)';
+                if (n.side === 'top') ctx.fillRect(px, py, TILE_SIZE, 2);
+                else if (n.side === 'bottom') ctx.fillRect(px, py + TILE_SIZE - 2, TILE_SIZE, 2);
+                else if (n.side === 'left') ctx.fillRect(px, py, 2, TILE_SIZE);
+                else if (n.side === 'right') ctx.fillRect(px + TILE_SIZE - 2, py, 2, TILE_SIZE);
+              }
+            }
+          }
+        }
+      }
     }
 
     offscreenCanvasRef.current = offscreen;
@@ -118,12 +184,42 @@ export default function DotaMapCanvas({
     }
 
     const scale = mWidth / WORLD_SIZE;
+
+    // Draw Towers and Ancients on Minimap
+    towers.forEach(t => {
+      if (t.hp <= 0) return;
+      const tx = t.x * TILE_SIZE * scale;
+      const ty = t.y * TILE_SIZE * scale;
+      const tw = (t.size || 2) * TILE_SIZE * scale;
+      mCtx.fillStyle = t.faction === 'radiant' ? '#22c55e' : '#ef4444';
+      mCtx.fillRect(tx, ty, Math.max(2, tw), Math.max(2, tw));
+    });
+
+    // Draw Roshan Pits on Minimap
+    const pits = [
+      { id: 'north', x: 26, y: 24 },
+      { id: 'south', x: 74, y: 76 },
+    ];
+    pits.forEach(p => {
+      const px = p.x * TILE_SIZE * scale;
+      const py = p.y * TILE_SIZE * scale;
+      const isActive = roshan && !roshan.isDead && roshan.pitId === p.id;
+      mCtx.beginPath();
+      mCtx.arc(px, py, 2.5, 0, Math.PI * 2);
+      mCtx.fillStyle = isActive ? '#ef4444' : '#64748b';
+      mCtx.fill();
+    });
+
+    // Draw Heroes on Minimap
     heroes.forEach(h => {
       if (h.isDead) return;
       mCtx.beginPath();
       mCtx.arc(h.x * TILE_SIZE * scale, h.y * TILE_SIZE * scale, 3, 0, Math.PI * 2);
-      mCtx.fillStyle = h.faction === 'radiant' ? '#22c55e' : '#ef4444';
+      mCtx.fillStyle = h.faction === 'radiant' ? '#4ade80' : '#f87171';
       mCtx.fill();
+      mCtx.strokeStyle = '#ffffff';
+      mCtx.lineWidth = 0.5;
+      mCtx.stroke();
     });
 
     const { x: camX, y: camY, zoom } = camera;
@@ -138,7 +234,7 @@ export default function DotaMapCanvas({
     mCtx.strokeRect(viewWorldX * scale, viewWorldY * scale, viewWorldW * scale, viewWorldH * scale);
     mCtx.fillStyle = 'rgba(245, 158, 11, 0.1)';
     mCtx.fillRect(viewWorldX * scale, viewWorldY * scale, viewWorldW * scale, viewWorldH * scale);
-  }, [camera, mapData, heroes]);
+  }, [camera, mapData, heroes, towers, roshan]);
 
   // Center initial view to middle of map on mount
   useEffect(() => {
@@ -315,80 +411,361 @@ export default function DotaMapCanvas({
         }
       }
 
-      // 6. Draw Objects & Buildings
+      // 6. Draw Objects & Landmarks (Bounty Altars, Neutral Camps, Shops, Outposts, Runes)
       if (showIcons && mapData?.tiles) {
-        ctx.font = `${Math.round(TILE_SIZE * 0.8)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
         for (let i = 0; i < mapData.tiles.length; i++) {
           const tile = mapData.tiles[i];
-          if (tile.object) {
-            const px = tile.x * TILE_SIZE + TILE_SIZE / 2;
-            const py = tile.y * TILE_SIZE + TILE_SIZE / 2;
+          if (!tile.object) continue;
 
-            if (tile.object.type === 'ANCIENT' || tile.object.type === 'ROSHAN') {
-              ctx.beginPath();
-              ctx.arc(px, py, TILE_SIZE * 1.2, 0, Math.PI * 2);
-              ctx.fillStyle =
-                tile.object.faction === 'radiant'
-                  ? 'rgba(34, 197, 94, 0.25)'
-                  : tile.object.faction === 'dire'
-                  ? 'rgba(239, 68, 68, 0.25)'
-                  : 'rgba(168, 85, 247, 0.25)';
-              ctx.fill();
-              ctx.strokeStyle =
-                tile.object.faction === 'radiant' ? '#22c55e' : tile.object.faction === 'dire' ? '#ef4444' : '#a855f7';
-              ctx.lineWidth = 2 / zoom;
-              ctx.stroke();
-            } else if (tile.object.type === 'NEUTRAL_CAMP') {
-              ctx.beginPath();
-              ctx.arc(px, py, TILE_SIZE * 0.65, 0, Math.PI * 2);
-              ctx.fillStyle = 'rgba(234, 179, 8, 0.2)';
-              ctx.fill();
-              ctx.strokeStyle = 'rgba(234, 179, 8, 0.6)';
-              ctx.lineWidth = 1.5 / zoom;
-              ctx.stroke();
-            } else if (tile.object.type === 'SHOP' || tile.object.type === 'OUTPOST') {
-              ctx.beginPath();
-              ctx.arc(px, py, TILE_SIZE * 0.65, 0, Math.PI * 2);
-              ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
-              ctx.fill();
-              ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
-              ctx.lineWidth = 1.5 / zoom;
-              ctx.stroke();
-            }
+          // Towers and Ancients are drawn in dedicated multi-tile steps below
+          if (tile.object.type === 'TOWER' || tile.object.type === 'ANCIENT') continue;
 
-            ctx.fillText(tile.object.symbol || '📍', px, py + 1);
+          const px = tile.x * TILE_SIZE + TILE_SIZE / 2;
+          const py = tile.y * TILE_SIZE + TILE_SIZE / 2;
+
+          if (tile.object.type === 'BOUNTY_ALTAR') {
+            // Dedicated Bounty Rune Altar Platform (3x3 Dais)
+            ctx.beginPath();
+            ctx.arc(px, py, TILE_SIZE * 1.05, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(234, 179, 8, 0.22)';
+            ctx.fill();
+            ctx.strokeStyle = '#eab308';
+            ctx.lineWidth = 2 / zoom;
+            ctx.stroke();
+
+            // Inner golden runic circle
+            ctx.beginPath();
+            ctx.arc(px, py, TILE_SIZE * 0.65, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(250, 204, 21, 0.7)';
+            ctx.lineWidth = 1 / zoom;
+            ctx.stroke();
+
+            // Floating golden coin
+            ctx.font = `${Math.round(TILE_SIZE * 0.78)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🪙', px, py);
+
+            // Altar Label
+            ctx.font = `bold ${Math.max(8, Math.round(TILE_SIZE * 0.32))}px monospace`;
+            ctx.fillStyle = '#fef08a';
+            ctx.fillText('АЛТАРЬ', px, py + TILE_SIZE * 0.78);
+          } else if (tile.object.type === 'NEUTRAL_CAMP') {
+            ctx.beginPath();
+            ctx.arc(px, py, TILE_SIZE * 0.65, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(234, 179, 8, 0.2)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(234, 179, 8, 0.6)';
+            ctx.lineWidth = 1.5 / zoom;
+            ctx.stroke();
+
+            ctx.font = `${Math.round(TILE_SIZE * 0.65)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(tile.object.symbol || '🐺', px, py);
+          } else if (tile.object.type === 'SHOP' || tile.object.type === 'OUTPOST') {
+            ctx.beginPath();
+            ctx.arc(px, py, TILE_SIZE * 0.65, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.2)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+            ctx.lineWidth = 1.5 / zoom;
+            ctx.stroke();
+
+            ctx.font = `${Math.round(TILE_SIZE * 0.65)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(tile.object.symbol || '🏛️', px, py);
+          } else if (tile.object.type === 'RUNE') {
+            ctx.beginPath();
+            ctx.arc(px, py, TILE_SIZE * 0.55, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(168, 85, 247, 0.3)';
+            ctx.fill();
+            ctx.strokeStyle = '#c084fc';
+            ctx.lineWidth = 1.5 / zoom;
+            ctx.stroke();
+
+            ctx.font = `${Math.round(TILE_SIZE * 0.65)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(tile.object.symbol || '💠', px, py);
+          } else if (tile.object.type === 'FOUNTAIN') {
+            ctx.beginPath();
+            ctx.arc(px, py, TILE_SIZE * 0.9, 0, Math.PI * 2);
+            ctx.fillStyle = tile.object.faction === 'radiant' ? 'rgba(34, 197, 94, 0.25)' : 'rgba(239, 68, 68, 0.25)';
+            ctx.fill();
+            ctx.strokeStyle = tile.object.faction === 'radiant' ? '#22c55e' : '#ef4444';
+            ctx.lineWidth = 2 / zoom;
+            ctx.stroke();
+
+            ctx.font = `${Math.round(TILE_SIZE * 0.8)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(tile.object.symbol || '⛲', px, py);
           }
         }
       }
 
-      // 7. Draw Towers
-      towers.forEach(t => {
-        const px = t.x * TILE_SIZE + TILE_SIZE;
-        const py = t.y * TILE_SIZE + TILE_SIZE;
-        const isRad = t.faction === 'radiant';
+      // 7. Dedicated 4x4 Ancients (World Tree & Throne of Decay)
+      const radThrone = towers.find(t => t.id === 'rad_throne');
+      const direThrone = towers.find(t => t.id === 'dire_throne');
 
+      // Radiant World Tree (Center: 12, 88)
+      {
+        const cx = 12 * TILE_SIZE;
+        const cy = 88 * TILE_SIZE;
+        const r = TILE_SIZE * 2.2;
+        const hp = radThrone ? radThrone.hp : 3000;
+        const maxHp = radThrone ? radThrone.maxHp : 3000;
+        const hpPct = Math.max(0, hp / maxHp);
+
+        // Outer Consecrated Dais
         ctx.beginPath();
-        ctx.arc(px, py, TILE_SIZE * 0.85, 0, Math.PI * 2);
-        ctx.fillStyle = isRad ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.35)';
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.28)';
         ctx.fill();
-        ctx.strokeStyle = isRad ? '#22c55e' : '#ef4444';
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 3 / zoom;
+        ctx.stroke();
+
+        // Inner Root Ring
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.65, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(5, 150, 105, 0.45)';
+        ctx.fill();
+        ctx.strokeStyle = '#34d399';
         ctx.lineWidth = 2 / zoom;
         ctx.stroke();
 
-        ctx.font = `${Math.round(TILE_SIZE * 0.8)}px sans-serif`;
+        // Grand World Tree Symbol
+        ctx.font = `${Math.round(TILE_SIZE * 2.0)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(isRad ? '🛡️' : '⚔️', px, py);
+        ctx.fillText('🌳', cx, cy - 4);
 
-        // HP bar for tower
+        // Ancient Title & HP Bar (4x4 width)
+        ctx.font = `bold ${Math.max(10, Math.round(TILE_SIZE * 0.42))}px sans-serif`;
+        ctx.fillStyle = '#6ee7b7';
+        ctx.fillText('ДРЕВО ЖИЗНИ', cx, cy - r - 8);
+
+        const barW = 84;
+        const barH = 7;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(cx - barW / 2, cy + r - 6, barW, barH);
+        ctx.fillStyle = hpPct > 0.3 ? '#10b981' : '#ef4444';
+        ctx.fillRect(cx - barW / 2, cy + r - 6, barW * hpPct, barH);
+        ctx.strokeStyle = '#34d399';
+        ctx.lineWidth = 1 / zoom;
+        ctx.strokeRect(cx - barW / 2, cy + r - 6, barW, barH);
+
+        ctx.font = `bold ${Math.max(8, Math.round(TILE_SIZE * 0.3))}px monospace`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(`${hp}/${maxHp} HP`, cx, cy + r + 8);
+      }
+
+      // Dire Throne of Decay (Center: 88, 12)
+      {
+        const cx = 88 * TILE_SIZE;
+        const cy = 12 * TILE_SIZE;
+        const r = TILE_SIZE * 2.2;
+        const hp = direThrone ? direThrone.hp : 3000;
+        const maxHp = direThrone ? direThrone.maxHp : 3000;
+        const hpPct = Math.max(0, hp / maxHp);
+
+        // Outer Volcanic Dais
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.28)';
+        ctx.fill();
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 3 / zoom;
+        ctx.stroke();
+
+        // Inner Magma Ring
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.65, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(185, 28, 28, 0.5)';
+        ctx.fill();
+        ctx.strokeStyle = '#f87171';
+        ctx.lineWidth = 2 / zoom;
+        ctx.stroke();
+
+        // Grand Throne of Decay Symbol
+        ctx.font = `${Math.round(TILE_SIZE * 2.0)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🌋', cx, cy - 4);
+
+        // Ancient Title & HP Bar (4x4 width)
+        ctx.font = `bold ${Math.max(10, Math.round(TILE_SIZE * 0.42))}px sans-serif`;
+        ctx.fillStyle = '#fca5a5';
+        ctx.fillText('ТРОН ТЬМЫ', cx, cy - r - 8);
+
+        const barW = 84;
+        const barH = 7;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(cx - barW / 2, cy + r - 6, barW, barH);
+        ctx.fillStyle = hpPct > 0.3 ? '#ef4444' : '#991b1b';
+        ctx.fillRect(cx - barW / 2, cy + r - 6, barW * hpPct, barH);
+        ctx.strokeStyle = '#f87171';
+        ctx.lineWidth = 1 / zoom;
+        ctx.strokeRect(cx - barW / 2, cy + r - 6, barW, barH);
+
+        ctx.font = `bold ${Math.max(8, Math.round(TILE_SIZE * 0.3))}px monospace`;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(`${hp}/${maxHp} HP`, cx, cy + r + 8);
+      }
+
+      // 8. Dedicated 2x2 Towers Rendering (Fortress Walls with Pixel-Perfect Alignment)
+      const normalTowers = towers.filter(t => t.id !== 'rad_throne' && t.id !== 'dire_throne');
+      normalTowers.forEach(t => {
+        if (t.hp <= 0) return;
+
+        const leftX = t.x * TILE_SIZE;
+        const topY = t.y * TILE_SIZE;
+        const w = 2 * TILE_SIZE;
+        const h = 2 * TILE_SIZE;
+        const cx = (t.x + 1.0) * TILE_SIZE;
+        const cy = (t.y + 1.0) * TILE_SIZE;
+        const isRad = t.faction === 'radiant';
+
+        const isHovered = hoveredTile && hoveredTile.x >= t.x && hoveredTile.x <= t.x + 1 && hoveredTile.y >= t.y && hoveredTile.y <= t.y + 1;
+        const isSelected = selectedTile && selectedTile.x >= t.x && selectedTile.x <= t.x + 1 && selectedTile.y >= t.y && selectedTile.y <= t.y + 1;
+
+        // Attack Range Circle (10 tiles) on hover / selection
+        if (isHovered || isSelected) {
+          ctx.beginPath();
+          ctx.arc(cx, cy, 10 * TILE_SIZE, 0, Math.PI * 2);
+          ctx.fillStyle = isRad ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.08)';
+          ctx.fill();
+          ctx.setLineDash([6 / zoom, 4 / zoom]);
+          ctx.strokeStyle = isRad ? '#22c55e' : '#ef4444';
+          ctx.lineWidth = 1.5 / zoom;
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        // 2x2 Fortress Base Plinth
+        ctx.fillStyle = isRad ? '#1e382b' : '#3d1e24';
+        ctx.strokeStyle = isRad ? '#22c55e' : '#ef4444';
+        ctx.lineWidth = 2 / zoom;
+        ctx.fillRect(leftX + 2, topY + 2, w - 4, h - 4);
+        ctx.strokeRect(leftX + 2, topY + 2, w - 4, h - 4);
+
+        // Fortress Corner Bastions
+        const cornerRadius = 3.5;
+        const corners = [
+          [leftX + 5, topY + 5],
+          [leftX + w - 5, topY + 5],
+          [leftX + 5, topY + h - 5],
+          [leftX + w - 5, topY + h - 5],
+        ];
+        ctx.fillStyle = isRad ? '#134731' : '#45171d';
+        corners.forEach(([kx, ky]) => {
+          ctx.beginPath();
+          ctx.arc(kx, ky, cornerRadius, 0, Math.PI * 2);
+          ctx.fill();
+        });
+
+        // Central Tower Turret Circle
+        ctx.beginPath();
+        ctx.arc(cx, cy, TILE_SIZE * 0.72, 0, Math.PI * 2);
+        ctx.fillStyle = isRad ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)';
+        ctx.fill();
+        ctx.strokeStyle = isRad ? '#4ade80' : '#f87171';
+        ctx.lineWidth = 1.8 / zoom;
+        ctx.stroke();
+
+        // Centered Faction Crest (Exactly centered at 2x2 origin cx, cy)
+        ctx.font = `${Math.round(TILE_SIZE * 0.85)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(isRad ? '🛡️' : '⚔️', cx, cy - 1);
+
+        // Tier Badge (e.g. T1, T2, T3, T4)
+        ctx.font = `bold ${Math.max(8, Math.round(TILE_SIZE * 0.32))}px monospace`;
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillText(`T${t.tier}`, cx, topY + 9);
+
+        // HP bar for tower (centered under 2x2 structure)
         const hpPct = Math.max(0, t.hp / t.maxHp);
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(px - 14, py + 14, 28, 4);
-        ctx.fillStyle = hpPct > 0.3 ? '#22c55e' : '#ef4444';
-        ctx.fillRect(px - 14, py + 14, 28 * hpPct, 4);
+        const barW = 38;
+        const barH = 5;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(cx - barW / 2, topY + h - 6, barW, barH);
+        ctx.fillStyle = hpPct > 0.3 ? (isRad ? '#22c55e' : '#ef4444') : '#f59e0b';
+        ctx.fillRect(cx - barW / 2, topY + h - 6, barW * hpPct, barH);
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 0.8 / zoom;
+        ctx.strokeRect(cx - barW / 2, topY + h - 6, barW, barH);
+      });
+
+      // 9. Dedicated Two Authentic Roshan Pits & Active Titan Rendering
+      const roshPits = [
+        { pitId: 'north', name: 'Северное логово', x: 26, y: 24, label: 'Ночное логово' },
+        { pitId: 'south', name: 'Южное логово', x: 74, y: 76, label: 'Дневное логово' },
+      ];
+
+      roshPits.forEach(pit => {
+        const px = pit.x * TILE_SIZE + TILE_SIZE / 2;
+        const py = pit.y * TILE_SIZE + TILE_SIZE / 2;
+        const isActive = roshan && !roshan.isDead && roshan.pitId === pit.pitId;
+
+        // Large Cavern Arena Ring
+        ctx.beginPath();
+        ctx.arc(px, py, TILE_SIZE * 2.8, 0, Math.PI * 2);
+        ctx.fillStyle = isActive ? 'rgba(239, 68, 68, 0.18)' : 'rgba(71, 85, 105, 0.12)';
+        ctx.fill();
+        ctx.strokeStyle = isActive ? '#ef4444' : '#64748b';
+        ctx.lineWidth = 2 / zoom;
+        ctx.stroke();
+
+        if (isActive) {
+          // Menacing Fiery Aura
+          ctx.beginPath();
+          ctx.arc(px, py, TILE_SIZE * 1.35, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(185, 28, 28, 0.7)';
+          ctx.fill();
+          ctx.strokeStyle = '#fca5a5';
+          ctx.lineWidth = 2.5 / zoom;
+          ctx.stroke();
+
+          // Roshan Titan Boss Icon
+          ctx.font = `${Math.round(TILE_SIZE * 1.2)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText('👹', px, py - 2);
+
+          // Boss Banner & HP
+          ctx.font = `bold ${Math.max(9, Math.round(TILE_SIZE * 0.38))}px sans-serif`;
+          ctx.fillStyle = '#fca5a5';
+          ctx.fillText('РОШАН БЕССМЕРТНЫЙ', px, py - TILE_SIZE * 1.5);
+
+          const rHpPct = Math.max(0, roshan.hp / roshan.maxHp);
+          const rBarW = 60;
+          const rBarH = 6;
+          ctx.fillStyle = 'rgba(0,0,0,0.85)';
+          ctx.fillRect(px - rBarW / 2, py + TILE_SIZE * 1.1, rBarW, rBarH);
+          ctx.fillStyle = '#ef4444';
+          ctx.fillRect(px - rBarW / 2, py + TILE_SIZE * 1.1, rBarW * rHpPct, rBarH);
+          ctx.strokeStyle = '#fca5a5';
+          ctx.lineWidth = 1 / zoom;
+          ctx.strokeRect(px - rBarW / 2, py + TILE_SIZE * 1.1, rBarW, rBarH);
+
+          ctx.font = `bold ${Math.max(8, Math.round(TILE_SIZE * 0.28))}px monospace`;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(`${roshan.hp}/${roshan.maxHp} HP`, px, py + TILE_SIZE * 1.55);
+        } else {
+          // Inactive empty pit
+          ctx.font = `bold ${Math.max(8, Math.round(TILE_SIZE * 0.32))}px monospace`;
+          ctx.fillStyle = '#94a3b8';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`💤 ${pit.name}`, px, py - 6);
+          ctx.font = `${Math.max(7, Math.round(TILE_SIZE * 0.26))}px monospace`;
+          ctx.fillStyle = '#64748b';
+          ctx.fillText(`(${pit.label} - пустует)`, px, py + 8);
+        }
       });
 
       // 8. Draw Creeps (Melee, Ranged, and Neutrals with Distinct Formations & Visuals)

@@ -58,6 +58,18 @@ export const NEUTRAL_CAMPS = [
   { id: 'dire_camp_tri_med', x: 77, y: 44, name: 'Dire Triangle Medium', tier: 'Medium', faction: 'dire' },
 ];
 
+export const BOUNTY_ALTARS = [
+  { id: 'rad_bounty_jungle', x: 38, y: 78, name: 'Алтарь руны богатства (Radiant Лес)', faction: 'radiant' },
+  { id: 'rad_bounty_tri', x: 18, y: 60, name: 'Алтарь руны богатства (Radiant Треугольник)', faction: 'radiant' },
+  { id: 'dire_bounty_jungle', x: 62, y: 22, name: 'Алтарь руны богатства (Dire Лес)', faction: 'dire' },
+  { id: 'dire_bounty_tri', x: 82, y: 40, name: 'Алтарь руны богатства (Dire Треугольник)', faction: 'dire' },
+];
+
+export const ROSHAN_PITS = {
+  north: { pitId: 'north', name: 'Северное логово Рошана (Ночь)', x: 26, y: 24, timeWindow: 'Ночь (05:00 - 10:00)' },
+  south: { pitId: 'south', name: 'Южное логово Рошана (День)', x: 74, y: 76, timeWindow: 'День (00:00 - 05:00)' },
+};
+
 export function generateDotaMap() {
   const size = MAP_SIZE;
   const tiles = new Array(size * size);
@@ -184,29 +196,59 @@ export function generateDotaMap() {
     }
   }
 
-  // 5. Roshan Pit
-  const roshCenter = { x: 37, y: 43 };
-  for (let dy = -4; dy <= 4; dy++) {
-    for (let dx = -4; dx <= 4; dx++) {
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const rx = roshCenter.x + dx;
-      const ry = roshCenter.y + dy;
-      if (rx >= 0 && rx < size && ry >= 0 && ry < size) {
-        const idx = ry * size + rx;
-        if (dist <= 3.5) {
-          // Entrance faces south-east into river
-          if (dist > 2.6 && !(dx >= 1 && dy >= 0)) {
-            tiles[idx].terrain = TERRAIN.CLIFF;
-            tiles[idx].elevation = ELEVATION.HIGH;
-          } else {
-            tiles[idx].terrain = TERRAIN.ROSHAN_PIT;
-            tiles[idx].elevation = ELEVATION.LOW;
+  // 5. Two Authentic Roshan Pits (North Pit in Top River & South Pit in Bot River)
+  const roshanPits = [
+    {
+      pitId: 'north',
+      name: 'Северное логово Рошана (Ночь)',
+      x: 26,
+      y: 24,
+      entranceDx: 1,  // Entrance opens south-east into top river
+      entranceDy: 1,
+    },
+    {
+      pitId: 'south',
+      name: 'Южное логово Рошана (День)',
+      x: 74,
+      y: 76,
+      entranceDx: -1, // Entrance opens north-west into bot river
+      entranceDy: -1,
+    },
+  ];
+
+  roshanPits.forEach(pit => {
+    for (let dy = -4; dy <= 4; dy++) {
+      for (let dx = -4; dx <= 4; dx++) {
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const rx = pit.x + dx;
+        const ry = pit.y + dy;
+        if (rx >= 0 && rx < size && ry >= 0 && ry < size) {
+          const idx = ry * size + rx;
+          if (dist <= 3.8) {
+            // Entrance corridor opening into the river
+            const isEntrance = (dx * pit.entranceDx > 0.5 && dy * pit.entranceDy > 0.5);
+            if (dist > 2.7 && !isEntrance) {
+              tiles[idx].terrain = TERRAIN.CLIFF;
+              tiles[idx].elevation = ELEVATION.HIGH;
+            } else {
+              tiles[idx].terrain = TERRAIN.ROSHAN_PIT;
+              tiles[idx].elevation = ELEVATION.LOW;
+            }
+            tiles[idx].faction = 'neutral';
+            tiles[idx].hasTree = false;
           }
-          tiles[idx].faction = 'neutral';
         }
       }
     }
-  }
+
+    tiles[pit.y * size + pit.x].object = {
+      type: 'ROSHAN_PIT',
+      pitId: pit.pitId,
+      name: pit.name,
+      symbol: '🗻',
+      faction: 'neutral',
+    };
+  });
 
   // 6. Ward Cliffs (Elevation 2)
   const wardCliffs = [
@@ -216,8 +258,8 @@ export function generateDotaMap() {
     { x: 58, y: 48, name: 'Dire Mid Cliff' },
     { x: 44, y: 72, name: 'Radiant Jungle Cliff' },
     { x: 56, y: 28, name: 'Dire Jungle Cliff' },
-    { x: 74, y: 74, name: 'Radiant Safelane Cliff' },
-    { x: 26, y: 26, name: 'Dire Safelane Cliff' },
+    { x: 70, y: 82, name: 'South Pit Ward Cliff' },
+    { x: 30, y: 18, name: 'North Pit Ward Cliff' },
   ];
 
   wardCliffs.forEach(c => {
@@ -340,24 +382,55 @@ export function generateDotaMap() {
 
   // 11. Place Buildings and Landmark Objects
 
-  // Ancients
-  tiles[88 * size + 12].object = {
+  // Ancients: Grand 4x4 Sanctuaries
+  clearTreeCircle(12, 88, 7);
+  clearTreeCircle(88, 12, 7);
+
+  // Register 4x4 footprint for Radiant World Tree (centered at 12, 88)
+  const radAncientObj = {
     type: 'ANCIENT',
-    name: 'Ancient Tree (Radiant)',
+    id: 'rad_throne',
+    name: 'Древо Жизни (World Tree)',
     symbol: '🌳',
     faction: 'radiant',
-    size: 3,
+    size: 4,
+    centerX: 12,
+    centerY: 88,
   };
-  clearTreeCircle(12, 88, 5);
+  for (let dy = -2; dy <= 1; dy++) {
+    for (let dx = -2; dx <= 1; dx++) {
+      const idx = (88 + dy) * size + (12 + dx);
+      if (idx >= 0 && idx < tiles.length) {
+        tiles[idx].hasTree = false;
+        tiles[idx].terrain = TERRAIN.BASE_RADIANT;
+        tiles[idx].elevation = ELEVATION.HIGH;
+        tiles[idx].object = radAncientObj;
+      }
+    }
+  }
 
-  tiles[12 * size + 88].object = {
+  // Register 4x4 footprint for Dire Throne of Decay (centered at 88, 12)
+  const direAncientObj = {
     type: 'ANCIENT',
-    name: 'Ancient Throne (Dire)',
+    id: 'dire_throne',
+    name: 'Трон Тьмы (Throne of Decay)',
     symbol: '🌋',
     faction: 'dire',
-    size: 3,
+    size: 4,
+    centerX: 88,
+    centerY: 12,
   };
-  clearTreeCircle(88, 12, 5);
+  for (let dy = -1; dy <= 2; dy++) {
+    for (let dx = -1; dx <= 2; dx++) {
+      const idx = (12 + dy) * size + (88 + dx);
+      if (idx >= 0 && idx < tiles.length) {
+        tiles[idx].hasTree = false;
+        tiles[idx].terrain = TERRAIN.BASE_DIRE;
+        tiles[idx].elevation = ELEVATION.HIGH;
+        tiles[idx].object = direAncientObj;
+      }
+    }
+  }
 
   // Fountains
   tiles[95 * size + 5].object = {
@@ -373,15 +446,7 @@ export function generateDotaMap() {
     faction: 'dire',
   };
 
-  // Roshan
-  tiles[roshCenter.y * size + roshCenter.x].object = {
-    type: 'ROSHAN',
-    name: 'Roshan the Immortal',
-    symbol: '👹',
-    faction: 'neutral',
-  };
-
-  // Runes
+  // Runes (Power Runes in the River)
   tiles[33 * size + 35].object = {
     type: 'RUNE',
     name: 'Top Power Rune',
@@ -395,20 +460,24 @@ export function generateDotaMap() {
     faction: 'neutral',
   };
 
-  // Bounty Runes
-  const bountySpots = [
-    { x: 38, y: 78, name: 'Radiant Jungle Bounty' },
-    { x: 18, y: 60, name: 'Radiant Triangle Bounty' },
-    { x: 62, y: 22, name: 'Dire Jungle Bounty' },
-    { x: 82, y: 40, name: 'Dire Triangle Bounty' },
-  ];
-  bountySpots.forEach(b => {
-    clearTreeCircle(b.x, b.y, 3);
+  // Dedicated Bounty Rune Altars (Altar platforms in jungles and triangles)
+  BOUNTY_ALTARS.forEach(b => {
+    clearTreeCircle(b.x, b.y, 4);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const px = b.x + dx;
+        const py = b.y + dy;
+        const idx = py * size + px;
+        tiles[idx].terrain = TERRAIN.ROAD;
+        tiles[idx].hasTree = false;
+      }
+    }
     tiles[b.y * size + b.x].object = {
-      type: 'BOUNTY_RUNE',
+      type: 'BOUNTY_ALTAR',
+      id: b.id,
       name: b.name,
-      symbol: '🟡',
-      faction: 'neutral',
+      symbol: '🪙',
+      faction: b.faction,
     };
   });
 
@@ -478,14 +547,31 @@ export function generateDotaMap() {
   ];
 
   towers.forEach(t => {
-    clearTreeCircle(t.x, t.y, 3);
-    tiles[t.y * size + t.x].object = {
-      type: 'TOWER',
-      name: t.name,
-      tier: t.tier,
-      faction: t.faction,
-      symbol: t.faction === 'radiant' ? '🛡️' : '⚔️',
-    };
+    // Clear trees around entire 2x2 tower footprint
+    for (let dy = -1; dy <= 2; dy++) {
+      for (let dx = -1; dx <= 2; dx++) {
+        const nx = t.x + dx;
+        const ny = t.y + dy;
+        if (nx >= 0 && nx < size && ny >= 0 && ny < size) {
+          tiles[ny * size + nx].hasTree = false;
+        }
+      }
+    }
+    // Register 2x2 footprint for tower selection and inspection (no static symbol)
+    for (let dy = 0; dy < 2; dy++) {
+      for (let dx = 0; dx < 2; dx++) {
+        const idx = (t.y + dy) * size + (t.x + dx);
+        tiles[idx].object = {
+          type: 'TOWER',
+          id: t.id || `${t.faction}_${t.tier}_${t.x}_${t.y}`,
+          name: t.name,
+          tier: t.tier,
+          faction: t.faction,
+          towerOriginX: t.x,
+          towerOriginY: t.y,
+        };
+      }
+    }
   });
 
   // Neutral Camps Placement with Generous 7x7 Clearings
@@ -553,12 +639,13 @@ export function generateDotaMap() {
   const allPOIs = [
     ...neutralCamps,
     ...towers,
-    ...bountySpots,
+    ...BOUNTY_ALTARS,
     ...outposts,
     ...secretShops,
     { x: 12, y: 88 },
     { x: 88, y: 12 },
-    { x: roshCenter.x, y: roshCenter.y },
+    { x: ROSHAN_PITS.north.x, y: ROSHAN_PITS.north.y },
+    { x: ROSHAN_PITS.south.x, y: ROSHAN_PITS.south.y },
   ];
 
   allPOIs.forEach(poi => {
@@ -596,12 +683,14 @@ export function generateDotaMap() {
     size,
     tiles,
     landmarks: [
-      { name: 'Radiant Ancient', x: 12, y: 88, faction: 'radiant' },
-      { name: 'Dire Throne', x: 88, y: 12, faction: 'dire' },
-      { name: 'Roshan Pit', x: roshCenter.x, y: roshCenter.y, faction: 'neutral' },
+      { name: 'Древо Жизни (Radiant)', x: 12, y: 88, faction: 'radiant' },
+      { name: 'Трон Тьмы (Dire)', x: 88, y: 12, faction: 'dire' },
+      { name: 'Северное логово Рошана (Ночь)', x: ROSHAN_PITS.north.x, y: ROSHAN_PITS.north.y, faction: 'neutral' },
+      { name: 'Южное логово Рошана (День)', x: ROSHAN_PITS.south.x, y: ROSHAN_PITS.south.y, faction: 'neutral' },
       { name: 'Mid River', x: 50, y: 50, faction: 'neutral' },
       { name: 'Top Rune', x: 33, y: 35, faction: 'neutral' },
       { name: 'Bot Rune', x: 67, y: 65, faction: 'neutral' },
+      ...BOUNTY_ALTARS.map(b => ({ name: b.name, x: b.x, y: b.y, faction: b.faction })),
       { name: 'Radiant Small Camp', x: 35, y: 80, faction: 'radiant' },
       { name: 'Dire Small Camp', x: 65, y: 20, faction: 'dire' },
       { name: 'Radiant Ancient Camp', x: 27, y: 64, faction: 'radiant' },

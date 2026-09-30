@@ -209,7 +209,7 @@ export function createInitialGameState() {
 
     { id: 'rad_t4_top', ...TOWER_STATS.T4, faction: 'radiant', x: 15, y: 85, nextAttackTime: 4.0 },
     { id: 'rad_t4_bot', ...TOWER_STATS.T4, faction: 'radiant', x: 14, y: 87, nextAttackTime: 4.0 },
-    { id: 'rad_throne', ...TOWER_STATS.THRONE, faction: 'radiant', x: 12, y: 88, nextAttackTime: Infinity },
+    { id: 'rad_throne', ...TOWER_STATS.THRONE, name: 'Древо Жизни (World Tree)', faction: 'radiant', x: 10, y: 86, size: 4, nextAttackTime: Infinity },
 
     // Dire Towers
     { id: 'dire_t1_top', ...TOWER_STATS.T1, faction: 'dire', x: 38, y: 14, nextAttackTime: 4.0 },
@@ -226,8 +226,26 @@ export function createInitialGameState() {
 
     { id: 'dire_t4_top', ...TOWER_STATS.T4, faction: 'dire', x: 85, y: 15, nextAttackTime: 4.0 },
     { id: 'dire_t4_bot', ...TOWER_STATS.T4, faction: 'dire', x: 86, y: 13, nextAttackTime: 4.0 },
-    { id: 'dire_throne', ...TOWER_STATS.THRONE, faction: 'dire', x: 88, y: 12, nextAttackTime: Infinity },
+    { id: 'dire_throne', ...TOWER_STATS.THRONE, name: 'Трон Тьмы (Throne of Decay)', faction: 'dire', x: 86, y: 10, size: 4, nextAttackTime: Infinity },
   ];
+
+  // 3. Roshan the Immortal (Starts in South Pit during Day)
+  const roshan = {
+    id: 'roshan',
+    name: 'Рошан Бессмертный',
+    pitId: 'south',
+    x: 74,
+    y: 76,
+    hp: 6000,
+    maxHp: 6000,
+    armor: 20,
+    damage: 150,
+    penetration: 30,
+    hit: 60,
+    isDead: false,
+    respawnTime: null,
+    dayNightPhase: 'day',
+  };
 
   return {
     gameTimeSeconds: 0.0,
@@ -238,6 +256,7 @@ export function createInitialGameState() {
     initiativeQueue: queue,
     heroes: heroInstances,
     towers,
+    roshan,
     creeps: [], // Initial creeps array is [] per spec (first wave at 60s)
     waveCycleIndex: 0,
     nextLaneWaveTime: 60.0, // First wave after 60s
@@ -541,6 +560,48 @@ export function endTurn(state) {
     occupiedTiles.add(key);
   });
 
+  // 7. Roshan Day/Night Migration between North & South Pits (Patch 7.33+ rules)
+  // Day (0-300s, 600-900s): South Pit (74, 76)
+  // Night (300-600s, 900-1200s): North Pit (26, 24)
+  const isDay = Math.floor(nextGameTime / 300) % 2 === 0;
+  const targetPitKey = isDay ? 'south' : 'north';
+  let updatedRoshan = state.roshan ? { ...state.roshan } : {
+    id: 'roshan',
+    name: 'Рошан Бессмертный',
+    pitId: 'south',
+    x: 74,
+    y: 76,
+    hp: 6000,
+    maxHp: 6000,
+    armor: 20,
+    damage: 150,
+    penetration: 30,
+    hit: 60,
+    isDead: false,
+    respawnTime: null,
+    dayNightPhase: 'day',
+  };
+
+  if (!updatedRoshan.isDead && updatedRoshan.pitId !== targetPitKey) {
+    updatedRoshan.pitId = targetPitKey;
+    updatedRoshan.dayNightPhase = isDay ? 'day' : 'night';
+    if (targetPitKey === 'north') {
+      updatedRoshan.x = 26;
+      updatedRoshan.y = 24;
+      newCombatLogs.push({
+        text: `🌙 Наступила ночь! Рошан перешел в Северное логово (верх реки, [26, 24])!`,
+        time: nextGameTime,
+      });
+    } else {
+      updatedRoshan.x = 74;
+      updatedRoshan.y = 76;
+      newCombatLogs.push({
+        text: `☀️ Наступил день! Рошан перешел в Южное логово (низ реки, [74, 76])!`,
+        time: nextGameTime,
+      });
+    }
+  }
+
   return {
     ...state,
     gameTimeSeconds: nextGameTime,
@@ -550,6 +611,7 @@ export function endTurn(state) {
     remainingTurnTime: TURN_DURATION_SECONDS,
     heroes: updatedHeroes,
     creeps: updatedCreeps,
+    roshan: updatedRoshan,
     nextLaneWaveTime: nextWave,
     nextNeutralSpawnTime: nextNeutral,
     waveCycleIndex: waveIdx,

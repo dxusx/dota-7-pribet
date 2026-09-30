@@ -337,11 +337,12 @@ export default function App() {
             c => !c.isDead && c.faction !== activeHero.faction && c.x === tile.x && c.y === tile.y
           );
 
-          // Target Tower (2x2 footprint)
-          const targetTower = !targetHero && !targetCreep && (gameState.towers || []).find(
-            t => t.hp > 0 && t.faction !== activeHero.faction &&
-            tile.x >= t.x && tile.x <= t.x + 1 && tile.y >= t.y && tile.y <= t.y + 1
-          );
+          // Target Tower (2x2) or Ancient (4x4)
+          const targetTower = !targetHero && !targetCreep && (gameState.towers || []).find(t => {
+            if (t.hp <= 0 || t.faction === activeHero.faction) return false;
+            const sz = t.size || 2;
+            return tile.x >= t.x && tile.x < t.x + sz && tile.y >= t.y && tile.y < t.y + sz;
+          });
 
           const attackerElevation = mapData.tiles[activeHero.y * MAP_SIZE + activeHero.x]?.elevation || 1;
           const targetElevation = tile.elevation || 1;
@@ -690,6 +691,26 @@ export default function App() {
               <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/30 font-mono">
                 ⏱️ {currentMatchTime.toFixed(1)}с
               </span>
+              {(() => {
+                const isDay = Math.floor(currentMatchTime / 300) % 2 === 0;
+                const nextCycleSec = 300 - (Math.floor(currentMatchTime) % 300);
+                const cycleMin = Math.floor(nextCycleSec / 60);
+                const cycleSec = String(nextCycleSec % 60).padStart(2, '0');
+                return (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold border flex items-center gap-1 ${
+                      isDay
+                        ? 'bg-amber-950/60 border-amber-500/40 text-amber-300'
+                        : 'bg-indigo-950/60 border-indigo-500/40 text-indigo-300'
+                    }`}
+                    title={isDay ? 'День: Рошан в Южном логове (74, 76)' : 'Ночь: Рошан в Северном логове (26, 24)'}
+                  >
+                    <span>{isDay ? '☀️ День' : '🌙 Ночь'}</span>
+                    <span>({cycleMin}:{cycleSec})</span>
+                    <span className="text-slate-400">• Рошан: {isDay ? 'Юг' : 'Сев.'}</span>
+                  </span>
+                );
+              })()}
             </div>
             <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2">
               <span>⚔️ Крипы: {Math.max(0, Math.round(gameState.nextLaneWaveTime - currentMatchTime))}с</span>
@@ -831,6 +852,7 @@ export default function App() {
           heroes={gameState.heroes}
           creeps={gameState.creeps}
           towers={gameState.towers}
+          roshan={gameState.roshan}
           reachableMoveCells={reachableMoveCells}
           reachableAttackCells={reachableAttackCells}
           skillTargetCells={skillTargetCells}
@@ -849,7 +871,21 @@ export default function App() {
         {selectedTile && (() => {
           const tileHero = gameState.heroes.find(h => !h.isDead && h.x === selectedTile.x && h.y === selectedTile.y);
           const tileCreep = !tileHero && (gameState.creeps || []).find(c => !c.isDead && c.x === selectedTile.x && c.y === selectedTile.y);
-          const tileTower = !tileHero && !tileCreep && (gameState.towers || []).find(t => t.hp > 0 && selectedTile.x >= t.x && selectedTile.x <= t.x + 1 && selectedTile.y >= t.y && selectedTile.y <= t.y + 1);
+          const tileAncient = !tileHero && !tileCreep && (gameState.towers || []).find(t =>
+            (t.id === 'rad_throne' || t.id === 'dire_throne') &&
+            selectedTile.x >= t.x && selectedTile.x <= t.x + 3 &&
+            selectedTile.y >= t.y && selectedTile.y <= t.y + 3
+          );
+          const tileTower = !tileHero && !tileCreep && !tileAncient && (gameState.towers || []).find(t =>
+            t.id !== 'rad_throne' && t.id !== 'dire_throne' && t.hp > 0 &&
+            selectedTile.x >= t.x && selectedTile.x <= t.x + 1 &&
+            selectedTile.y >= t.y && selectedTile.y <= t.y + 1
+          );
+          const tileRoshan = !tileHero && !tileCreep && !tileAncient && !tileTower && gameState.roshan && (
+            Math.hypot(selectedTile.x - gameState.roshan.x, selectedTile.y - gameState.roshan.y) <= 2.8 ||
+            (selectedTile.object && selectedTile.object.type === 'ROSHAN_PIT')
+          );
+          const tileBounty = selectedTile.object && selectedTile.object.type === 'BOUNTY_ALTAR';
 
           return (
             <aside className="absolute top-4 right-4 w-72 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl p-3.5 shadow-2xl z-10 animate-in fade-in slide-in-from-right duration-200 max-h-[80vh] overflow-y-auto custom-scrollbar">
@@ -866,6 +902,115 @@ export default function App() {
                   <X size={14} />
                 </button>
               </div>
+
+              {/* Unit Card: Ancient Sanctuary (4x4) */}
+              {tileAncient && (
+                <div className={`mt-2.5 p-3 rounded-lg bg-slate-950 border space-y-2.5 ${
+                  tileAncient.faction === 'radiant' ? 'border-emerald-500/50 shadow-emerald-950/40 shadow-lg' : 'border-red-500/50 shadow-red-950/40 shadow-lg'
+                }`}>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-3xl">{tileAncient.faction === 'radiant' ? '🌳' : '🌋'}</span>
+                    <div>
+                      <div className={`font-bold text-sm ${tileAncient.faction === 'radiant' ? 'text-emerald-300' : 'text-rose-300'}`}>
+                        {tileAncient.faction === 'radiant' ? 'Древо Жизни' : 'Трон Тьмы'}
+                      </div>
+                      <div className="text-[10px] text-amber-400 font-mono font-bold uppercase">
+                        Главная Святыня • Размер 4x4
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* HP Bar */}
+                  <div>
+                    <div className="flex justify-between text-[11px] font-mono text-slate-300 mb-1">
+                      <span>Прочность:</span>
+                      <span className={`font-bold ${tileAncient.faction === 'radiant' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {tileAncient.hp} / {tileAncient.maxHp} HP
+                      </span>
+                    </div>
+                    <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                      <div
+                        className={`h-full transition-all duration-200 ${tileAncient.faction === 'radiant' ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                        style={{ width: `${Math.max(0, (tileAncient.hp / tileAncient.maxHp) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900/80 p-2 rounded text-[10px] text-slate-300 border border-slate-800 leading-relaxed font-sans">
+                    ⚔️ <span className="font-bold text-amber-300">Цель матча:</span> Уничтожение трона врага приносит немедленную победу!
+                  </div>
+                </div>
+              )}
+
+              {/* Unit Card: Roshan the Immortal */}
+              {tileRoshan && gameState.roshan && (
+                <div className="mt-2.5 p-3 rounded-lg bg-slate-950 border border-purple-500/50 shadow-purple-950/40 shadow-lg space-y-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-3xl">👹</span>
+                    <div>
+                      <div className="font-bold text-sm text-purple-300">
+                        {gameState.roshan.name}
+                      </div>
+                      <div className="text-[10px] text-amber-400 font-mono font-bold uppercase">
+                        Древний Титан • Босс
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* HP Bar */}
+                  <div>
+                    <div className="flex justify-between text-[11px] font-mono text-slate-300 mb-1">
+                      <span>Здоровье:</span>
+                      <span className="font-bold text-rose-400">
+                        {gameState.roshan.hp} / {gameState.roshan.maxHp} HP
+                      </span>
+                    </div>
+                    <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                      <div
+                        className="h-full bg-rose-600 transition-all duration-200"
+                        style={{ width: `${Math.max(0, (gameState.roshan.hp / gameState.roshan.maxHp) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1 text-[10px] font-mono">
+                    <div className="bg-slate-900 p-1.5 rounded text-center">
+                      <span className="text-slate-400 block text-[8px]">УРОН</span>
+                      <span className="text-amber-400 font-bold">{gameState.roshan.damage}</span>
+                    </div>
+                    <div className="bg-slate-900 p-1.5 rounded text-center">
+                      <span className="text-slate-400 block text-[8px]">БРОНЯ</span>
+                      <span className="text-blue-400 font-bold">{gameState.roshan.armor}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-purple-950/40 p-2 rounded text-[10px] text-purple-200 border border-purple-800/50 leading-relaxed font-mono">
+                    📍 Текущее логово: <span className="font-bold text-amber-300">{gameState.roshan.pitId === 'north' ? 'Север (Ночь, 26, 24)' : 'Юг (День, 74, 76)'}</span>
+                    <br />
+                    🔄 Каждые 5 минут (300с) меняет логово (День/Ночь)!
+                  </div>
+                </div>
+              )}
+
+              {/* Unit Card: Bounty Altar */}
+              {tileBounty && (
+                <div className="mt-2.5 p-3 rounded-lg bg-slate-950 border border-amber-500/50 shadow-amber-950/40 shadow-lg space-y-2">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-2xl">🪙</span>
+                    <div>
+                      <div className="font-bold text-xs text-amber-300">
+                        {selectedTile.object.name}
+                      </div>
+                      <div className="text-[10px] text-amber-400 font-mono">
+                        Святилище руны золота
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-amber-950/30 p-2 rounded text-[10px] text-amber-200 border border-amber-800/50 leading-relaxed font-sans">
+                    🪙 Дарует <span className="font-bold text-amber-300">+40 золота</span> каждому герою союзной фракции!
+                  </div>
+                </div>
+              )}
 
               {/* Unit Card: Creep */}
               {tileCreep && (
@@ -959,14 +1104,14 @@ export default function App() {
                 </div>
               )}
 
-              {/* Unit Card: Tower */}
+              {/* Unit Card: Tower (2x2) */}
               {tileTower && (
                 <div className="mt-2.5 p-2.5 rounded-lg bg-slate-950 border border-red-500/30 space-y-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xl">{tileTower.faction === 'radiant' ? '🛡️' : '⚔️'}</span>
                     <div>
-                      <div className="font-bold text-xs text-red-300">Башня {tileTower.id}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">{tileTower.faction.toUpperCase()} • T{tileTower.tier || 1}</div>
+                      <div className="font-bold text-xs text-red-300">{tileTower.name || `Башня ${tileTower.id}`}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">{tileTower.faction.toUpperCase()} • T{tileTower.tier || 1} • РАЗМЕР 2x2</div>
                     </div>
                   </div>
                   <div>
@@ -976,6 +1121,20 @@ export default function App() {
                     </div>
                     <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
                       <div className="h-full bg-red-500" style={{ width: `${(tileTower.hp / tileTower.maxHp) * 100}%` }} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 text-[10px] font-mono pt-1 border-t border-slate-800/80">
+                    <div className="bg-slate-900 p-1 rounded text-center">
+                      <span className="text-slate-400 block text-[8px]">УРОН</span>
+                      <span className="text-amber-400 font-bold">{tileTower.damage}</span>
+                    </div>
+                    <div className="bg-slate-900 p-1 rounded text-center">
+                      <span className="text-slate-400 block text-[8px]">БРОНЯ</span>
+                      <span className="text-blue-400 font-bold">{tileTower.armor}</span>
+                    </div>
+                    <div className="bg-slate-900 p-1 rounded text-center">
+                      <span className="text-slate-400 block text-[8px]">ДАЛЬНОСТЬ</span>
+                      <span className="text-purple-400 font-bold">10 кл.</span>
                     </div>
                   </div>
                 </div>
