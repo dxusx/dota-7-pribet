@@ -12,6 +12,14 @@ export default function DotaMapCanvas({
   showIcons,
   showTrees,
   targetPos,
+  heroes = [],
+  creeps = [],
+  towers = [],
+  activeHeroId = null,
+  reachableMoveCells = [],
+  reachableAttackCells = [],
+  floatingTexts = [],
+  onCellClick = null,
 }) {
   const canvasRef = useRef(null);
   const minimapRef = useRef(null);
@@ -71,14 +79,14 @@ export default function DotaMapCanvas({
     offscreenCanvasRef.current = offscreen;
   }, [mapData]);
 
-  // Handle external camera focus (e.g. from landmark quick jump)
+  // Handle external camera focus (e.g. from landmark quick jump or hero click)
   useEffect(() => {
     if (!targetPos || !canvasRef.current) return;
     const canvas = canvasRef.current;
     const targetWorldX = targetPos.x * TILE_SIZE + TILE_SIZE / 2;
     const targetWorldY = targetPos.y * TILE_SIZE + TILE_SIZE / 2;
 
-    const zoom = Math.max(camera.zoom, 0.8);
+    const zoom = Math.max(camera.zoom, 0.85);
     setCamera({
       x: canvas.width / 2 - targetWorldX * zoom,
       y: canvas.height / 2 - targetWorldY * zoom,
@@ -135,7 +143,32 @@ export default function DotaMapCanvas({
         ctx.drawImage(offscreenCanvasRef.current, 0, 0);
       }
 
-      // 2. Grid lines
+      // 2. Tactical Range Overlays (Move & Attack zones)
+      if (reachableMoveCells.length > 0) {
+        ctx.fillStyle = 'rgba(59, 130, 246, 0.28)';
+        ctx.strokeStyle = '#3b82f6';
+        ctx.lineWidth = 1.5 / zoom;
+        reachableMoveCells.forEach(cell => {
+          const px = cell.x * TILE_SIZE;
+          const py = cell.y * TILE_SIZE;
+          ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+          ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+        });
+      }
+
+      if (reachableAttackCells.length > 0) {
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.28)';
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 1.5 / zoom;
+        reachableAttackCells.forEach(cell => {
+          const px = cell.x * TILE_SIZE;
+          const py = cell.y * TILE_SIZE;
+          ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+          ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+        });
+      }
+
+      // 3. Grid lines
       if (showGrid) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
         ctx.lineWidth = 1 / zoom;
@@ -163,14 +196,14 @@ export default function DotaMapCanvas({
         ctx.stroke();
       }
 
-      // 3. Draw Trees
+      // 4. Draw Trees
       if (showTrees && mapData?.tiles) {
         for (let i = 0; i < mapData.tiles.length; i++) {
           const tile = mapData.tiles[i];
           if (tile.hasTree) {
             const px = tile.x * TILE_SIZE + TILE_SIZE / 2;
             const py = tile.y * TILE_SIZE + TILE_SIZE / 2;
-            const r = TILE_SIZE * 0.42;
+            const r = TILE_SIZE * 0.40;
 
             ctx.beginPath();
             ctx.arc(px, py, r, 0, Math.PI * 2);
@@ -179,14 +212,14 @@ export default function DotaMapCanvas({
 
             // Tree inner highlight
             ctx.beginPath();
-            ctx.arc(px - 2, py - 2, r * 0.5, 0, Math.PI * 2);
+            ctx.arc(px - 1.5, py - 1.5, r * 0.5, 0, Math.PI * 2);
             ctx.fillStyle = tile.treeType === 'spooky' ? '#693e53' : '#2e7a3d';
             ctx.fill();
           }
         }
       }
 
-      // 4. Draw Objects & Buildings
+      // 5. Draw Objects & Buildings
       if (showIcons && mapData?.tiles) {
         ctx.font = `${Math.round(TILE_SIZE * 0.8)}px sans-serif`;
         ctx.textAlign = 'center';
@@ -198,7 +231,6 @@ export default function DotaMapCanvas({
             const px = tile.x * TILE_SIZE + TILE_SIZE / 2;
             const py = tile.y * TILE_SIZE + TILE_SIZE / 2;
 
-            // Highlight ring around key buildings
             if (tile.object.type === 'ANCIENT' || tile.object.type === 'ROSHAN') {
               ctx.beginPath();
               ctx.arc(px, py, TILE_SIZE * 1.2, 0, Math.PI * 2);
@@ -213,12 +245,6 @@ export default function DotaMapCanvas({
                 tile.object.faction === 'radiant' ? '#22c55e' : tile.object.faction === 'dire' ? '#ef4444' : '#a855f7';
               ctx.lineWidth = 2 / zoom;
               ctx.stroke();
-            } else if (tile.object.type === 'TOWER') {
-              ctx.beginPath();
-              ctx.arc(px, py, TILE_SIZE * 0.6, 0, Math.PI * 2);
-              ctx.fillStyle =
-                tile.object.faction === 'radiant' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)';
-              ctx.fill();
             } else if (tile.object.type === 'NEUTRAL_CAMP') {
               ctx.beginPath();
               ctx.arc(px, py, TILE_SIZE * 0.65, 0, Math.PI * 2);
@@ -237,32 +263,147 @@ export default function DotaMapCanvas({
               ctx.stroke();
             }
 
-            // Draw Symbol
             ctx.fillText(tile.object.symbol || '📍', px, py + 1);
-
-            // Tier or small label for towers
-            if (tile.object.tier && zoom > 0.7) {
-              ctx.font = `bold ${Math.round(TILE_SIZE * 0.35)}px sans-serif`;
-              ctx.fillStyle = '#ffffff';
-              ctx.fillText(`T${tile.object.tier}`, px, py + TILE_SIZE * 0.6);
-              ctx.font = `${Math.round(TILE_SIZE * 0.8)}px sans-serif`;
-            }
           }
         }
       }
 
-      // 5. Hovered Tile Highlight
+      // 6. Draw Towers on map
+      towers.forEach(t => {
+        const px = t.x * TILE_SIZE + TILE_SIZE;
+        const py = t.y * TILE_SIZE + TILE_SIZE;
+        const isRad = t.faction === 'radiant';
+
+        ctx.beginPath();
+        ctx.arc(px, py, TILE_SIZE * 0.85, 0, Math.PI * 2);
+        ctx.fillStyle = isRad ? 'rgba(34, 197, 94, 0.35)' : 'rgba(239, 68, 68, 0.35)';
+        ctx.fill();
+        ctx.strokeStyle = isRad ? '#22c55e' : '#ef4444';
+        ctx.lineWidth = 2 / zoom;
+        ctx.stroke();
+
+        ctx.font = `${Math.round(TILE_SIZE * 0.8)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(isRad ? '🛡️' : '⚔️', px, py);
+
+        // HP bar for tower
+        const hpPct = Math.max(0, t.hp / t.maxHp);
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(px - 14, py + 14, 28, 4);
+        ctx.fillStyle = hpPct > 0.3 ? '#22c55e' : '#ef4444';
+        ctx.fillRect(px - 14, py + 14, 28 * hpPct, 4);
+      });
+
+      // 7. Draw Lane Creeps
+      creeps.forEach(creep => {
+        const px = creep.x * TILE_SIZE + TILE_SIZE / 2;
+        const py = creep.y * TILE_SIZE + TILE_SIZE / 2;
+        const isRad = creep.faction === 'radiant';
+
+        ctx.beginPath();
+        ctx.arc(px, py, TILE_SIZE * 0.38, 0, Math.PI * 2);
+        ctx.fillStyle = isRad ? '#15803d' : '#991b1b';
+        ctx.fill();
+        ctx.strokeStyle = isRad ? '#4ade80' : '#f87171';
+        ctx.lineWidth = 1 / zoom;
+        ctx.stroke();
+
+        // Mini HP Bar
+        const hpPct = Math.max(0, creep.hp / creep.maxHp);
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(px - 8, py - 12, 16, 3);
+        ctx.fillStyle = isRad ? '#4ade80' : '#f87171';
+        ctx.fillRect(px - 8, py - 12, 16 * hpPct, 3);
+      });
+
+      // 8. Draw Heroes
+      const timeMs = Date.now();
+      heroes.forEach(hero => {
+        if (hero.isDead) return;
+        const px = hero.x * TILE_SIZE + TILE_SIZE / 2;
+        const py = hero.y * TILE_SIZE + TILE_SIZE / 2;
+        const isActive = hero.instanceId === activeHeroId;
+        const isRad = hero.faction === 'radiant';
+
+        // Active hero golden pulsing ring
+        if (isActive) {
+          const pulse = Math.sin(timeMs / 200) * 0.2 + 0.8;
+          ctx.beginPath();
+          ctx.arc(px, py, TILE_SIZE * 0.75 * pulse, 0, Math.PI * 2);
+          ctx.strokeStyle = '#f59e0b';
+          ctx.lineWidth = 3 / zoom;
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(245, 158, 11, 0.2)';
+          ctx.fill();
+        }
+
+        // Hero circle token
+        ctx.beginPath();
+        ctx.arc(px, py, TILE_SIZE * 0.55, 0, Math.PI * 2);
+        ctx.fillStyle = hero.themeColor || (isRad ? '#065f46' : '#7f1d1d');
+        ctx.fill();
+        ctx.strokeStyle = hero.accentColor || (isRad ? '#34d399' : '#f87171');
+        ctx.lineWidth = 2 / zoom;
+        ctx.stroke();
+
+        // Symbol
+        ctx.font = `${Math.round(TILE_SIZE * 0.7)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(hero.avatarSymbol || '👤', px, py);
+
+        // Hero Name Tag & Level
+        if (zoom > 0.55) {
+          ctx.font = `bold ${Math.round(TILE_SIZE * 0.32)}px sans-serif`;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(hero.name, px, py - TILE_SIZE * 0.7);
+        }
+
+        // Hero HP & Mana bar
+        const hpPct = Math.max(0, hero.hp / hero.maxHp);
+        const manaPct = Math.max(0, hero.mana / hero.maxMana);
+
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(px - 12, py + TILE_SIZE * 0.55, 24, 3.5);
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(px - 12, py + TILE_SIZE * 0.55, 24 * hpPct, 3.5);
+
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(px - 12, py + TILE_SIZE * 0.55 + 4, 24, 2);
+        ctx.fillStyle = '#3b82f6';
+        ctx.fillRect(px - 12, py + TILE_SIZE * 0.55 + 4, 24 * manaPct, 2);
+      });
+
+      // 9. Floating Combat Texts
+      const now = Date.now();
+      floatingTexts.forEach(ft => {
+        const elapsed = (now - ft.createdAt) / 1000;
+        if (elapsed < 1.5) {
+          const alpha = 1.0 - elapsed / 1.5;
+          const px = ft.x * TILE_SIZE + TILE_SIZE / 2;
+          const py = ft.y * TILE_SIZE - elapsed * 20;
+
+          ctx.font = `bold ${Math.round(TILE_SIZE * 0.65)}px sans-serif`;
+          ctx.fillStyle = ft.color || '#f59e0b';
+          ctx.globalAlpha = alpha;
+          ctx.textAlign = 'center';
+          ctx.fillText(ft.text, px, py);
+          ctx.globalAlpha = 1.0;
+        }
+      });
+
+      // 10. Hovered & Selected Cell
       if (hoveredTile) {
         const hx = hoveredTile.x * TILE_SIZE;
         const hy = hoveredTile.y * TILE_SIZE;
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
         ctx.fillRect(hx, hy, TILE_SIZE, TILE_SIZE);
         ctx.strokeStyle = '#38bdf8';
         ctx.lineWidth = 2 / zoom;
         ctx.strokeRect(hx, hy, TILE_SIZE, TILE_SIZE);
       }
 
-      // 6. Selected Tile Highlight
       if (selectedTile) {
         const sx = selectedTile.x * TILE_SIZE;
         const sy = selectedTile.y * TILE_SIZE;
@@ -275,14 +416,29 @@ export default function DotaMapCanvas({
 
       ctx.restore();
 
-      // 7. Render Minimap
+      // Render Minimap
       renderMinimap();
       animId = requestAnimationFrame(render);
     };
 
     animId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animId);
-  }, [camera, showGrid, showIcons, showTrees, hoveredTile, selectedTile, mapData]);
+  }, [
+    camera,
+    showGrid,
+    showIcons,
+    showTrees,
+    hoveredTile,
+    selectedTile,
+    mapData,
+    heroes,
+    creeps,
+    towers,
+    activeHeroId,
+    reachableMoveCells,
+    reachableAttackCells,
+    floatingTexts,
+  ]);
 
   // Minimap Rendering
   const renderMinimap = useCallback(() => {
@@ -300,11 +456,18 @@ export default function DotaMapCanvas({
       mCtx.drawImage(offscreenCanvasRef.current, 0, 0, mWidth, mHeight);
     }
 
+    // Draw Heroes on Minimap
+    const scale = mWidth / WORLD_SIZE;
+    heroes.forEach(h => {
+      if (h.isDead) return;
+      mCtx.beginPath();
+      mCtx.arc(h.x * TILE_SIZE * scale, h.y * TILE_SIZE * scale, 3, 0, Math.PI * 2);
+      mCtx.fillStyle = h.faction === 'radiant' ? '#22c55e' : '#ef4444';
+      mCtx.fill();
+    });
+
     // Draw Viewport Camera Box on Minimap
     const { x: camX, y: camY, zoom } = camera;
-    const scale = mWidth / WORLD_SIZE;
-
-    // Invert camera transform to find viewport rect in world coordinates
     const viewWorldX = -camX / zoom;
     const viewWorldY = -camY / zoom;
     const viewWorldW = vCanvas.width / zoom;
@@ -312,30 +475,20 @@ export default function DotaMapCanvas({
 
     mCtx.strokeStyle = '#f59e0b';
     mCtx.lineWidth = 1.5;
-    mCtx.strokeRect(
-      viewWorldX * scale,
-      viewWorldY * scale,
-      viewWorldW * scale,
-      viewWorldH * scale
-    );
+    mCtx.strokeRect(viewWorldX * scale, viewWorldY * scale, viewWorldW * scale, viewWorldH * scale);
     mCtx.fillStyle = 'rgba(245, 158, 11, 0.1)';
-    mCtx.fillRect(
-      viewWorldX * scale,
-      viewWorldY * scale,
-      viewWorldW * scale,
-      viewWorldH * scale
-    );
-  }, [camera, mapData]);
+    mCtx.fillRect(viewWorldX * scale, viewWorldY * scale, viewWorldW * scale, viewWorldH * scale);
+  }, [camera, mapData, heroes]);
 
   // Pointer & Mouse interactions
-  const handleMouseDown = (e) => {
+  const handleMouseDown = e => {
     if (e.button === 0) {
       isDraggingRef.current = true;
       lastMousePosRef.current = { x: e.clientX, y: e.clientY };
     }
   };
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = e => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -344,13 +497,12 @@ export default function DotaMapCanvas({
       const dy = e.clientY - lastMousePosRef.current.y;
       lastMousePosRef.current = { x: e.clientX, y: e.clientY };
 
-      setCamera((prev) => ({
+      setCamera(prev => ({
         ...prev,
         x: prev.x + dx,
         y: prev.y + dy,
       }));
     } else {
-      // Calculate tile under mouse
       const rect = canvas.getBoundingClientRect();
       const mouseCanvasX = e.clientX - rect.left;
       const mouseCanvasY = e.clientY - rect.top;
@@ -370,18 +522,20 @@ export default function DotaMapCanvas({
     }
   };
 
-  const handleMouseUp = (e) => {
+  const handleMouseUp = () => {
     isDraggingRef.current = false;
   };
 
-  const handleClick = (e) => {
-    // Check if clicked to select tile
+  const handleClick = () => {
     if (hoveredTile) {
       onSelectTile(hoveredTile);
+      if (onCellClick) {
+        onCellClick(hoveredTile);
+      }
     }
   };
 
-  const handleWheel = (e) => {
+  const handleWheel = e => {
     e.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -393,16 +547,14 @@ export default function DotaMapCanvas({
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Zoom centered on mouse
-    setCamera((prev) => ({
+    setCamera(prev => ({
       x: mouseX - (mouseX - prev.x) * (newZoom / prev.zoom),
       y: mouseY - (mouseY - prev.y) * (newZoom / prev.zoom),
       zoom: newZoom,
     }));
   };
 
-  // Minimap Click Navigation
-  const handleMinimapClick = (e) => {
+  const handleMinimapClick = e => {
     const mCanvas = minimapRef.current;
     const vCanvas = canvasRef.current;
     if (!mCanvas || !vCanvas) return;
@@ -414,7 +566,7 @@ export default function DotaMapCanvas({
     const worldX = (clickX / mCanvas.width) * WORLD_SIZE;
     const worldY = (clickY / mCanvas.height) * WORLD_SIZE;
 
-    setCamera((prev) => ({
+    setCamera(prev => ({
       ...prev,
       x: vCanvas.width / 2 - worldX * prev.zoom,
       y: vCanvas.height / 2 - worldY * prev.zoom,
@@ -444,13 +596,11 @@ export default function DotaMapCanvas({
           <span className="text-amber-400 font-bold">
             [{hoveredTile.x}, {hoveredTile.y}]
           </span>
-          <span className="text-slate-300">
-            {hoveredTile.terrain.replace('_', ' ')}
-          </span>
+          <span className="text-slate-300">{hoveredTile.terrain.replace('_', ' ')}</span>
           <span className="text-blue-400">
             {hoveredTile.elevation === 2 ? 'High Ground' : hoveredTile.elevation === 0 ? 'River' : 'Ground'}
           </span>
-          {hoveredTile.hasTree && <span className="text-emerald-400">🌲 Tree</span>}
+          {hoveredTile.hasTree && <span className="text-emerald-400">🌲 Лес</span>}
           {hoveredTile.object && (
             <span className="text-yellow-300 font-semibold">
               {hoveredTile.object.symbol} {hoveredTile.object.name}
@@ -460,15 +610,15 @@ export default function DotaMapCanvas({
       )}
 
       {/* Minimap Box in Bottom-Right */}
-      <div className="absolute bottom-4 right-4 bg-slate-900/90 backdrop-blur-md p-2 rounded-xl border border-slate-700 shadow-2xl flex flex-col items-center">
+      <div className="absolute bottom-20 right-4 bg-slate-900/90 backdrop-blur-md p-2 rounded-xl border border-slate-700 shadow-2xl flex flex-col items-center z-10">
         <div className="text-[10px] text-slate-400 font-mono font-semibold uppercase tracking-wider mb-1 flex items-center justify-between w-full">
           <span>Minimap (100×100)</span>
           <span className="text-amber-500">Radar</span>
         </div>
         <canvas
           ref={minimapRef}
-          width={160}
-          height={160}
+          width={150}
+          height={150}
           onClick={handleMinimapClick}
           className="rounded border border-slate-800 cursor-crosshair shadow-inner"
         />
