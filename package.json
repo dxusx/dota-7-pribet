@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node -e \"console.log('OK')\""
+    "test": "node src/game/combatRules.test.js"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
