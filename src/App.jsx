@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { generateDotaMap, MAP_SIZE, TERRAIN } from './map/dotaMapData';
 import DotaMapCanvas from './components/DotaMapCanvas';
+import { getHeroPortrait } from './assets/heroPortraits';
+import { getSkillIcon } from './assets/skillIcons';
 import { createInitialGameState, endTurn } from './game/gameState';
 import {
   canPerformAction,
@@ -40,10 +42,31 @@ export default function App() {
   const [targetingSkill, setTargetingSkill] = useState(null);
   const [hoveredSkillTooltip, setHoveredSkillTooltip] = useState(null);
   const [floatingTexts, setFloatingTexts] = useState([]);
+  const [weskerMode, setWeskerMode] = useState('ranged');
 
   // Active hero
   const activeHeroId = gameState.initiativeQueue[gameState.activeUnitIndex];
   const activeHero = gameState.heroes.find(h => h.instanceId === activeHeroId) || gameState.heroes[0];
+
+  useEffect(() => {
+    if (activeHero?.defId === 'wesker') {
+      setWeskerMode(activeHero.weaponMode || (activeHero.range > 1 ? 'ranged' : 'melee'));
+    }
+  }, [activeHero]);
+
+  const toggleWeskerMode = useCallback(() => {
+    if (activeHero?.defId !== 'wesker') return;
+    const nextMode = weskerMode === 'ranged' ? 'melee' : 'ranged';
+    setWeskerMode(nextMode);
+    setGameState(prev => ({
+      ...prev,
+      heroes: prev.heroes.map(hero =>
+        hero.instanceId === activeHero.instanceId
+          ? { ...hero, weaponMode: nextMode, damage: nextMode === 'ranged' ? 40 : 5, range: nextMode === 'ranged' ? 5 : 1 }
+          : hero
+      ),
+    }));
+  }, [activeHero, weskerMode]);
 
   // Helper to add floating combat text
   const addFloatingText = useCallback((x, y, text, color = '#f59e0b') => {
@@ -755,7 +778,7 @@ export default function App() {
                       : 'bg-slate-900/80 border border-slate-800 hover:border-slate-700'
                   }`}
                 >
-                  <span className="text-base">{hero.avatarSymbol}</span>
+                  <img src={getHeroPortrait(hero)} alt="" className="w-8 h-8 rounded-full object-cover border border-white/20 shadow-inner" />
                   <span className={`text-xs font-bold font-mono ${isActive ? 'text-amber-300' : 'text-slate-300'}`}>
                     {hero.name.split(' ')[0]}
                   </span>
@@ -1177,11 +1200,11 @@ export default function App() {
 
       {/* 3. Bottom Deck — Permanent Command Console & Skills Bar */}
       {activeHero && (
-        <footer className="h-24 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-4 flex items-center justify-between shrink-0 z-20 relative">
+        <footer className="h-32 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-4 flex items-center justify-between shrink-0 z-20 relative">
           {/* Left Column: Active Hero Profile */}
           <div className="flex items-center gap-3 w-64 shrink-0">
-            <div className="w-12 h-12 rounded-xl bg-slate-900 border-2 border-amber-400/80 flex items-center justify-center text-2xl shadow-lg shrink-0">
-              {activeHero.avatarSymbol}
+            <div className="w-14 h-14 rounded-xl bg-slate-900 border-2 border-amber-400/80 flex items-center justify-center shadow-lg shrink-0 overflow-hidden">
+              <img src={getHeroPortrait(activeHero)} alt={activeHero.name} className="w-full h-full object-cover" />
             </div>
 
             <div className="flex-1 min-w-0">
@@ -1210,9 +1233,24 @@ export default function App() {
                 <span className="text-emerald-400 font-bold">HP: {activeHero.hp}/{activeHero.maxHp}</span>
                 <span className="text-blue-400 font-bold">MP: {activeHero.mana}/{activeHero.maxMana}</span>
                 <span>🛡️ {activeHero.armor}</span>
-                <span className="text-amber-300 font-bold bg-amber-500/10 px-1 rounded border border-amber-500/20" title="Скорость героя (клеток в ход) и доступно шагов">
-                  🦶 {activeHero.speed} кл/ход ({maxSteps} ш.)
+                <span className="text-cyan-300 font-bold bg-cyan-500/10 px-1 rounded border border-cyan-500/20" title="Скорость героя (клеток в ход) и доступно шагов">
+                  ⚡ {activeHero.speed} кл/ход ({maxSteps} ш.)
                 </span>
+              </div>
+              <div className="grid grid-cols-3 gap-1 mt-1 text-[9px] font-mono">
+                {[
+                  ['УРОН', activeHero.damage, 'text-amber-300'],
+                  ['БРОНЯ', activeHero.armor, 'text-sky-300'],
+                  ['ЛОВК.', activeHero.agility, 'text-emerald-300'],
+                  ['СКОР.', activeHero.speed, 'text-cyan-300'],
+                  ['ДАЛЬН.', activeHero.range, 'text-violet-300'],
+                  ['ПРОБ.', activeHero.penetration, 'text-rose-300'],
+                ].map(([label, value, color]) => (
+                  <div key={label} className="rounded bg-slate-900/90 border border-slate-800 px-1 py-0.5 text-center">
+                    <span className="block text-[7px] text-slate-500">{label}</span>
+                    <span className={`font-bold ${color}`}>{value ?? 0}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -1256,6 +1294,8 @@ export default function App() {
                         </span>
                       )}
                     </div>
+
+                    <img src={getSkillIcon(skill)} alt="" className="w-8 h-8 rounded-lg object-cover border border-white/10 shadow-md" />
 
                     {/* Skill Name */}
                     <span className="text-[10px] font-bold text-slate-100 truncate w-full text-center leading-tight">
@@ -1303,6 +1343,17 @@ export default function App() {
               );
             })}
           </div>
+
+          {activeHero.defId === 'wesker' && (
+            <button
+              onClick={toggleWeskerMode}
+              title="Переключить стойку Вескера"
+              className="h-12 px-2 rounded-lg border border-cyan-500/40 bg-cyan-950/40 text-[10px] font-mono text-cyan-200 hover:bg-cyan-900/60 transition-colors"
+            >
+              {weskerMode === 'ranged' ? 'ПИСТОЛЕТ' : 'КУЛАКИ'}
+              <span className="block text-[8px] text-slate-400">стойка</span>
+            </button>
+          )}
 
           {/* Right Column: Time Budget, Actions & End Turn */}
           <div className="flex items-center gap-3 shrink-0">
