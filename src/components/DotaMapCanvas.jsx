@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { MAP_SIZE, TERRAIN, ELEVATION } from '../map/dotaMapData';
+import { getHeroPortrait } from '../assets/heroPortraits';
 
 const TILE_SIZE = 28; // Base pixel size per tile in the world
 const WORLD_SIZE = MAP_SIZE * TILE_SIZE; // 2800 x 2800 px
@@ -33,6 +34,7 @@ export default function DotaMapCanvas({
   const canvasRef = useRef(null);
   const minimapRef = useRef(null);
   const offscreenCanvasRef = useRef(null);
+  const portraitImagesRef = useRef(new Map());
 
   // Viewport camera state (pan offset and zoom scale)
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 0.45 });
@@ -868,10 +870,26 @@ export default function DotaMapCanvas({
         ctx.lineWidth = 2 / zoom;
         ctx.stroke();
 
-        ctx.font = `${Math.round(TILE_SIZE * 0.7)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(hero.avatarSymbol || '👤', px, py);
+        const portraitSrc = getHeroPortrait(hero);
+        let portrait = portraitImagesRef.current.get(portraitSrc);
+        if (!portrait) {
+          portrait = new Image();
+          portrait.src = portraitSrc;
+          portraitImagesRef.current.set(portraitSrc, portrait);
+        }
+        if (portrait.complete && portrait.naturalWidth > 0) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(px, py, TILE_SIZE * 0.5, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.drawImage(portrait, px - TILE_SIZE * 0.5, py - TILE_SIZE * 0.5, TILE_SIZE, TILE_SIZE);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = hero.themeColor || (isRad ? '#065f46' : '#7f1d1d');
+          ctx.beginPath();
+          ctx.arc(px, py, TILE_SIZE * 0.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
 
         if (zoom > 0.55) {
           ctx.font = `bold ${Math.round(TILE_SIZE * 0.32)}px sans-serif`;
