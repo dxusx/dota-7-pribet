@@ -1,7 +1,22 @@
 {
   "name": "dota-7-pribet",
   "version": "1.0.0",
-  "description": "",
+  "description": "Пошаговая тактическая дуэль на классической карте DotA (100x100) с ростером героев, тайм-банком, механикой возвышенностей и крипами.",
+  "homepage": "https://dxusx.github.io/dota-7-pribet/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dxusx/dota-7-pribet.git"
+  },
+  "keywords": [
+    "dota",
+    "turn-based",
+    "tactical-rpg",
+    "canvas",
+    "react",
+    "vite"
+  ],
+  "author": "dxusx",
+  "license": "MIT",
   "main": "index.js",
   "type": "module",
   "scripts": {

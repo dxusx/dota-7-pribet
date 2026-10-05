@@ -217,3 +217,42 @@ test('11. Creep Combat, Damage Resolution, and Death State', () => {
   assert.equal(creep.hp, 0);
   assert.equal(creep.isDead, true, 'Creep must be marked dead when HP <= 0');
 });
+
+test('12. Visuals: Hero Portraits & Skill Icons Asset Integrity', async () => {
+  const { HERO_PORTRAITS, getHeroPortrait } = await import('../assets/heroPortraits.js');
+  const { HEROES_ROSTER } = await import('./heroesData.js');
+  const { SKILL_ICONS, getSkillIcon } = await import('../assets/skillIcons.js');
+
+  // Verify all 12 heroes have valid portraits
+  for (const hero of HEROES_ROSTER) {
+    const portrait = getHeroPortrait(hero.id);
+    assert.ok(portrait, `Hero ${hero.id} must have portrait`);
+    assert.ok(portrait.startsWith('data:image/svg+xml') || portrait.startsWith('/'), `Portrait for ${hero.id} must be SVG data uri or path`);
+
+    // Verify each skill has an icon
+    for (const skill of hero.skills) {
+      const icon = getSkillIcon(skill.id);
+      assert.ok(icon, `Skill ${skill.id} (${skill.name}) must have a valid icon`);
+      assert.ok(icon.startsWith('data:image/svg+xml') || icon.startsWith('/'), `Skill icon for ${skill.id} must be SVG data uri or path`);
+    }
+  }
+});
+
+test('13. Repository & Metadata Integrity', async () => {
+  const fs = await import('node:fs');
+  const pkg = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
+  const readme = fs.readFileSync(new URL('../../README.md', import.meta.url), 'utf8');
+
+  // Verify package.json metadata
+  assert.ok(pkg.description && pkg.description.length > 20, 'package.json must contain a descriptive description');
+  assert.ok(pkg.repository && pkg.repository.url, 'package.json must contain repository url');
+  assert.ok(pkg.homepage, 'package.json must contain homepage url');
+
+  // Verify README.md documentation
+  assert.ok(readme.includes('# Dota 7 Pribet') || readme.includes('# DOTA 7 PRIBET'), 'README must have project title');
+  assert.ok(readme.includes('Об игре') || readme.includes('Описание'), 'README must have description section');
+  assert.ok(readme.includes('Герои') || readme.includes('Ростер героев'), 'README must list heroes');
+  assert.ok(readme.includes('Запуск') || readme.includes('Установка'), 'README must have quick start guide');
+  assert.ok(readme.includes('Структура') || readme.includes('Архитектура'), 'README must document structure');
+});
+
