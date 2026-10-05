@@ -34,6 +34,7 @@ export default function DotaMapCanvas({
   const canvasRef = useRef(null);
   const minimapRef = useRef(null);
   const offscreenCanvasRef = useRef(null);
+  const portraitImagesRef = useRef(new Map());
 
   // Viewport camera state (pan offset and zoom scale)
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 0.45 });
