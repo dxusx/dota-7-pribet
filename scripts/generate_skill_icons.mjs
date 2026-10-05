@@ -1,20 +1,22 @@
 import fs from 'fs';
 import { HEROES_ROSTER } from '../src/game/heroesData.js';
 
-// Style presets based on skill theme
+// Thematic color palettes for skills (Dota 2 styling)
 const THEMES = {
-  blood: { bg1: '#450a0a', bg2: '#1c1917', border: '#ef4444', iconColor: '#fca5a5' },
-  fire: { bg1: '#7c2d12', bg2: '#1e1b4b', border: '#f97316', iconColor: '#fdba74' },
-  void: { bg1: '#3b0764', bg2: '#090d16', border: '#a855f7', iconColor: '#d8b4fe' },
-  frost: { bg1: '#0c4a6e', bg2: '#020617', border: '#38bdf8', iconColor: '#bae6fd' },
-  poison: { bg1: '#064e3b', bg2: '#022c22', border: '#10b981', iconColor: '#6ee7b7' },
-  holy: { bg1: '#713f12', bg2: '#1e1b4b', border: '#eab308', iconColor: '#fef08a' },
-  sniper: { bg1: '#1e293b', bg2: '#0f172a', border: '#94a3b8', iconColor: '#f8fafc' },
-  lightning: { bg1: '#1e1b4b', bg2: '#0f172a', border: '#6366f1', iconColor: '#a5b4fc' },
-  blade: { bg1: '#3f3f46', bg2: '#18181b', border: '#e4e4e7', iconColor: '#ffffff' }
+  blood: { bg1: '#450a0a', bg2: '#1c1917', border: '#ef4444', glow: '#dc2626', text: '#fca5a5' },
+  fire: { bg1: '#7c2d12', bg2: '#18181b', border: '#f97316', glow: '#ea580c', text: '#fdba74' },
+  void: { bg1: '#3b0764', bg2: '#090d16', border: '#a855f7', glow: '#9333ea', text: '#d8b4fe' },
+  frost: { bg1: '#0c4a6e', bg2: '#020617', border: '#38bdf8', glow: '#0284c7', text: '#bae6fd' },
+  poison: { bg1: '#064e3b', bg2: '#022c22', border: '#10b981', glow: '#059669', text: '#6ee7b7' },
+  holy: { bg1: '#713f12', bg2: '#1e1b4b', border: '#eab308', glow: '#ca8a04', text: '#fef08a' },
+  sniper: { bg1: '#1e293b', bg2: '#0f172a', border: '#94a3b8', glow: '#64748b', text: '#f8fafc' },
+  lightning: { bg1: '#1e1b4b', bg2: '#0f172a', border: '#6366f1', glow: '#4f46e5', text: '#a5b4fc' },
+  blade: { bg1: '#27272a', bg2: '#09090b', border: '#a1a1aa', glow: '#71717a', text: '#f4f4f5' },
+  gold: { bg1: '#451a03', bg2: '#0c0a09', border: '#f59e0b', glow: '#d97706', text: '#fde68a' }
 };
 
-function getSkillTheme(id) {
+function getSkillTheme(id, type) {
+  if (type === 'ULTIMATE') return 'gold';
   if (id.includes('ouroboros') || id.includes('rot') || id.includes('flesh')) return 'poison';
   if (id.includes('fire') || id.includes('furnace') || id.includes('meteor') || id.includes('sun-strike') || id.includes('battle-hunger')) return 'fire';
   if (id.includes('purple') || id.includes('void') || id.includes('shadow') || id.includes('requiem') || id.includes('shrine') || id.includes('curse')) return 'void';
@@ -78,38 +80,74 @@ function getSkillSymbol(id) {
   return '✨';
 }
 
-function buildSvg(skill) {
-  const theme = THEMES[getSkillTheme(skill.id)] || THEMES.blade;
+function generateSvgBody(skill) {
+  const theme = THEMES[getSkillTheme(skill.id, skill.type)];
   const symbol = getSkillSymbol(skill.id);
   const isUlt = skill.type === 'ULTIMATE';
   const isPass = skill.type === 'PASSIVE';
   const borderCol = isUlt ? '#f59e0b' : theme.border;
-  const borderWidth = isUlt ? '3' : '1.5';
+  const borderWidth = isUlt ? '2.5' : '1.5';
+  const shortName = (skill.name || skill.id).replace(/\(.*?\)/g, '').trim().substring(0, 16);
 
-  return `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80"><defs><linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${theme.bg1}"/><stop offset="100%" stop-color="${theme.bg2}"/></linearGradient></defs><rect width="80" height="80" rx="10" fill="url(%23bg)" stroke="${borderCol}" stroke-width="${borderWidth}"/><circle cx="40" cy="38" r="26" fill="rgba(0,0,0,0.35)" stroke="${borderCol}" stroke-width="1" stroke-dasharray="${isPass ? '3,3' : 'none'}"/><text x="40" y="44" font-size="28" text-anchor="middle">${symbol}</text><rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(0,0,0,0.7)"/><text x="40" y="72" font-size="8" font-family="sans-serif" font-weight="bold" fill="${theme.iconColor}" text-anchor="middle" dominant-baseline="middle">${(skill.name || '').substring(0, 14)}</text></svg>`;
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+      <defs>
+        <linearGradient id="bg_${skill.id}" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="${theme.bg1}" />
+          <stop offset="100%" stop-color="${theme.bg2}" />
+        </linearGradient>
+        <radialGradient id="aura_${skill.id}" cx="50%" cy="45%" r="50%">
+          <stop offset="0%" stop-color="${theme.glow}" stop-opacity="0.6" />
+          <stop offset="100%" stop-color="${theme.glow}" stop-opacity="0" />
+        </radialGradient>
+      </defs>
+      <!-- Base Tile -->
+      <rect width="80" height="80" rx="10" fill="url(#bg_${skill.id})" stroke="${borderCol}" stroke-width="${borderWidth}" />
+      <rect x="2" y="2" width="76" height="76" rx="8" fill="url(#aura_${skill.id})" />
+      
+      <!-- Inner Rune Frame -->
+      <circle cx="40" cy="36" r="24" fill="rgba(0,0,0,0.4)" stroke="${borderCol}" stroke-width="1" stroke-dasharray="${isPass ? '4,3' : 'none'}" />
+      ${isUlt ? `<circle cx="40" cy="36" r="27" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.7" />` : ''}
+
+      <!-- Center Icon Glyph -->
+      <text x="40" y="44" font-size="26" text-anchor="middle">${symbol}</text>
+
+      <!-- Bottom Skill Name Banner -->
+      <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
+      <text x="40" y="72" font-size="7.5" font-family="system-ui, sans-serif" font-weight="bold" fill="${theme.text}" text-anchor="middle" dominant-baseline="middle">${shortName}</text>
+    </svg>
+  `;
 }
 
-const skillEntries = [];
+const lines = [
+  `/**`,
+  ` * Skill Icons Asset Registry`,
+  ` * High-definition SVG-based icons for all 47 hero abilities with Dota 2 style formatting.`,
+  ` * Fully self-contained data URIs with zero external requests.`,
+  ` */`,
+  ``,
+  `function makeSvgDataUri(svgContent) {`,
+  `  return \`data:image/svg+xml;utf8,\${encodeURIComponent(svgContent.trim().replace(/\\s+/g, ' '))}\`;`,
+  `}`,
+  ``,
+  `export const SKILL_ICONS = {`
+];
+
+let count = 0;
 for (const hero of HEROES_ROSTER) {
   for (const skill of hero.skills) {
-    const uri = buildSvg(skill);
-    skillEntries.push(`  '${skill.id}': \`${uri}\``);
+    count++;
+    const svg = generateSvgBody(skill);
+    lines.push(`  '${skill.id}': makeSvgDataUri(\`${svg}\`),`);
   }
 }
 
-const content = `/**
- * Skill Icons Asset Registry
- * SVG-based icons for all hero abilities with Dota 2 style formatting.
- */
+lines.push(`};`);
+lines.push(``);
+lines.push(`export function getSkillIcon(skillId) {`);
+lines.push(`  return SKILL_ICONS[skillId] || makeSvgDataUri(\`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80"><rect width="80" height="80" rx="10" fill="#1e293b" stroke="#64748b" /><text x="40" y="46" font-size="26" text-anchor="middle">✨</text></svg>\`);`);
+lines.push(`}`);
+lines.push(``);
 
-export const SKILL_ICONS = {
-${skillEntries.join(',\n')}
-};
-
-export function getSkillIcon(skillId) {
-  return SKILL_ICONS[skillId] || \`data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80"><rect width="80" height="80" rx="8" fill="%231e293b" stroke="%23475569"/><text x="40" y="46" font-size="24" text-anchor="middle">✨</text></svg>\`;
-}
-`;
-
-fs.writeFileSync('src/assets/skillIcons.js', content);
-console.log('Successfully generated src/assets/skillIcons.js with', skillEntries.length, 'skills.');
+fs.writeFileSync('src/assets/skillIcons.js', lines.join('\n'));
+console.log(`Successfully generated src/assets/skillIcons.js with ${count} skills using makeSvgDataUri!`);

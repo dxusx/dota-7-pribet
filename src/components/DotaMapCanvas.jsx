@@ -862,7 +862,7 @@ export default function DotaMapCanvas({
         }
 
         const radius = TILE_SIZE * 0.55;
-        const portraitImg = getHeroCanvasImage(hero.id);
+        const portraitImg = getHeroCanvasImage(hero.defId || hero.id);
 
         ctx.save();
         ctx.beginPath();

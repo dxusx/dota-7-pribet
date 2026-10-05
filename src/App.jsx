@@ -757,8 +757,8 @@ export default function App() {
                       : 'bg-slate-900/80 border border-slate-800 hover:border-slate-700'
                   }`}
                 >
-                  <div className={`relative w-6 h-6 rounded-full overflow-hidden border ${isRad ? 'border-emerald-400' : 'border-rose-400'} shrink-0 ${isActive ? 'ring-2 ring-amber-400 animate-pulse' : ''}`}>
-                    <img src={getHeroPortrait(hero.id)} alt={hero.name} className="w-full h-full object-cover" />
+                  <div className={`relative w-6 h-6 rounded-full overflow-hidden border ${isRad ? 'border-emerald-400' : 'border-rose-400'} shrink-0 ${isActive ? 'ring-2 ring-amber-400 animate-pulse shadow-md shadow-amber-400/50' : ''}`}>
+                    <img src={getHeroPortrait(hero.defId || hero.id)} alt={hero.name} className="w-full h-full object-cover" />
                   </div>
                   <span className={`text-xs font-bold font-mono ${isActive ? 'text-amber-300' : 'text-slate-300'}`}>
                     {hero.name.split(' ')[0]}
@@ -1083,11 +1083,19 @@ export default function App() {
 
               {/* Unit Card: Hero */}
               {tileHero && (
-                <div className="mt-2.5 p-2.5 rounded-lg bg-slate-950 border border-purple-500/30 space-y-2">
+                <div className={`mt-2.5 p-2.5 rounded-lg bg-slate-950 border space-y-2 ${
+                  tileHero.faction === 'radiant' ? 'border-emerald-500/40 shadow-emerald-950/30' : 'border-rose-500/40 shadow-rose-950/30'
+                } shadow-lg`}>
                   <div className="flex items-center gap-2">
-                    <img src={getHeroPortrait(tileHero.id)} alt={tileHero.name} className="w-10 h-10 rounded-lg object-cover border border-purple-400/50 shrink-0" />
-                    <div>
-                      <div className="font-bold text-xs text-purple-300">{tileHero.name}</div>
+                    <img
+                      src={getHeroPortrait(tileHero.defId || tileHero.id)}
+                      alt={tileHero.name}
+                      className={`w-12 h-12 rounded-lg object-cover border-2 shrink-0 ${
+                        tileHero.faction === 'radiant' ? 'border-emerald-400' : 'border-rose-400'
+                      }`}
+                    />
+                    <div className="min-w-0">
+                      <div className="font-bold text-xs text-slate-100 truncate">{tileHero.name}</div>
                       <div className="text-[10px] text-slate-400 font-mono">
                         Ур. {tileHero.level} • {tileHero.title} ({tileHero.faction.toUpperCase()})
                       </div>
@@ -1103,6 +1111,33 @@ export default function App() {
                     </div>
                     <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
                       <div className="h-full bg-blue-500" style={{ width: `${(tileHero.mana / tileHero.maxMana) * 100}%` }} />
+                    </div>
+                  </div>
+                  {/* Hero Stats Grid */}
+                  <div className="grid grid-cols-3 gap-1 text-[10px] font-mono pt-1 border-t border-slate-800/80">
+                    <div className="bg-slate-900 p-1 rounded text-center" title="Урон">
+                      <span className="text-slate-400 block text-[8px]">⚔️ УРОН</span>
+                      <span className="text-red-400 font-bold">{tileHero.damage}</span>
+                    </div>
+                    <div className="bg-slate-900 p-1 rounded text-center" title="Броня">
+                      <span className="text-slate-400 block text-[8px]">🛡️ БРОНЯ</span>
+                      <span className="text-blue-400 font-bold">{tileHero.armor}</span>
+                    </div>
+                    <div className="bg-slate-900 p-1 rounded text-center" title="Ловкость">
+                      <span className="text-slate-400 block text-[8px]">⚡ ЛОВК</span>
+                      <span className="text-emerald-400 font-bold">{tileHero.agility || 15}</span>
+                    </div>
+                    <div className="bg-slate-900 p-1 rounded text-center" title="Скорость">
+                      <span className="text-slate-400 block text-[8px]">🦶 СКОР</span>
+                      <span className="text-amber-300 font-bold">{tileHero.speed}</span>
+                    </div>
+                    <div className="bg-slate-900 p-1 rounded text-center" title="Дальность атаки">
+                      <span className="text-slate-400 block text-[8px]">🎯 ДАЛЬ</span>
+                      <span className="text-purple-400 font-bold">{tileHero.range}</span>
+                    </div>
+                    <div className="bg-slate-900 p-1 rounded text-center" title="Пробитие брони">
+                      <span className="text-slate-400 block text-[8px]">🏹 ПРОБ</span>
+                      <span className="text-rose-400 font-bold">{tileHero.penetration || 0}</span>
                     </div>
                   </div>
                 </div>
@@ -1185,11 +1220,15 @@ export default function App() {
           {/* Left Column: Active Hero Profile */}
           <div className="flex items-center gap-3 w-80 shrink-0">
             <div
-              className="w-16 h-16 rounded-xl overflow-hidden border-2 border-amber-400/90 shadow-lg shadow-amber-500/20 shrink-0 relative bg-slate-900 cursor-pointer hover:border-amber-300 transition-all"
+              className={`w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 relative bg-slate-900 cursor-pointer transition-all ${
+                activeHero.faction === 'radiant'
+                  ? 'border-emerald-400 shadow-lg shadow-emerald-500/25 hover:border-emerald-300 ring-1 ring-emerald-400/40'
+                  : 'border-rose-400 shadow-lg shadow-rose-500/25 hover:border-rose-300 ring-1 ring-rose-400/40'
+              }`}
               onClick={() => setTargetPos({ x: activeHero.x, y: activeHero.y })}
               title="Центрировать камеру на герое"
             >
-              <img src={getHeroPortrait(activeHero.id)} alt={activeHero.name} className="w-full h-full object-cover" />
+              <img src={getHeroPortrait(activeHero.defId || activeHero.id)} alt={activeHero.name} className="w-full h-full object-cover" />
             </div>
 
             <div className="flex-1 min-w-0">
@@ -1234,27 +1273,27 @@ export default function App() {
               {/* Stat Plaques */}
               <div className="grid grid-cols-6 gap-1 text-[9px] font-mono text-center mt-1">
                 <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Урон">
-                  <span className="text-slate-400 block text-[7px]">АТК</span>
+                  <span className="text-slate-400 block text-[7px]">⚔️ АТК</span>
                   <span className="text-red-400 font-bold">{activeHero.damage}</span>
                 </div>
                 <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Броня">
-                  <span className="text-slate-400 block text-[7px]">БРО</span>
+                  <span className="text-slate-400 block text-[7px]">🛡️ БРО</span>
                   <span className="text-blue-400 font-bold">{activeHero.armor}</span>
                 </div>
                 <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Ловкость">
-                  <span className="text-slate-400 block text-[7px]">ЛОВ</span>
+                  <span className="text-slate-400 block text-[7px]">⚡ ЛОВ</span>
                   <span className="text-emerald-400 font-bold">{activeHero.agility || 15}</span>
                 </div>
                 <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Пробитие брони">
-                  <span className="text-slate-400 block text-[7px]">ПРОБ</span>
+                  <span className="text-slate-400 block text-[7px]">🏹 ПРОБ</span>
                   <span className="text-rose-400 font-bold">{activeHero.penetration || 0}</span>
                 </div>
                 <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Дальность атаки">
-                  <span className="text-slate-400 block text-[7px]">ДАЛЬ</span>
+                  <span className="text-slate-400 block text-[7px]">🎯 ДАЛЬ</span>
                   <span className="text-purple-400 font-bold">{activeHero.range}</span>
                 </div>
                 <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Скорость">
-                  <span className="text-slate-400 block text-[7px]">СКОР</span>
+                  <span className="text-slate-400 block text-[7px]">🦶 СКОР</span>
                   <span className="text-amber-300 font-bold">{activeHero.speed}</span>
                 </div>
               </div>
