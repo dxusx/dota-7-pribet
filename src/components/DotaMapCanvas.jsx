@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { MAP_SIZE, TERRAIN, ELEVATION } from '../map/dotaMapData';
+import { getHeroCanvasImage } from '../assets/heroPortraits';
 
 const TILE_SIZE = 28; // Base pixel size per tile in the world
 const WORLD_SIZE = MAP_SIZE * TILE_SIZE; // 2800 x 2800 px
@@ -860,18 +861,31 @@ export default function DotaMapCanvas({
           ctx.fill();
         }
 
-        ctx.beginPath();
-        ctx.arc(px, py, TILE_SIZE * 0.55, 0, Math.PI * 2);
-        ctx.fillStyle = hero.themeColor || (isRad ? '#065f46' : '#7f1d1d');
-        ctx.fill();
-        ctx.strokeStyle = hero.accentColor || (isRad ? '#34d399' : '#f87171');
-        ctx.lineWidth = 2 / zoom;
-        ctx.stroke();
+        const radius = TILE_SIZE * 0.55;
+        const portraitImg = getHeroCanvasImage(hero.id);
 
-        ctx.font = `${Math.round(TILE_SIZE * 0.7)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(hero.avatarSymbol || '👤', px, py);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.clip();
+        if (portraitImg && portraitImg.complete && portraitImg.naturalWidth > 0) {
+          ctx.drawImage(portraitImg, px - radius, py - radius, radius * 2, radius * 2);
+        } else {
+          ctx.fillStyle = hero.themeColor || (isRad ? '#065f46' : '#7f1d1d');
+          ctx.fill();
+          ctx.font = `${Math.round(TILE_SIZE * 0.7)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(hero.avatarSymbol || '👤', px, py);
+        }
+        ctx.restore();
+
+        // High-definition token team/accent border
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.strokeStyle = hero.accentColor || (isRad ? '#34d399' : '#f87171');
+        ctx.lineWidth = Math.max(1.8, 2.2 / zoom);
+        ctx.stroke();
 
         if (zoom > 0.55) {
           ctx.font = `bold ${Math.round(TILE_SIZE * 0.32)}px sans-serif`;

@@ -2,6 +2,8 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { generateDotaMap, MAP_SIZE, TERRAIN } from './map/dotaMapData';
 import DotaMapCanvas from './components/DotaMapCanvas';
 import { createInitialGameState, endTurn } from './game/gameState';
+import { getHeroPortrait } from './assets/heroPortraits';
+import { getSkillIcon } from './assets/skillIcons';
 import {
   canPerformAction,
   deductActionTime,
@@ -755,7 +757,9 @@ export default function App() {
                       : 'bg-slate-900/80 border border-slate-800 hover:border-slate-700'
                   }`}
                 >
-                  <span className="text-base">{hero.avatarSymbol}</span>
+                  <div className={`relative w-6 h-6 rounded-full overflow-hidden border ${isRad ? 'border-emerald-400' : 'border-rose-400'} shrink-0 ${isActive ? 'ring-2 ring-amber-400 animate-pulse' : ''}`}>
+                    <img src={getHeroPortrait(hero.id)} alt={hero.name} className="w-full h-full object-cover" />
+                  </div>
                   <span className={`text-xs font-bold font-mono ${isActive ? 'text-amber-300' : 'text-slate-300'}`}>
                     {hero.name.split(' ')[0]}
                   </span>
@@ -1081,7 +1085,7 @@ export default function App() {
               {tileHero && (
                 <div className="mt-2.5 p-2.5 rounded-lg bg-slate-950 border border-purple-500/30 space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-2xl">{tileHero.avatarSymbol}</span>
+                    <img src={getHeroPortrait(tileHero.id)} alt={tileHero.name} className="w-10 h-10 rounded-lg object-cover border border-purple-400/50 shrink-0" />
                     <div>
                       <div className="font-bold text-xs text-purple-300">{tileHero.name}</div>
                       <div className="text-[10px] text-slate-400 font-mono">
@@ -1177,11 +1181,15 @@ export default function App() {
 
       {/* 3. Bottom Deck — Permanent Command Console & Skills Bar */}
       {activeHero && (
-        <footer className="h-24 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-4 flex items-center justify-between shrink-0 z-20 relative">
+        <footer className="h-28 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-4 flex items-center justify-between shrink-0 z-20 relative">
           {/* Left Column: Active Hero Profile */}
-          <div className="flex items-center gap-3 w-64 shrink-0">
-            <div className="w-12 h-12 rounded-xl bg-slate-900 border-2 border-amber-400/80 flex items-center justify-center text-2xl shadow-lg shrink-0">
-              {activeHero.avatarSymbol}
+          <div className="flex items-center gap-3 w-80 shrink-0">
+            <div
+              className="w-16 h-16 rounded-xl overflow-hidden border-2 border-amber-400/90 shadow-lg shadow-amber-500/20 shrink-0 relative bg-slate-900 cursor-pointer hover:border-amber-300 transition-all"
+              onClick={() => setTargetPos({ x: activeHero.x, y: activeHero.y })}
+              title="Центрировать камеру на герое"
+            >
+              <img src={getHeroPortrait(activeHero.id)} alt={activeHero.name} className="w-full h-full object-cover" />
             </div>
 
             <div className="flex-1 min-w-0">
@@ -1206,13 +1214,49 @@ export default function App() {
                 />
               </div>
 
-              <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mt-1">
+              <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mt-0.5">
                 <span className="text-emerald-400 font-bold">HP: {activeHero.hp}/{activeHero.maxHp}</span>
                 <span className="text-blue-400 font-bold">MP: {activeHero.mana}/{activeHero.maxMana}</span>
-                <span>🛡️ {activeHero.armor}</span>
-                <span className="text-amber-300 font-bold bg-amber-500/10 px-1 rounded border border-amber-500/20" title="Скорость героя (клеток в ход) и доступно шагов">
-                  🦶 {activeHero.speed} кл/ход ({maxSteps} ш.)
-                </span>
+                {activeHero.id === 'wesker' && (
+                  <button
+                    onClick={() => {
+                      const toggleSkill = activeHero.skills.find(s => s.id === 'stars-agent');
+                      if (toggleSkill) handleSkillClick(toggleSkill);
+                    }}
+                    className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 transition-all flex items-center gap-1"
+                    title="Переключить стойку Вескера (Пистолет / Ближний бой)"
+                  >
+                    {activeHero.stats?.weaponMode === 'ranged' ? '🔫 Дальний' : '👊 Ближний'}
+                  </button>
+                )}
+              </div>
+
+              {/* Stat Plaques */}
+              <div className="grid grid-cols-6 gap-1 text-[9px] font-mono text-center mt-1">
+                <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Урон">
+                  <span className="text-slate-400 block text-[7px]">АТК</span>
+                  <span className="text-red-400 font-bold">{activeHero.damage}</span>
+                </div>
+                <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Броня">
+                  <span className="text-slate-400 block text-[7px]">БРО</span>
+                  <span className="text-blue-400 font-bold">{activeHero.armor}</span>
+                </div>
+                <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Ловкость">
+                  <span className="text-slate-400 block text-[7px]">ЛОВ</span>
+                  <span className="text-emerald-400 font-bold">{activeHero.agility || 15}</span>
+                </div>
+                <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Пробитие брони">
+                  <span className="text-slate-400 block text-[7px]">ПРОБ</span>
+                  <span className="text-rose-400 font-bold">{activeHero.penetration || 0}</span>
+                </div>
+                <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Дальность атаки">
+                  <span className="text-slate-400 block text-[7px]">ДАЛЬ</span>
+                  <span className="text-purple-400 font-bold">{activeHero.range}</span>
+                </div>
+                <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Скорость">
+                  <span className="text-slate-400 block text-[7px]">СКОР</span>
+                  <span className="text-amber-300 font-bold">{activeHero.speed}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1235,16 +1279,23 @@ export default function App() {
                     onClick={() => handleSkillClick(skill)}
                     onMouseEnter={() => setHoveredSkillTooltip(skill)}
                     onMouseLeave={() => setHoveredSkillTooltip(null)}
-                    className={`h-16 w-20 rounded-xl border flex flex-col items-center justify-between p-1.5 transition-all text-left relative overflow-hidden ${
+                    className={`h-16 w-16 rounded-xl border flex flex-col items-center justify-between p-1 transition-all text-left relative overflow-hidden shrink-0 group ${
                       isTargetingThis
-                        ? 'bg-purple-600 border-purple-300 shadow-lg shadow-purple-500/40 scale-105 ring-2 ring-purple-400'
+                        ? 'border-purple-300 shadow-lg shadow-purple-500/40 scale-105 ring-2 ring-purple-400'
                         : isPassive
-                        ? 'bg-slate-900/60 border-slate-800 opacity-60 cursor-default'
+                        ? 'border-slate-800 opacity-70 cursor-default'
                         : onCooldown || !hasMana || !hasTime
-                        ? 'bg-slate-900/80 border-slate-800 opacity-50 cursor-not-allowed'
-                        : 'bg-slate-900/90 border-slate-700 hover:border-amber-400 hover:bg-slate-800'
+                        ? 'border-slate-800 opacity-50 cursor-not-allowed'
+                        : 'border-slate-700 hover:border-amber-400 hover:scale-105 shadow-md'
                     }`}
                   >
+                    {/* Background SVG Skill Icon */}
+                    <img
+                      src={getSkillIcon(skill.id)}
+                      alt={skill.name}
+                      className="absolute inset-0 w-full h-full object-cover -z-0 opacity-85 group-hover:opacity-100 transition-opacity"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/60 -z-0" />
                     {/* Top row: Hotkey & Mana */}
                     <div className="w-full flex items-center justify-between">
                       <span className="text-[10px] font-mono font-bold px-1 rounded bg-slate-950 text-amber-400 border border-slate-800">
