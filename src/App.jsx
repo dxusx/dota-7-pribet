@@ -4,8 +4,6 @@ import DotaMapCanvas from './components/DotaMapCanvas';
 import { getHeroPortrait } from './assets/heroPortraits';
 import { getSkillIcon } from './assets/skillIcons';
 import { createInitialGameState, endTurn } from './game/gameState';
-import { getHeroPortrait } from './assets/heroPortraits';
-import { getSkillIcon } from './assets/skillIcons';
 import {
   canPerformAction,
   deductActionTime,
@@ -1320,21 +1318,6 @@ export default function App() {
                   <span className="text-amber-300 font-bold">{activeHero.speed}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-1 mt-1 text-[9px] font-mono">
-                {[
-                  ['УРОН', activeHero.damage, 'text-amber-300'],
-                  ['БРОНЯ', activeHero.armor, 'text-sky-300'],
-                  ['ЛОВК.', activeHero.agility, 'text-emerald-300'],
-                  ['СКОР.', activeHero.speed, 'text-cyan-300'],
-                  ['ДАЛЬН.', activeHero.range, 'text-violet-300'],
-                  ['ПРОБ.', activeHero.penetration, 'text-rose-300'],
-                ].map(([label, value, color]) => (
-                  <div key={label} className="rounded bg-slate-900/90 border border-slate-800 px-1 py-0.5 text-center">
-                    <span className="block text-[7px] text-slate-500">{label}</span>
-                    <span className={`font-bold ${color}`}>{value ?? 0}</span>
-                  </div>
-                ))}
-              </div>
             </div>
           </div>
 
@@ -1384,8 +1367,6 @@ export default function App() {
                         </span>
                       )}
                     </div>
-
-                    <img src={getSkillIcon(skill)} alt="" className="w-8 h-8 rounded-lg object-cover border border-white/10 shadow-md" />
 
                     {/* Skill Name */}
                     <span className="text-[10px] font-bold text-slate-100 truncate w-full text-center leading-tight">
