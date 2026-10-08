@@ -515,28 +515,28 @@ export const HERO_PORTRAITS = {
 };
 
 export const HERO_AVATAR_FILES = {
-  wesker: '/avatars/wesker_avatar.png',
-  axe: '/avatars/axe_avatar.png',
-  katarina: '/avatars/katarina_avatar.svg',
-  anderson: '/avatars/anderson_avatar.svg',
-  gojo: '/avatars/gojo_avatar.png',
-  sukuna: '/avatars/sukuna_avatar.png',
-  pudge: '/avatars/pudge_avatar.png',
-  invoker: '/avatars/invoker_avatar.png',
-  rubick: '/avatars/rubick_avatar.png',
-  sf: '/avatars/sf_avatar.png',
-  monesy: '/avatars/monesy_avatar.png',
-  minos: '/avatars/minos_avatar.png',
-  schrodinger: '/avatars/schrodinger_avatar.svg',
-  alucard: '/avatars/alucard_avatar.svg',
-  gabriel: '/avatars/gabriel_avatar.svg',
+  wesker: './avatars/wesker_avatar.png',
+  axe: './avatars/axe_avatar.png',
+  katarina: './avatars/katarina_avatar.svg',
+  anderson: './avatars/anderson_avatar.svg',
+  gojo: './avatars/gojo_avatar.png',
+  sukuna: './avatars/sukuna_avatar.png',
+  pudge: './avatars/pudge_avatar.png',
+  invoker: './avatars/invoker_avatar.png',
+  rubick: './avatars/rubick_avatar.png',
+  sf: './avatars/sf_avatar.png',
+  monesy: './avatars/monesy_avatar.png',
+  minos: './avatars/minos_avatar.png',
+  schrodinger: './avatars/schrodinger_avatar.svg',
+  alucard: './avatars/alucard_avatar.svg',
+  gabriel: './avatars/gabriel_avatar.svg',
 };
 
 /**
  * Returns portrait URL for a hero id, with safe fallback.
  */
 export function getHeroPortrait(heroId) {
-  return HERO_AVATAR_FILES[heroId] || HERO_PORTRAITS[heroId] || HERO_PORTRAITS.wesker;
+  return HERO_PORTRAITS[heroId] || HERO_PORTRAITS.wesker;
 }
 
 // Preloaded image cache for smooth Canvas rendering
@@ -555,7 +555,7 @@ export function getHeroCanvasImage(heroId) {
 
 // Preload all character portraits in browser environment
 if (typeof window !== 'undefined' && typeof Image !== 'undefined') {
-  Object.keys(HERO_AVATAR_FILES).forEach(id => {
+  Object.keys(HERO_PORTRAITS).forEach(id => {
     getHeroCanvasImage(id);
   });
 }
