@@ -16,6 +16,7 @@ import {
   getRespawnDelayTurns,
   calculateLaneCreepLevel,
   getEffectiveSpeed,
+  resolveTowerAttacks,
 } from './combatRules.js';
 import { TOWER_STATS } from './towerData.js';
 import { CREEP_STATS, LANE_WAVE_FORMATIONS, NEUTRAL_CAMP_FORMATIONS } from './creepData.js';
@@ -552,6 +553,19 @@ export function endTurn(state) {
 
   // Filter out any creeps that died during combat
   updatedCreeps = updatedCreeps.filter(c => !c.isDead && c.hp > 0);
+
+  // 6b. Autonomous Tower Defense Attacks (Towers fire at hostile creeps & heroes in range 10)
+  const towerResult = resolveTowerAttacks({
+    ...state,
+    heroes: updatedHeroes,
+    creeps: updatedCreeps,
+    gameTimeSeconds: nextGameTime,
+  });
+  updatedHeroes = towerResult.updatedHeroes;
+  updatedCreeps = towerResult.updatedCreeps.filter(c => !c.isDead && c.hp > 0);
+  if (towerResult.combatLogs.length > 0) {
+    newCombatLogs.push(...towerResult.combatLogs);
+  }
 
   // De-clumping: guarantee no two creeps share the exact same tile
   const occupiedTiles = new Set();

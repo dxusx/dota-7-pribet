@@ -14,6 +14,7 @@ import {
   TURN_DURATION_SECONDS,
 } from './game/combatRules';
 import { executeSkill } from './game/skillEngine';
+import { decideBotAction } from './game/botAI';
 import {
   Grid,
   Trees,
@@ -28,6 +29,7 @@ import {
   Sparkles,
   Info,
   Users,
+  Bot,
 } from 'lucide-react';
 
 export default function App() {
@@ -48,6 +50,7 @@ export default function App() {
   const [floatingTexts, setFloatingTexts] = useState([]);
   const [weskerMode, setWeskerMode] = useState('ranged');
   const [showRosterModal, setShowRosterModal] = useState(false);
+  const [botAiEnabled, setBotAiEnabled] = useState(true);
 
   // Active hero
   const activeHeroId = gameState.initiativeQueue[gameState.activeUnitIndex];
@@ -672,6 +675,168 @@ export default function App() {
     setActionMode('move');
   }, []);
 
+  // Autonomous Dire Bot AI Turn Loop
+  useEffect(() => {
+    if (!botAiEnabled || !activeHero || activeHero.faction !== 'dire') {
+      return;
+    }
+
+    if (activeHero.isDead || gameState.remainingTurnTime <= 0) {
+      const timer = setTimeout(() => {
+        handleEndTurn();
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+
+    const timer = setTimeout(() => {
+      const decision = decideBotAction(activeHero, gameState, mapData);
+
+      if (decision.action === 'END_TURN') {
+        handleEndTurn();
+        return;
+      }
+
+      if (decision.action === 'MOVE') {
+        const dest = decision.destination;
+        const isOccupied = gameState.heroes.some(h => !h.isDead && h.x === dest.x && h.y === dest.y);
+        if (!isCellWalkable(dest.x, dest.y) || isOccupied) {
+          handleEndTurn();
+          return;
+        }
+
+        setGameState(prev => {
+          const updatedHeroes = prev.heroes.map(h =>
+            h.instanceId === activeHero.instanceId ? { ...h, x: dest.x, y: dest.y } : h
+          );
+          const newTime = deductActionTime(prev.remainingTurnTime, decision.stepCost);
+          return {
+            ...prev,
+            heroes: updatedHeroes,
+            remainingTurnTime: newTime,
+            combatLogs: [
+              {
+                text: `[ИИ] ${activeHero.name} переместился на [${dest.x}, ${dest.y}] (-${decision.stepCost}с)`,
+                time: prev.gameTimeSeconds,
+              },
+              ...prev.combatLogs.slice(0, 15),
+            ],
+          };
+        });
+        addFloatingText(dest.x, dest.y, `🚶 -${decision.stepCost}с`, '#38bdf8');
+        return;
+      }
+
+      if (decision.action === 'ATTACK') {
+        const target = decision.target;
+        const attackTimeCost = activeHero.period || 4.0;
+        const attackerElevation = mapData?.tiles?.[activeHero.y * MAP_SIZE + activeHero.x]?.elevation || 1;
+        const targetElevation = mapData?.tiles?.[target.y * MAP_SIZE + target.x]?.elevation || 1;
+        const isRanged = (activeHero.range || 1) > 2;
+
+        const res = resolveAttack({
+          averageDamage: activeHero.damage,
+          penetration: activeHero.penetration,
+          hit: activeHero.hit,
+          targetArmor: target.armor || 0,
+          targetAgility: target.agility || 0,
+          attackerElevation,
+          targetElevation,
+          isRanged,
+        });
+
+        if (!res.isHit) {
+          addFloatingText(target.x, target.y, 'ПРОМАХ!', '#94a3b8');
+        } else {
+          const text = res.isCrit ? `КРИТ! -${res.damage}` : `-${res.damage}`;
+          const color = res.isCrit ? '#f59e0b' : '#ef4444';
+          addFloatingText(target.x, target.y, text, color);
+        }
+
+        setGameState(prev => {
+          const newTime = deductActionTime(prev.remainingTurnTime, attackTimeCost);
+          if (target.instanceId) {
+            const updatedHeroes = prev.heroes.map(h => {
+              if (h.instanceId === target.instanceId && res.isHit) {
+                const newHp = Math.max(0, h.hp - res.damage);
+                return { ...h, hp: newHp, isDead: newHp <= 0 };
+              }
+              return h;
+            });
+            return {
+              ...prev,
+              heroes: updatedHeroes,
+              remainingTurnTime: newTime,
+              combatLogs: [
+                {
+                  text: `[ИИ] ${activeHero.name} атаковал ${target.name}: ${res.isHit ? `${res.damage} ур.` : 'промах'} [-${attackTimeCost}с]`,
+                  time: prev.gameTimeSeconds,
+                },
+                ...prev.combatLogs.slice(0, 15),
+              ],
+            };
+          } else {
+            const updatedCreeps = prev.creeps
+              .map(c => {
+                if (c.id === target.id && res.isHit) {
+                  const newHp = Math.max(0, c.hp - res.damage);
+                  return { ...c, hp: newHp, isDead: newHp <= 0 };
+                }
+                return c;
+              })
+              .filter(c => !c.isDead && c.hp > 0);
+            return {
+              ...prev,
+              creeps: updatedCreeps,
+              remainingTurnTime: newTime,
+              combatLogs: [
+                {
+                  text: `[ИИ] ${activeHero.name} атаковал крипа: ${res.isHit ? `${res.damage} ур.` : 'промах'} [-${attackTimeCost}с]`,
+                  time: prev.gameTimeSeconds,
+                },
+                ...prev.combatLogs.slice(0, 15),
+              ],
+            };
+          }
+        });
+        return;
+      }
+
+      if (decision.action === 'SKILL') {
+        const res = executeSkill({
+          skill: decision.skill,
+          caster: activeHero,
+          targetCell: decision.target ? { x: decision.target.x, y: decision.target.y } : null,
+          targetHero: decision.target?.instanceId ? decision.target : null,
+          gameState,
+          mapData,
+        });
+
+        if (res.success) {
+          setGameState(prev => ({
+            ...prev,
+            heroes: res.updatedHeroes,
+            remainingTurnTime: res.newRemainingTime,
+            combatLogs: [{ text: `[ИИ] ${res.logMessage}`, time: prev.gameTimeSeconds }, ...prev.combatLogs.slice(0, 15)],
+          }));
+          res.floatingTexts?.forEach(ft => addFloatingText(ft.x, ft.y, ft.text, ft.color));
+        } else {
+          handleEndTurn();
+        }
+        return;
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [
+    botAiEnabled,
+    activeHero,
+    gameState,
+    isCellWalkable,
+    handleEndTurn,
+    mapData,
+    addFloatingText,
+  ]);
+
   // Keyboard Hotkeys
   useEffect(() => {
     const handleKeyDown = e => {
@@ -814,6 +979,19 @@ export default function App() {
 
         {/* Right: Map Toggles & Roster */}
         <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setBotAiEnabled(prev => !prev)}
+            title={botAiEnabled ? 'ИИ ботов Dire включен (автоматический ход)' : 'ИИ ботов Dire выключен'}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border font-semibold transition-colors cursor-pointer ${
+              botAiEnabled
+                ? 'bg-rose-950/80 border-rose-500/50 text-rose-300 hover:bg-rose-900'
+                : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-slate-700'
+            }`}
+          >
+            <Bot size={14} />
+            <span>{botAiEnabled ? '🤖 ИИ: ВКЛ' : '🤖 ИИ: ВЫКЛ'}</span>
+          </button>
+
           <button
             onClick={() => setShowRosterModal(true)}
             title="Все 15 героев (Выбрать в матч)"

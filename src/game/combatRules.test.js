@@ -539,6 +539,150 @@ test('19. New Heroes Skill Engine Mechanics', () => {
   assert.ok(updatedEnemy2.statuses?.silence, 'Enemy must have silence status');
 });
 
+test('20. Autonomous Tower Defense Mechanics', async () => {
+  const { resolveTowerAttacks } = await import('./combatRules.js');
+
+  const radTower = {
+    id: 'rad_t1_mid',
+    faction: 'radiant',
+    tier: 1,
+    x: 20,
+    y: 70,
+    size: 2,
+    hp: 1000,
+    maxHp: 1000,
+    damage: 100,
+    penetration: 20,
+    hit: 100,
+    armor: 8,
+    range: 10,
+    period: 4.0,
+  };
+
+  const direCreep = {
+    id: 'dire_creep_1',
+    faction: 'dire',
+    x: 22,
+    y: 72,
+    hp: 100,
+    maxHp: 100,
+    armor: 2,
+    agility: 1,
+    isDead: false,
+  };
+
+  const direHero = {
+    instanceId: 'dire_hero_1',
+    id: 'wesker',
+    faction: 'dire',
+    name: 'Albert Wesker',
+    x: 24,
+    y: 74,
+    hp: 120,
+    maxHp: 120,
+    armor: 3,
+    agility: 5,
+    isDead: false,
+  };
+
+  const radHero = {
+    instanceId: 'rad_hero_1',
+    id: 'axe',
+    faction: 'radiant',
+    name: 'Axe',
+    x: 21,
+    y: 71,
+    hp: 150,
+    isDead: false,
+  };
+
+  const mockState = {
+    towers: [radTower],
+    creeps: [direCreep],
+    heroes: [direHero, radHero],
+    combatLogs: [],
+  };
+
+  // 1. Tower must prioritize hostile creep over hostile hero
+  const result1 = resolveTowerAttacks(mockState, () => 0.5); // deterministic rng
+  assert.ok(result1.attacks.length > 0, 'Tower must fire an attack');
+  assert.equal(result1.attacks[0].targetId, 'dire_creep_1', 'Tower must target hostile creep before hero');
+  assert.ok(result1.updatedCreeps.find(c => c.id === 'dire_creep_1').hp < 100, 'Creep must take damage');
+
+  // 2. When no hostile creeps, tower fires at hostile hero
+  const mockStateNoCreeps = {
+    towers: [radTower],
+    creeps: [],
+    heroes: [direHero, radHero],
+    combatLogs: [],
+  };
+  const result2 = resolveTowerAttacks(mockStateNoCreeps, () => 0.5);
+  assert.equal(result2.attacks.length > 1 || result2.attacks[0].targetId === 'dire_hero_1', true, 'Tower must target hostile hero when no creeps in range');
+  const damagedHero = result2.updatedHeroes.find(h => h.instanceId === 'dire_hero_1');
+  assert.ok(damagedHero.hp < 120, 'Hostile hero must take damage from tower');
+
+  // 3. Tower must never attack allied Radiant hero
+  const alliedHero = result2.updatedHeroes.find(h => h.instanceId === 'rad_hero_1');
+  assert.equal(alliedHero.hp, 150, 'Allied hero must not be attacked by friendly tower');
+});
+
+test('21. Bot AI Decision Engine Mechanics', async () => {
+  const { decideBotAction } = await import('./botAI.js');
+
+  const botHero = {
+    instanceId: 'bot_axe',
+    id: 'axe',
+    name: 'Axe',
+    faction: 'dire',
+    x: 50,
+    y: 50,
+    hp: 150,
+    maxHp: 150,
+    mana: 100,
+    range: 1,
+    damage: 50,
+    speed: 6,
+    period: 4.0,
+    skills: [
+      { id: 'berserkers-call', name: "Berserker's Call", type: 'ACTIVE', timeCost: 2.0, manaCost: 25, radius: 2, currentCooldown: 0 },
+      { id: 'battle-hunger', name: 'Battle Hunger', type: 'ACTIVE', timeCost: 2.0, manaCost: 25, range: 6, currentCooldown: 0 },
+    ],
+  };
+
+  const enemyHero = {
+    instanceId: 'player_gojo',
+    id: 'gojo',
+    name: 'Gojo Satoru',
+    faction: 'radiant',
+    x: 51,
+    y: 50, // Adjacent: distance 1
+    hp: 100,
+    maxHp: 100,
+  };
+
+  const mockGameState = {
+    remainingTurnTime: 8.0,
+    heroes: [botHero, enemyHero],
+    creeps: [],
+  };
+
+  // Case 1: Enemy is right next to bot (distance 1) -> bot can attack or use close skill
+  const action1 = decideBotAction(botHero, mockGameState);
+  assert.ok(['ATTACK', 'SKILL'].includes(action1.action), 'Bot adjacent to enemy should ATTACK or cast SKILL');
+
+  // Case 2: Enemy is 4 cells away (distance 4) -> bot should use ranged skill or move closer
+  const farEnemy = { ...enemyHero, x: 54, y: 50 };
+  const mockGameStateFar = { ...mockGameState, heroes: [botHero, farEnemy] };
+  const action2 = decideBotAction(botHero, mockGameStateFar);
+  assert.ok(['SKILL', 'MOVE'].includes(action2.action), 'Bot 4 cells away should cast ranged skill or move');
+
+  // Case 3: No remaining time -> Bot must END_TURN
+  const mockStateNoTime = { ...mockGameState, remainingTurnTime: 0 };
+  const action3 = decideBotAction(botHero, mockStateNoTime);
+  assert.equal(action3.action, 'END_TURN', 'Bot with 0 time must END_TURN');
+});
+
+
 
 
 

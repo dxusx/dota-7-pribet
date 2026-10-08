@@ -266,3 +266,144 @@ export function calculateHealing(baseHeal, unit) {
   return Math.max(0, Math.round(baseHeal * (1 - reduction)));
 }
 
+/**
+ * Autonomous Tower Defense Attacks:
+ * Towers attack every 4.0s (or when triggered during time advancement).
+ * - Range: 10 tiles (Throne: 12 tiles)
+ * - Priority: Hostile creeps first, then hostile heroes
+ * - Resolves full attack (damage variance, armor, penetration, hit chance)
+ */
+export function resolveTowerAttacks(gameState, rng = Math.random) {
+  const towers = gameState.towers || [];
+  let updatedHeroes = [...(gameState.heroes || [])];
+  let updatedCreeps = [...(gameState.creeps || [])];
+  const attacks = [];
+  const combatLogs = [];
+  const floatingTexts = [];
+
+  for (const tower of towers) {
+    if (tower.hp <= 0) continue;
+
+    const towerSize = tower.size || 2;
+    const towerCenterX = tower.x + towerSize / 2;
+    const towerCenterY = tower.y + towerSize / 2;
+    const towerRange = tower.range || 10;
+    const towerFaction = tower.faction;
+
+    // 1. Check for hostile creeps in range
+    const hostileCreepsInRange = updatedCreeps.filter(c => {
+      if (c.isDead || c.hp <= 0 || c.faction === towerFaction) return false;
+      const dist = Math.hypot(c.x + 0.5 - towerCenterX, c.y + 0.5 - towerCenterY);
+      return dist <= towerRange;
+    });
+
+    let target = null;
+    let targetType = null;
+
+    if (hostileCreepsInRange.length > 0) {
+      // Sort by closest distance to tower, then lowest HP
+      hostileCreepsInRange.sort((a, b) => {
+        const distA = Math.hypot(a.x + 0.5 - towerCenterX, a.y + 0.5 - towerCenterY);
+        const distB = Math.hypot(b.x + 0.5 - towerCenterX, b.y + 0.5 - towerCenterY);
+        if (Math.abs(distA - distB) > 0.1) return distA - distB;
+        return a.hp - b.hp;
+      });
+      target = hostileCreepsInRange[0];
+      targetType = 'CREEP';
+    } else {
+      // 2. Check for hostile heroes in range
+      const hostileHeroesInRange = updatedHeroes.filter(h => {
+        if (h.isDead || h.hp <= 0 || h.faction === towerFaction) return false;
+        const dist = Math.hypot(h.x + 0.5 - towerCenterX, h.y + 0.5 - towerCenterY);
+        return dist <= towerRange;
+      });
+
+      if (hostileHeroesInRange.length > 0) {
+        hostileHeroesInRange.sort((a, b) => {
+          const distA = Math.hypot(a.x + 0.5 - towerCenterX, a.y + 0.5 - towerCenterY);
+          const distB = Math.hypot(b.x + 0.5 - towerCenterX, b.y + 0.5 - towerCenterY);
+          return distA - distB;
+        });
+        target = hostileHeroesInRange[0];
+        targetType = 'HERO';
+      }
+    }
+
+    if (!target) continue;
+
+    // Resolve Tower Attack
+    const attackRes = resolveAttack({
+      averageDamage: tower.damage || 100,
+      penetration: tower.penetration || 20,
+      hit: tower.hit || 100,
+      targetArmor: target.armor || 0,
+      targetAgility: target.agility || 0,
+      attackerElevation: 2,
+      targetElevation: 1,
+      isRanged: true,
+      rng,
+    });
+
+    const damageDealt = attackRes.isHit ? attackRes.damage : 0;
+    const targetId = targetType === 'CREEP' ? target.id : target.instanceId;
+
+    attacks.push({
+      towerId: tower.id,
+      targetId,
+      targetType,
+      damage: damageDealt,
+      isHit: attackRes.isHit,
+      isCrit: attackRes.isCrit,
+    });
+
+    if (attackRes.isHit) {
+      floatingTexts.push({
+        x: target.x,
+        y: target.y,
+        text: `💥 Башня: -${damageDealt}`,
+        color: '#f97316',
+      });
+
+      combatLogs.push({
+        text: `Башня [${tower.id}] атаковала ${target.name || target.type || 'цель'}: ${damageDealt} урона (${attackRes.reason})`,
+        time: gameState.gameTimeSeconds || 0,
+      });
+
+      if (targetType === 'CREEP') {
+        updatedCreeps = updatedCreeps.map(c => {
+          if (c.id === target.id) {
+            const nextHp = Math.max(0, c.hp - damageDealt);
+            return { ...c, hp: nextHp, isDead: nextHp <= 0 };
+          }
+          return c;
+        });
+      } else {
+        updatedHeroes = updatedHeroes.map(h => {
+          if (h.instanceId === target.instanceId) {
+            const nextHp = Math.max(0, h.hp - damageDealt);
+            return { ...h, hp: nextHp, isDead: nextHp <= 0 };
+          }
+          return h;
+        });
+      }
+    } else {
+      floatingTexts.push({
+        x: target.x,
+        y: target.y,
+        text: 'ПРОМАХ БАШНИ!',
+        color: '#94a3b8',
+      });
+    }
+  }
+
+  return {
+    updatedTowers: towers,
+    updatedHeroes,
+    updatedCreeps,
+    attacks,
+    combatLogs,
+    floatingTexts,
+  };
+}
+
+
