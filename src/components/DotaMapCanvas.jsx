@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { MAP_SIZE, TERRAIN, ELEVATION } from '../map/dotaMapData';
 import { getHeroCanvasImage } from '../assets/heroPortraits';
+import { isCameraDragButton, panCamera } from '../game/cameraControls';
 
 const TILE_SIZE = 28; // Base pixel size per tile in the world
 const WORLD_SIZE = MAP_SIZE * TILE_SIZE; // 2800 x 2800 px
@@ -39,6 +40,7 @@ export default function DotaMapCanvas({
   // Viewport camera state (pan offset and zoom scale)
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 0.45 });
   const [hoveredTile, setHoveredTile] = useState(null);
+  const [isGrabbing, setIsGrabbing] = useState(false);
   const isDraggingRef = useRef(false);
   const lastMousePosRef = useRef({ x: 0, y: 0 });
 
@@ -1026,11 +1028,42 @@ export default function DotaMapCanvas({
     renderMinimap,
   ]);
 
-  // Pointer & Mouse interactions
+  const hasDraggedRef = useRef(false);
+
+  // Suppress Windows middle-click autoscroll and handle global mouseup
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const onNativeMouseDown = e => {
+      if (e.button === 1) {
+        e.preventDefault();
+      }
+    };
+
+    const handleGlobalMouseUp = () => {
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        setIsGrabbing(false);
+      }
+    };
+
+    canvas.addEventListener('mousedown', onNativeMouseDown);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => {
+      canvas.removeEventListener('mousedown', onNativeMouseDown);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, []);
+
+  // Pointer & Mouse interactions (Dota 2 Camera Grip on Mouse Wheel)
   const handleMouseDown = e => {
-    if (e.button === 0) {
+    if (isCameraDragButton(e.button, { altKey: e.altKey, ctrlKey: e.ctrlKey })) {
+      e.preventDefault();
       isDraggingRef.current = true;
+      hasDraggedRef.current = false;
       lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+      setIsGrabbing(true);
     }
   };
 
@@ -1041,13 +1074,12 @@ export default function DotaMapCanvas({
     if (isDraggingRef.current) {
       const dx = e.clientX - lastMousePosRef.current.x;
       const dy = e.clientY - lastMousePosRef.current.y;
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) {
+        hasDraggedRef.current = true;
+      }
       lastMousePosRef.current = { x: e.clientX, y: e.clientY };
 
-      setCamera(prev => ({
-        ...prev,
-        x: prev.x + dx,
-        y: prev.y + dy,
-      }));
+      setCamera(prev => panCamera(prev, dx, dy));
     } else {
       const rect = canvas.getBoundingClientRect();
       const mouseCanvasX = e.clientX - rect.left;
@@ -1072,10 +1104,17 @@ export default function DotaMapCanvas({
   };
 
   const handleMouseUp = () => {
-    isDraggingRef.current = false;
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
+      setIsGrabbing(false);
+    }
   };
 
   const handleClick = () => {
+    if (hasDraggedRef.current) {
+      hasDraggedRef.current = false;
+      return;
+    }
     if (hoveredTile) {
       onSelectTile(hoveredTile);
       if (onCellClick) {
@@ -1127,12 +1166,13 @@ export default function DotaMapCanvas({
       {/* Main Map Canvas */}
       <canvas
         ref={canvasRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing block"
+        className={`w-full h-full block select-none ${isGrabbing ? 'cursor-grabbing' : 'cursor-default'}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
+        onAuxClick={e => e.preventDefault()}
+        onContextMenu={e => e.preventDefault()}
         onMouseLeave={() => {
-          isDraggingRef.current = false;
           setHoveredTile(null);
           if (onHoverTile) onHoverTile(null);
         }}

@@ -682,6 +682,28 @@ test('21. Bot AI Decision Engine Mechanics', async () => {
   assert.equal(action3.action, 'END_TURN', 'Bot with 0 time must END_TURN');
 });
 
+test('22. Dota 2 Camera Grip Mechanics (Mouse Wheel Drag)', async () => {
+  const { isCameraDragButton, panCamera } = await import('./cameraControls.js');
+
+  // Middle mouse button (button 1, wheel click) MUST activate camera grip
+  assert.equal(isCameraDragButton(1), true, 'Wheel click (button 1) must trigger camera drag like in Dota');
+
+  // Normal left click (button 0) must NOT drag camera (reserved for unit orders/selection)
+  assert.equal(isCameraDragButton(0), false, 'Normal left click must not drag camera');
+
+  // Right click (button 2) must NOT drag camera
+  assert.equal(isCameraDragButton(2), false, 'Right click must not drag camera');
+
+  // Modifier fallback for trackpad (Alt + Left click)
+  assert.equal(isCameraDragButton(0, { altKey: true }), true, 'Alt + Left click can drag camera as fallback');
+
+  // panCamera adds offset delta
+  const initialCam = { x: 100, y: 200, zoom: 0.5 };
+  const panned = panCamera(initialCam, -15, 25);
+  assert.deepEqual(panned, { x: 85, y: 225, zoom: 0.5 }, 'panCamera must update x and y offsets correctly');
+});
+
+
 
 
 
