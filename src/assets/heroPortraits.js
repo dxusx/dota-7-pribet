@@ -446,13 +446,97 @@ export const HERO_PORTRAITS = {
       <ellipse cx="60" cy="56" rx="12" ry="14" fill="#020617" stroke="#38bdf8" stroke-width="2" />
     </svg>
   `),
+
+  // 13. Schrödinger
+  schrodinger: makeSvgDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+      <defs>
+        <linearGradient id="scBg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#0f172a" />
+          <stop offset="100%" stop-color="#1e293b" />
+        </linearGradient>
+      </defs>
+      <rect width="120" height="120" rx="16" fill="url(#scBg)" />
+      <!-- Cat ears & hair -->
+      <polygon points="32,28 44,14 48,34" fill="#e2e8f0" stroke="#38bdf8" stroke-width="1.5" />
+      <polygon points="88,28 76,14 72,34" fill="#e2e8f0" stroke="#38bdf8" stroke-width="1.5" />
+      <circle cx="60" cy="56" r="26" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" />
+      <!-- Quantum smile & eyes -->
+      <path d="M48,52 Q52,48 54,52" fill="none" stroke="#0284c7" stroke-width="2.5" stroke-linecap="round" />
+      <path d="M72,52 Q68,48 66,52" fill="none" stroke="#0284c7" stroke-width="2.5" stroke-linecap="round" />
+      <path d="M52,66 Q60,74 68,66" fill="none" stroke="#0f172a" stroke-width="2" stroke-linecap="round" />
+      <!-- Collar -->
+      <rect x="36" y="86" width="48" height="24" rx="6" fill="#0284c7" />
+    </svg>
+  `),
+
+  // 14. Alucard
+  alucard: makeSvgDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+      <defs>
+        <linearGradient id="alBg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#450a0a" />
+          <stop offset="100%" stop-color="#020617" />
+        </linearGradient>
+      </defs>
+      <rect width="120" height="120" rx="16" fill="url(#alBg)" />
+      <!-- Crimson fedora / hat -->
+      <path d="M15,48 Q60,20 105,48 Q60,40 15,48 Z" fill="#991b1b" stroke="#7f1d1d" stroke-width="1.5" />
+      <ellipse cx="60" cy="38" rx="28" ry="12" fill="#b91c1c" />
+      <!-- Face & orange-tinted vampire glasses -->
+      <circle cx="60" cy="62" r="22" fill="#f1f5f9" />
+      <circle cx="50" cy="58" r="6" fill="#ea580c" stroke="#7c2d12" stroke-width="1.5" />
+      <circle cx="70" cy="58" r="6" fill="#ea580c" stroke="#7c2d12" stroke-width="1.5" />
+      <line x1="56" y1="58" x2="64" y2="58" stroke="#7c2d12" stroke-width="1.5" />
+      <!-- Crimson high trenchcoat -->
+      <path d="M25,120 L40,82 L60,90 L80,82 L95,120 Z" fill="#7f1d1d" stroke="#991b1b" stroke-width="2" />
+    </svg>
+  `),
+
+  // 15. Gabriel
+  gabriel: makeSvgDataUri(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+      <defs>
+        <linearGradient id="gbBg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#1e1b4b" />
+          <stop offset="100%" stop-color="#451a03" />
+        </linearGradient>
+      </defs>
+      <rect width="120" height="120" rx="16" fill="url(#gbBg)" />
+      <!-- Archangel golden helmet with cross visor -->
+      <polygon points="40,24 80,24 86,66 60,82 34,66" fill="#fbbf24" stroke="#f59e0b" stroke-width="2" />
+      <!-- Glowing blue/white cross visor -->
+      <line x1="60" y1="36" x2="60" y2="70" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" />
+      <line x1="46" y1="50" x2="74" y2="50" stroke="#38bdf8" stroke-width="4" stroke-linecap="round" />
+      <!-- Golden breastplate -->
+      <path d="M28,120 L42,86 L60,94 L78,86 L92,120 Z" fill="#d97706" stroke="#fbbf24" stroke-width="2" />
+    </svg>
+  `),
+};
+
+export const HERO_AVATAR_FILES = {
+  wesker: '/avatars/wesker_avatar.png',
+  axe: '/avatars/axe_avatar.png',
+  katarina: '/avatars/katarina_avatar.svg',
+  anderson: '/avatars/anderson_avatar.svg',
+  gojo: '/avatars/gojo_avatar.png',
+  sukuna: '/avatars/sukuna_avatar.png',
+  pudge: '/avatars/pudge_avatar.png',
+  invoker: '/avatars/invoker_avatar.png',
+  rubick: '/avatars/rubick_avatar.png',
+  sf: '/avatars/sf_avatar.png',
+  monesy: '/avatars/monesy_avatar.png',
+  minos: '/avatars/minos_avatar.png',
+  schrodinger: '/avatars/schrodinger_avatar.svg',
+  alucard: '/avatars/alucard_avatar.svg',
+  gabriel: '/avatars/gabriel_avatar.svg',
 };
 
 /**
  * Returns portrait URL for a hero id, with safe fallback.
  */
 export function getHeroPortrait(heroId) {
-  return HERO_PORTRAITS[heroId] || HERO_PORTRAITS.wesker;
+  return HERO_AVATAR_FILES[heroId] || HERO_PORTRAITS[heroId] || HERO_PORTRAITS.wesker;
 }
 
 // Preloaded image cache for smooth Canvas rendering
@@ -462,9 +546,17 @@ export function getHeroCanvasImage(heroId) {
   if (heroImageCache.has(heroId)) {
     return heroImageCache.get(heroId);
   }
+  if (typeof Image === 'undefined') return null;
   const img = new Image();
   img.src = getHeroPortrait(heroId);
   heroImageCache.set(heroId, img);
   return img;
+}
+
+// Preload all character portraits in browser environment
+if (typeof window !== 'undefined' && typeof Image !== 'undefined') {
+  Object.keys(HERO_AVATAR_FILES).forEach(id => {
+    getHeroCanvasImage(id);
+  });
 }
 

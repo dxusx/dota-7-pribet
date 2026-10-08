@@ -30,7 +30,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🔫</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -58,7 +58,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🧬</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -86,7 +86,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">⚡</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -114,7 +114,7 @@ export const SKILL_ICONS = {
       <circle cx="40" cy="36" r="27" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.7" />
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">👁️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -142,7 +142,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">📢</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -170,7 +170,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🔥</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -198,7 +198,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🪓</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -226,7 +226,7 @@ export const SKILL_ICONS = {
       <circle cx="40" cy="36" r="27" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.7" />
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">⚔️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -254,7 +254,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🩸</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -282,7 +282,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🗡️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -310,7 +310,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">⏱️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -338,7 +338,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">💨</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -366,7 +366,7 @@ export const SKILL_ICONS = {
       <circle cx="40" cy="36" r="27" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.7" />
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🌸</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -394,7 +394,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">✝️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -422,7 +422,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🗡️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -450,7 +450,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🌪️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -478,7 +478,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🛡️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -506,7 +506,7 @@ export const SKILL_ICONS = {
       <circle cx="40" cy="36" r="27" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.7" />
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">✨</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -534,7 +534,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">♾️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -562,7 +562,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🔵</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -590,7 +590,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🔴</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -618,7 +618,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🟣</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -646,7 +646,7 @@ export const SKILL_ICONS = {
       <circle cx="40" cy="36" r="27" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.7" />
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🌌</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -674,7 +674,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">👑</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -702,7 +702,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">✂️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -730,7 +730,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🔪</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -758,7 +758,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🏹</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -786,7 +786,7 @@ export const SKILL_ICONS = {
       <circle cx="40" cy="36" r="27" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.7" />
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">⛩️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -814,7 +814,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🪝</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -842,7 +842,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">☣️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -870,7 +870,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🥩</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -898,7 +898,7 @@ export const SKILL_ICONS = {
       <circle cx="40" cy="36" r="27" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.7" />
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🦷</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -926,7 +926,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">❄️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -954,7 +954,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">☀️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -982,7 +982,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">☄️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1010,7 +1010,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🌀</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1038,7 +1038,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">⚡</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1066,7 +1066,7 @@ export const SKILL_ICONS = {
       <circle cx="40" cy="36" r="27" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.7" />
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🎭</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1094,7 +1094,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">💣</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1122,7 +1122,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">💣</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1150,7 +1150,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">💣</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1178,7 +1178,7 @@ export const SKILL_ICONS = {
       <circle cx="40" cy="36" r="27" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.7" />
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">💀</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1206,7 +1206,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🎯</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1234,7 +1234,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">☁️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1262,7 +1262,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">💥</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1290,7 +1290,7 @@ export const SKILL_ICONS = {
       <circle cx="40" cy="36" r="27" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.7" />
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🏆</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1318,7 +1318,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">⚖️</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1346,7 +1346,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">👊</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1374,7 +1374,7 @@ export const SKILL_ICONS = {
       
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">🐍</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1402,7 +1402,7 @@ export const SKILL_ICONS = {
       <circle cx="40" cy="36" r="27" fill="none" stroke="#f59e0b" stroke-width="0.8" opacity="0.7" />
 
       <!-- Center Icon Glyph -->
-      <text x="40" y="44" font-size="26" text-anchor="middle">💥</text>
+      <g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g>
 
       <!-- Bottom Skill Name Banner -->
       <rect x="4" y="62" width="72" height="14" rx="4" fill="rgba(10,10,15,0.85)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5" />
@@ -1412,5 +1412,5 @@ export const SKILL_ICONS = {
 };
 
 export function getSkillIcon(skillId) {
-  return SKILL_ICONS[skillId] || makeSvgDataUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80"><rect width="80" height="80" rx="10" fill="#1e293b" stroke="#64748b" /><text x="40" y="46" font-size="26" text-anchor="middle">✨</text></svg>`);
+  return SKILL_ICONS[skillId] || makeSvgDataUri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80"><rect width="80" height="80" rx="10" fill="#1e293b" stroke="#64748b" /><g transform="translate(40,36)"><circle r="12" fill="none" stroke="currentColor" stroke-width="2" stroke-opacity="0.8"/><polygon points="0,-8 7,5 -7,5" fill="currentColor" fill-opacity="0.9"/></g></svg>`);
 }

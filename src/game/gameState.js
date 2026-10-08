@@ -8,7 +8,15 @@
  * - Combat log & action resolution
  */
 
-import { TURN_DURATION_SECONDS, deductActionTime, canPerformAction, resolveAttack, getRespawnDelayTurns } from './combatRules.js';
+import {
+  TURN_DURATION_SECONDS,
+  deductActionTime,
+  canPerformAction,
+  resolveAttack,
+  getRespawnDelayTurns,
+  calculateLaneCreepLevel,
+  getEffectiveSpeed,
+} from './combatRules.js';
 import { TOWER_STATS } from './towerData.js';
 import { CREEP_STATS, LANE_WAVE_FORMATIONS, NEUTRAL_CAMP_FORMATIONS } from './creepData.js';
 import { HEROES_ROSTER } from './heroesData.js';
@@ -118,11 +126,13 @@ export function createInitialGameState() {
   radiantHeroes.forEach((def, i) => {
     heroInstances.push({
       instanceId: `hero_${def.id}`,
+      id: def.id,
       defId: def.id,
       name: def.name,
       title: def.title,
       faction: 'radiant',
       avatarSymbol: def.avatarSymbol,
+      avatarUrl: def.avatarUrl,
       themeColor: def.themeColor,
       accentColor: def.accentColor,
       x: 10 + (i % 3) * 2,
@@ -152,11 +162,13 @@ export function createInitialGameState() {
   direHeroes.forEach((def, i) => {
     heroInstances.push({
       instanceId: `hero_${def.id}`,
+      id: def.id,
       defId: def.id,
       name: def.name,
       title: def.title,
       faction: 'dire',
       avatarSymbol: def.avatarSymbol,
+      avatarUrl: def.avatarUrl,
       themeColor: def.themeColor,
       accentColor: def.accentColor,
       x: 88 - (i % 3) * 2,
@@ -331,8 +343,10 @@ export function endTurn(state) {
   let waveIdx = state.waveCycleIndex;
   const newCombatLogs = [];
 
-  // Determine current creep tier level (1 to 5)
-  const creepLevel = Math.min(5, 1 + Math.floor(nextGameTime / 300));
+  // Determine lane creep levels based on destroyed enemy towers according to Google Doc:
+  // "Уровень линейных крипов повышается, как только сносится башня такого же уровня, что и уровень крипов."
+  const radCreepLevel = calculateLaneCreepLevel((state.towers || []).filter(t => t.faction === 'dire'));
+  const direCreepLevel = calculateLaneCreepLevel((state.towers || []).filter(t => t.faction === 'radiant'));
 
   // 4. Check if lane creeps wave should spawn (every 60s)
   if (nextGameTime >= state.nextLaneWaveTime) {
@@ -341,7 +355,7 @@ export function endTurn(state) {
     nextWave += 60.0;
 
     newCombatLogs.push({
-      text: `⚔️ Волна крипов #${waveIdx} выдвинулась на линии (${formation.ranged}R ${formation.melee}M, ур.${creepLevel})!`,
+      text: `⚔️ Волна крипов #${waveIdx} выдвинулась на линии (${formation.ranged}R ${formation.melee}M, Rad ур.${radCreepLevel} / Dire ур.${direCreepLevel})!`,
       time: nextGameTime,
     });
 
@@ -353,7 +367,7 @@ export function endTurn(state) {
         updatedCreeps.push({
           id: `creep_rad_${lane}_m_${Date.now()}_${m}`,
           faction: 'radiant',
-          ...CREEP_STATS[creepLevel].melee,
+          ...CREEP_STATS[radCreepLevel].melee,
           lane,
           waypointIndex: 0,
           slotOffsetX: offset.ox,
@@ -369,7 +383,7 @@ export function endTurn(state) {
         updatedCreeps.push({
           id: `creep_rad_${lane}_r_${Date.now()}_${r}`,
           faction: 'radiant',
-          ...CREEP_STATS[creepLevel].ranged,
+          ...CREEP_STATS[radCreepLevel].ranged,
           lane,
           waypointIndex: 0,
           slotOffsetX: offset.ox,
@@ -387,7 +401,7 @@ export function endTurn(state) {
         updatedCreeps.push({
           id: `creep_dire_${lane}_m_${Date.now()}_${m}`,
           faction: 'dire',
-          ...CREEP_STATS[creepLevel].melee,
+          ...CREEP_STATS[direCreepLevel].melee,
           lane,
           waypointIndex: 0,
           slotOffsetX: offset.ox,
@@ -403,7 +417,7 @@ export function endTurn(state) {
         updatedCreeps.push({
           id: `creep_dire_${lane}_r_${Date.now()}_${r}`,
           faction: 'dire',
-          ...CREEP_STATS[creepLevel].ranged,
+          ...CREEP_STATS[direCreepLevel].ranged,
           lane,
           waypointIndex: 0,
           slotOffsetX: offset.ox,
@@ -618,3 +632,60 @@ export function endTurn(state) {
     combatLogs: [...newCombatLogs, ...state.combatLogs].slice(0, 25),
   };
 }
+
+/**
+ * Swaps a hero currently on the battlefield with any other hero from HEROES_ROSTER.
+ * Allows playing as new heroes (Schrodinger, Alucard, Gabriel, etc.) on the fly.
+ */
+export function swapHeroInGameState(state, targetInstanceId, newHeroDefId) {
+  const newDef = HEROES_ROSTER.find(h => h.id === newHeroDefId);
+  if (!newDef) return state;
+
+  const targetHero = state.heroes.find(h => h.instanceId === targetInstanceId);
+  if (!targetHero) return state;
+
+  const newInstance = {
+    instanceId: targetInstanceId,
+    id: newDef.id,
+    defId: newDef.id,
+    name: newDef.name,
+    title: newDef.title,
+    faction: newDef.faction || targetHero.faction,
+    heroClass: newDef.heroClass,
+    avatarSymbol: newDef.avatarSymbol,
+    avatarUrl: newDef.avatarUrl,
+    themeColor: newDef.themeColor,
+    accentColor: newDef.accentColor,
+    x: targetHero.x,
+    y: targetHero.y,
+    level: targetHero.level,
+    xp: targetHero.xp,
+    hp: newDef.stats.hp,
+    maxHp: newDef.stats.maxHp,
+    mana: newDef.stats.mana,
+    maxMana: newDef.stats.maxMana,
+    speed: newDef.stats.speed,
+    armor: newDef.stats.armor,
+    agility: newDef.stats.agility,
+    damage: newDef.stats.damage || newDef.stats.ranged?.damage || 40,
+    range: newDef.stats.range || newDef.stats.ranged?.range || 1,
+    penetration: newDef.stats.penetration || newDef.stats.ranged?.penetration || 10,
+    hit: newDef.stats.hit || newDef.stats.ranged?.hit || 50,
+    period: 4.0,
+    skills: newDef.skills.map(s => ({ ...s, currentCooldown: 0 })),
+    isDead: false,
+    respawnTurnsLeft: 0,
+    initiativeRoll: targetHero.initiativeRoll,
+  };
+
+  const updatedHeroes = state.heroes.map(h => (h.instanceId === targetInstanceId ? newInstance : h));
+  return {
+    ...state,
+    heroes: updatedHeroes,
+    combatLogs: [
+      { text: `⚡ Герой ${targetHero.name} заменен в бою на [${newDef.name}]!`, time: state.gameTimeSeconds },
+      ...state.combatLogs.slice(0, 20),
+    ],
+  };
+}
+

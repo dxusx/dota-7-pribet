@@ -34,3 +34,8 @@ lerna-debug.log*
 
 # Temporary binaries
 scripts/cloudflared.exe
+
+# Knowledge Graph & Agent Artifacts
+graphify-out/
+.graphify/
+.gemini/

@@ -146,3 +146,123 @@ export function getRespawnDelayTurns(gameTurn) {
 export function getRequiredXpForNextLevel(currentLevel) {
   return currentLevel * 100;
 }
+
+/**
+ * Lane Creep Level Calculation based on destroyed towers:
+ * "Уровень линейных крипов повышается, как только сносится башня такого же уровня, что и уровень крипов."
+ * T1 destroyed -> Level 2
+ * T2 destroyed -> Level 3
+ * T3 destroyed -> Level 4
+ * T4 destroyed -> Level 5
+ */
+export function calculateLaneCreepLevel(towers = []) {
+  const isTierDestroyed = tier =>
+    towers.some(t => (t.tier === tier || t.id?.includes(`_t${tier}_`)) && (t.isDestroyed || (t.hp !== undefined && t.hp <= 0)));
+
+  if (isTierDestroyed(4)) return 5;
+  if (isTierDestroyed(3)) return 4;
+  if (isTierDestroyed(2)) return 3;
+  if (isTierDestroyed(1)) return 2;
+  return 1;
+}
+
+/**
+ * Class-Based Hero Stat Growth per Level according to Google Docs Specification:
+ * - STRENGTH: HP +50%, HP regen +25%, Mana +10%, Mana regen +10%, Dmg +25%, Crit +25%, Pen +25%, Hit +10%, Armor +25%
+ * - AGILITY: HP +25%, HP regen +10%, Mana +10%, Mana regen +10%, Dmg +10%, Crit +20%, Pen +10%, Hit +30%, Agi +25%
+ * - INTELLIGENCE: HP +10%, HP regen +10%, Mana +50%, Mana regen +25%, Dmg +25%, Crit +25%, Pen +25%, Hit +25%, Armor +10%, Agi +10%
+ */
+export function applyClassLevelUp(hero) {
+  const cls = (hero.heroClass || 'STRENGTH').toUpperCase();
+  const nextLvl = (hero.level || 1) + 1;
+
+  if (cls === 'STRENGTH') {
+    const nextMaxHp = Math.round(hero.maxHp * 1.50);
+    const hpDiff = nextMaxHp - hero.maxHp;
+    return {
+      ...hero,
+      level: nextLvl,
+      maxHp: nextMaxHp,
+      hp: hero.hp + hpDiff,
+      hpRegen: Math.round(hero.hpRegen * 1.25),
+      maxMana: Math.round(hero.maxMana * 1.10),
+      mana: Math.round(hero.mana * 1.10),
+      manaRegen: Math.round(hero.manaRegen * 1.10),
+      damage: Math.round(hero.damage * 1.25),
+      critDamage: Math.round((hero.critDamage || hero.damage * 2) * 1.25),
+      penetration: Math.round(hero.penetration * 1.25),
+      hit: Math.round(hero.hit * 1.10),
+      armor: Math.round(hero.armor * 1.25),
+    };
+  }
+
+  if (cls === 'AGILITY') {
+    const nextMaxHp = Math.round(hero.maxHp * 1.25);
+    const hpDiff = nextMaxHp - hero.maxHp;
+    return {
+      ...hero,
+      level: nextLvl,
+      maxHp: nextMaxHp,
+      hp: hero.hp + hpDiff,
+      hpRegen: Math.round(hero.hpRegen * 1.10),
+      maxMana: Math.round(hero.maxMana * 1.10),
+      mana: Math.round(hero.mana * 1.10),
+      manaRegen: Math.round(hero.manaRegen * 1.10),
+      damage: Math.round(hero.damage * 1.10),
+      critDamage: Math.round((hero.critDamage || hero.damage * 2) * 1.20),
+      penetration: Math.round(hero.penetration * 1.10),
+      hit: Math.round(hero.hit * 1.30),
+      agility: Math.round(hero.agility * 1.25),
+    };
+  }
+
+  // INTELLIGENCE
+  const nextMaxHp = Math.round(hero.maxHp * 1.10);
+  const hpDiff = nextMaxHp - hero.maxHp;
+  return {
+    ...hero,
+    level: nextLvl,
+    maxHp: nextMaxHp,
+    hp: hero.hp + hpDiff,
+    hpRegen: Math.round(hero.hpRegen * 1.10),
+    maxMana: Math.round(hero.maxMana * 1.50),
+    mana: Math.round(hero.mana * 1.50),
+    manaRegen: Math.round(hero.manaRegen * 1.25),
+    damage: Math.round(hero.damage * 1.25),
+    critDamage: Math.round((hero.critDamage || hero.damage * 2) * 1.25),
+    penetration: Math.round(hero.penetration * 1.25),
+    hit: Math.round(hero.hit * 1.25),
+    armor: Math.round(hero.armor * 1.10),
+    agility: Math.round(hero.agility * 1.10),
+  };
+}
+
+/**
+ * Status Effects & Control Mechanics:
+ * - Silence: prevents casting skills
+ * - Fear: prevents casting skills, reduces speed by 50%
+ * - Taunt: prevents casting skills, forces basic attack
+ * - Grievous Wounds: reduces healing and regeneration by x%
+ */
+export function canCastSkills(unit) {
+  if (!unit || !unit.statuses) return true;
+  if (unit.statuses.silence && unit.statuses.silence.duration > 0) return false;
+  if (unit.statuses.fear && unit.statuses.fear.duration > 0) return false;
+  if (unit.statuses.taunt && unit.statuses.taunt.duration > 0) return false;
+  return true;
+}
+
+export function getEffectiveSpeed(unit) {
+  const base = unit?.speed || 6;
+  if (unit?.statuses?.fear && unit.statuses.fear.duration > 0) {
+    return Math.max(1, Math.round(base * 0.5));
+  }
+  return base;
+}
+
+export function calculateHealing(baseHeal, unit) {
+  if (!unit || !unit.statuses?.grievous_wounds) return baseHeal;
+  const reduction = unit.statuses.grievous_wounds.reduction ?? 0.40;
+  return Math.max(0, Math.round(baseHeal * (1 - reduction)));
+}
+

@@ -874,10 +874,11 @@ export default function DotaMapCanvas({
         } else {
           ctx.fillStyle = hero.themeColor || (isRad ? '#065f46' : '#7f1d1d');
           ctx.fill();
-          ctx.font = `${Math.round(TILE_SIZE * 0.7)}px sans-serif`;
+          ctx.font = `bold ${Math.round(TILE_SIZE * 0.42)}px sans-serif`;
+          ctx.fillStyle = '#ffffff';
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
-          ctx.fillText(hero.avatarSymbol || '👤', px, py);
+          ctx.fillText(hero.avatarSymbol || hero.name.slice(0, 2).toUpperCase(), px, py);
         }
         ctx.restore();
 

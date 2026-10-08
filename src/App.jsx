@@ -3,11 +3,14 @@ import { generateDotaMap, MAP_SIZE, TERRAIN } from './map/dotaMapData';
 import DotaMapCanvas from './components/DotaMapCanvas';
 import { getHeroPortrait } from './assets/heroPortraits';
 import { getSkillIcon } from './assets/skillIcons';
-import { createInitialGameState, endTurn } from './game/gameState';
+import { createInitialGameState, endTurn, swapHeroInGameState } from './game/gameState';
+import { HEROES_ROSTER } from './game/heroesData';
 import {
   canPerformAction,
   deductActionTime,
   resolveAttack,
+  applyClassLevelUp,
+  canCastSkills,
   TURN_DURATION_SECONDS,
 } from './game/combatRules';
 import { executeSkill } from './game/skillEngine';
@@ -24,6 +27,7 @@ import {
   Target,
   Sparkles,
   Info,
+  Users,
 } from 'lucide-react';
 
 export default function App() {
@@ -43,6 +47,7 @@ export default function App() {
   const [hoveredSkillTooltip, setHoveredSkillTooltip] = useState(null);
   const [floatingTexts, setFloatingTexts] = useState([]);
   const [weskerMode, setWeskerMode] = useState('ranged');
+  const [showRosterModal, setShowRosterModal] = useState(false);
 
   // Active hero
   const activeHeroId = gameState.initiativeQueue[gameState.activeUnitIndex];
@@ -457,14 +462,11 @@ export default function App() {
                   if (h.instanceId === activeHero.instanceId && willDie) {
                     const newXp = h.xp + xpReward;
                     const nextLvlXp = h.level * 100;
-                    if (newXp >= nextLvlXp && h.level < 5) {
+                    if (newXp >= nextLvlXp && h.level < 18) {
+                      const leveled = applyClassLevelUp(h);
                       return {
-                        ...h,
-                        level: h.level + 1,
+                        ...leveled,
                         xp: newXp - nextLvlXp,
-                        maxHp: h.maxHp + 50,
-                        hp: h.hp + 50,
-                        damage: h.damage + 10,
                       };
                     }
                     return { ...h, xp: newXp };
@@ -605,6 +607,11 @@ export default function App() {
     if (!activeHero || activeHero.isDead) return;
     if (skill.type === 'PASSIVE') return;
 
+    if (!canCastSkills(activeHero)) {
+      addFloatingText(activeHero.x, activeHero.y, 'Безмолвие / Контроль!', '#ef4444');
+      return;
+    }
+
     if (activeHero.mana < skill.manaCost) {
       addFloatingText(activeHero.x, activeHero.y, 'Недостаточно маны!', '#38bdf8');
       return;
@@ -625,7 +632,13 @@ export default function App() {
       skill.id === 'preparation' ||
       skill.id === 'divine-regen' ||
       skill.id === 'rot' ||
-      skill.id === 'clutch-master';
+      skill.id === 'clutch-master' ||
+      skill.id === 'angel-power' ||
+      skill.id === 'last-cat-live' ||
+      skill.id === 'prion' ||
+      skill.id === 'cromwell-seal-1' ||
+      skill.id === 'cromwell-seal-2' ||
+      skill.id === 'cromwell-seal-0';
 
     if (isSelfCast) {
       const res = executeSkill({
@@ -799,8 +812,17 @@ export default function App() {
           </button>
         </div>
 
-        {/* Right: Map Toggles */}
+        {/* Right: Map Toggles & Roster */}
         <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setShowRosterModal(true)}
+            title="Все 15 героев (Выбрать в матч)"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border font-semibold bg-indigo-950/80 border-indigo-500/50 text-indigo-300 hover:bg-indigo-900 transition-colors cursor-pointer"
+          >
+            <Users size={14} />
+            <span>Ростер (15)</span>
+          </button>
+
           <button
             onClick={() => setShowGrid(!showGrid)}
             title="Сетка 100x100"
@@ -1489,6 +1511,115 @@ export default function App() {
             </button>
           </div>
         </footer>
+      )}
+
+      {/* Roster Modal (All 15 Heroes from Google Doc) */}
+      {showRosterModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-500/50 flex items-center justify-center text-indigo-400">
+                  <Users size={20} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Ростер героев (15 персонажей)</h2>
+                  <p className="text-xs text-slate-400">
+                    Активный герой: <span className="text-amber-300 font-bold">{activeHero?.name}</span>. Выберите героя для просмотра или замены в бою.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowRosterModal(false)}
+                className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body: Cards Grid */}
+            <div className="p-6 overflow-y-auto custom-scrollbar grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {HEROES_ROSTER.map(hero => {
+                const isInCombat = gameState.heroes.some(h => h.id === hero.id);
+                const isRad = hero.faction === 'radiant';
+                return (
+                  <div
+                    key={hero.id}
+                    className={`p-4 rounded-xl border flex flex-col justify-between transition-all ${
+                      isInCombat
+                        ? 'bg-slate-950/90 border-slate-700'
+                        : 'bg-slate-900/60 border-slate-800 hover:border-slate-600 hover:bg-slate-800/40'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-start gap-3">
+                        <div className={`relative w-14 h-14 rounded-xl overflow-hidden border-2 shrink-0 ${isRad ? 'border-emerald-500/60' : 'border-rose-500/60'}`}>
+                          <img src={getHeroPortrait(hero.id)} alt={hero.name} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-bold text-sm text-white truncate">{hero.name}</span>
+                            <span className={`text-[10px] uppercase font-mono px-1.5 py-0.5 rounded font-bold ${
+                              hero.heroClass === 'STRENGTH' ? 'bg-red-950 text-red-300 border border-red-800/50' :
+                              hero.heroClass === 'AGILITY' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800/50' :
+                              'bg-sky-950 text-sky-300 border border-sky-800/50'
+                            }`}>
+                              {hero.heroClass === 'STRENGTH' ? 'Сила' : hero.heroClass === 'AGILITY' ? 'Ловкость' : 'Интеллект'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 truncate mt-0.5">{hero.title}</p>
+                          <div className="flex items-center gap-2 mt-2 text-[11px] font-mono text-slate-300">
+                            <span>❤️ {hero.stats.hp}</span>
+                            <span>💧 {hero.stats.mana}</span>
+                            <span>⚔️ {hero.stats.damage || hero.stats.ranged?.damage || 40}</span>
+                            <span>🚶 {hero.stats.speed}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 pt-3 border-t border-slate-800/80">
+                        <div className="text-[11px] font-semibold text-slate-400 mb-1.5">Способности:</div>
+                        <div className="flex flex-wrap gap-1">
+                          {hero.skills.map(s => (
+                            <span
+                              key={s.id}
+                              className="text-[10px] font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-slate-300"
+                              title={s.desc}
+                            >
+                              {s.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-2">
+                      {isInCombat ? (
+                        <div className="w-full py-1.5 rounded-lg text-center text-xs font-mono font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                          ⚔️ В бою
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (activeHero) {
+                              setGameState(prev => swapHeroInGameState(prev, activeHero.instanceId, hero.id));
+                              addFloatingText(activeHero.x, activeHero.y, `⚡ ${hero.name} вступил в бой!`, '#38bdf8');
+                              setShowRosterModal(false);
+                            }
+                          }}
+                          className="w-full py-1.5 rounded-lg text-xs font-bold font-mono bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <span>Выбрать вместо {activeHero?.name.split(' ')[0]}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

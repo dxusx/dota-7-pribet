@@ -463,8 +463,201 @@ export function executeSkill({
     }
   }
 
-  // Generic fallback for other skills
-  else if (targetHero || targetCreep) {
+  // --- 13. Schrödinger Skills ---
+  else if (skill.id === 'everywhere-nowhere' && targetTile) {
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.instanceId === caster.instanceId) {
+        return { ...h, x: targetTile.x, y: targetTile.y, quantumReturn: { x: caster.x, y: caster.y } };
+      }
+      return h;
+    });
+    logMessage = `${caster.name} совершил квантовый скачок [Everywhere & Nowhere] в [${targetTile.x}, ${targetTile.y}]!`;
+    floatingTexts.push({ x: targetTile.x, y: targetTile.y, text: '🌀 КВАНТОВЫЙ СКАЧОК', color: '#38bdf8' });
+  } else if (skill.id === 'prion') {
+    logMessage = `${caster.name} применил [Prion], вселившись в сознание цели!`;
+    floatingTexts.push({ x: targetHero ? targetHero.x : caster.x, y: targetHero ? targetHero.y : caster.y, text: '👁️ PRION VISION', color: '#a855f7' });
+  } else if (skill.id === 'mind-control' && targetHero) {
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.instanceId === targetHero.instanceId) {
+        return {
+          ...h,
+          statuses: {
+            ...(h.statuses || {}),
+            silence: { duration: 8.0 },
+          },
+        };
+      }
+      return h;
+    });
+    logMessage = `${caster.name} наложил [Mind Control] на ${targetHero.name}: наложено БЕЗМОЛВИЕ!`;
+    floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: '🤐 БЕЗМОЛВИЕ (Silence)', color: '#8b5cf6' });
+  } else if (skill.id === 'last-cat-live') {
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.instanceId === caster.instanceId) {
+        return { ...h, hp: Math.round(h.maxHp * 0.70) };
+      }
+      return h;
+    });
+    logMessage = `${caster.name} активировал [Last Cat Live]: квантовое бессмертие кота, восстановление до 70% HP!`;
+    floatingTexts.push({ x: caster.x, y: caster.y, text: '🐱 LAST CAT LIVE!', color: '#38bdf8' });
+  }
+
+  // --- 14. Alucard Skills ---
+  else if (skill.id === 'blood-drain' && (targetHero || targetCreep)) {
+    const souls = caster.soulsCount || 0;
+    const healAmount = 20 + souls * 3;
+    const damage = 40;
+    if (targetHero) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          const newHp = Math.max(0, h.hp - damage);
+          return { ...h, hp: newHp, isDead: newHp <= 0 };
+        }
+        if (h.instanceId === caster.instanceId) {
+          const newHp = Math.min(h.maxHp, h.hp + healAmount);
+          return { ...h, hp: newHp, bloodThirst: (h.bloodThirst || 0) + 1 };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} применил [Вытягивание крови] к ${targetHero.name}: -${damage} HP, +${healAmount} исцеления!`;
+      floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `-${damage}`, color: '#dc2626' });
+      floatingTexts.push({ x: caster.x, y: caster.y, text: `+${healAmount} HP`, color: '#22c55e' });
+    } else if (targetCreep) {
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === targetCreep.id) {
+          const newHp = Math.max(0, c.hp - damage);
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+        return c;
+      });
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === caster.instanceId) {
+          const newHp = Math.min(h.maxHp, h.hp + Math.round(healAmount * 0.35));
+          return { ...h, hp: newHp };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} вытянул кровь из крипа: -${damage} HP!`;
+      floatingTexts.push({ x: targetCreep.x, y: targetCreep.y, text: `-${damage}`, color: '#dc2626' });
+    }
+  } else if (skill.id === 'cromwell-seal-2') {
+    const selfHpCost = Math.round(caster.maxHp * 0.08);
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.instanceId === caster.instanceId) {
+        return { ...h, hp: Math.max(1, h.hp - selfHpCost) };
+      }
+      if (!h.isDead && h.faction !== caster.faction) {
+        const dist = Math.hypot(h.x - caster.x, h.y - caster.y);
+        if (dist <= 5.5) {
+          floatingTexts.push({ x: h.x, y: h.y, text: '-25 (Цербер)', color: '#dc2626' });
+          const newHp = Math.max(0, h.hp - 25);
+          return { ...h, hp: newHp, isDead: newHp <= 0 };
+        }
+      }
+      return h;
+    });
+    logMessage = `${caster.name} активировал [Печать Кромвеля 2]: призыв Церберов поразил врагов вокруг!`;
+  } else if (skill.id === 'cromwell-seal-1') {
+    const selfHpCost = Math.round(caster.hp * 0.20);
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.instanceId === caster.instanceId) {
+        return {
+          ...h,
+          hp: Math.max(1, h.hp - selfHpCost),
+          isInvulnerable: true,
+          speed: Math.round(h.speed * 1.35),
+        };
+      }
+      return h;
+    });
+    logMessage = `${caster.name} активировал [Печать Кромвеля 1]: форма кровавого облака (+35% скорости)!`;
+    floatingTexts.push({ x: caster.x, y: caster.y, text: '🌫️ ОБЛАКО ТУМАНА', color: '#dc2626' });
+  } else if (skill.id === 'cromwell-seal-0') {
+    for (let i = 0; i < 2; i++) {
+      updatedCreeps.push({
+        id: `alucard_soul_creep_${Date.now()}_${i}`,
+        faction: caster.faction,
+        type: 'MELEE',
+        level: 1,
+        hp: 100,
+        maxHp: 100,
+        damage: 20,
+        range: 1,
+        armor: 1,
+        x: Math.max(0, Math.min(MAP_SIZE - 1, caster.x + (i === 0 ? 1 : -1))),
+        y: caster.y,
+        nextAttackTime: (gameState.gameTimeSeconds || 0) + 4.0,
+      });
+    }
+    logMessage = `${caster.name} высвободил [Печать Кромвеля 0]: призыв 2 душ-крипов!`;
+    floatingTexts.push({ x: caster.x, y: caster.y, text: '👻 АРМИЯ ДУШ', color: '#991b1b' });
+  }
+
+  // --- 15. Gabriel Skills ---
+  else if (skill.id === 'light-speed' && targetTile) {
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.instanceId === caster.instanceId) {
+        return { ...h, x: targetTile.x, y: targetTile.y };
+      }
+      return h;
+    });
+    logMessage = `${caster.name} совершил [Light Speed] телепорт в [${targetTile.x}, ${targetTile.y}]!`;
+    floatingTexts.push({ x: targetTile.x, y: targetTile.y, text: '⚡ LIGHT SPEED!', color: '#fbbf24' });
+  } else if (skill.id === 'divine-spear' && (targetHero || targetCreep)) {
+    const damage = 60;
+    if (targetHero) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          const newHp = Math.max(0, h.hp - damage);
+          return { ...h, hp: newHp, isDead: newHp <= 0 };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} пронзил ${targetHero.name} [Divine Spear] на ${damage} урона!`;
+      floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `-${damage} (Копьё)`, color: '#fbbf24' });
+    } else if (targetCreep) {
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === targetCreep.id) {
+          const newHp = Math.max(0, c.hp - damage);
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+        return c;
+      });
+      logMessage = `${caster.name} пронзил крипа [Divine Spear] на ${damage} урона!`;
+      floatingTexts.push({ x: targetCreep.x, y: targetCreep.y, text: `-${damage} (Копьё)`, color: '#fbbf24' });
+    }
+  } else if (skill.id === 'divine-rapier' && targetHero) {
+    const damage = 120;
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.instanceId === targetHero.instanceId) {
+        const newHp = Math.max(0, h.hp - damage);
+        return { ...h, hp: newHp, isDead: newHp <= 0 };
+      }
+      return h;
+    });
+    logMessage = `${caster.name} нанес 4 удара [Divine Rapier] по ${targetHero.name} на ${damage} урона!`;
+    floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `⚔️ -${damage} (Рапира)`, color: '#fbbf24' });
+  } else if (skill.id === 'divine-axe' && (targetHero || targetCreep)) {
+    const damage = 50;
+    if (targetHero) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          const newHp = Math.max(0, h.hp - damage);
+          return { ...h, hp: newHp, isDead: newHp <= 0 };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} метнул [Divine Axe] во врага на ${damage} урона (100 пробития)!`;
+      floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `🪓 -${damage} (100 Пробития)`, color: '#fbbf24' });
+    }
+  } else if (skill.id === 'angel-power') {
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.instanceId === caster.instanceId) {
+        return { ...h, damage: h.damage * 2, speed: h.speed * 2, penetration: 50 };
+      }
+      return h;
+    });
+  } else if (targetHero || targetCreep) {
     const damage = skill.damage || 40;
     if (targetHero) {
       updatedHeroes = updatedHeroes.map(h => {

@@ -9,12 +9,18 @@ import {
   getTerrainAccuracyModifier,
   resolveAttack,
   getRespawnDelayTurns,
+  calculateLaneCreepLevel,
+  applyClassLevelUp,
+  canCastSkills,
+  getEffectiveSpeed,
+  calculateHealing,
   TURN_DURATION_SECONDS,
 } from './combatRules.js';
 import { TOWER_STATS } from './towerData.js';
 import { CREEP_STATS, LANE_WAVE_FORMATIONS, NEUTRAL_CAMP_FORMATIONS } from './creepData.js';
 import { HEROES_ROSTER } from './heroesData.js';
 import { SQUAD_FORMATION_OFFSETS } from './gameState.js';
+import { executeSkill } from './skillEngine.js';
 
 test('1. Time System mechanics', () => {
   assert.equal(TURN_DURATION_SECONDS, 8.0);
@@ -111,7 +117,7 @@ test('8. Creep Formations & Roster Integrity', () => {
   assert.equal(CREEP_STATS[1].ranged.hp, 80);
   assert.equal(CREEP_STATS[5].melee.hp, 500);
 
-  assert.equal(HEROES_ROSTER.length, 12);
+  assert.equal(HEROES_ROSTER.length, 15);
   const wesker = HEROES_ROSTER.find(h => h.id === 'wesker');
   assert.ok(wesker);
   assert.equal(wesker.stats.hp, 100);
@@ -136,6 +142,9 @@ test('9. Hero Speed and Step Verification for Every Character', () => {
     sf: 6,
     monesy: 7,
     minos: 8,
+    schrodinger: 6,
+    alucard: 6,
+    gabriel: 6,
   };
 
   HEROES_ROSTER.forEach(hero => {
@@ -255,4 +264,281 @@ test('13. Repository & Metadata Integrity', async () => {
   assert.ok(readme.includes('Запуск') || readme.includes('Установка'), 'README must have quick start guide');
   assert.ok(readme.includes('Структура') || readme.includes('Архитектура'), 'README must document structure');
 });
+
+test('14. Procedural Vector Assets Generation (No Emojis)', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const scriptPath = path.resolve(process.cwd(), 'scripts/generate_all_assets.mjs');
+  assert.ok(fs.existsSync(scriptPath), 'scripts/generate_all_assets.mjs must exist');
+
+  const { SKILL_ICONS } = await import('../assets/skillIcons.js');
+  const emojiRegex = /\p{Extended_Pictographic}/u;
+  for (const [id, uri] of Object.entries(SKILL_ICONS)) {
+    const decoded = decodeURIComponent(uri);
+    assert.ok(!emojiRegex.test(decoded), `Skill icon ${id} must not contain emojis`);
+  }
+});
+
+test('15. Creep Level Upgrade on Tower Destruction', () => {
+  // Initial state: no towers destroyed -> Level 1
+  assert.equal(calculateLaneCreepLevel([]), 1);
+  assert.equal(calculateLaneCreepLevel([{ tier: 1, isDestroyed: false }]), 1);
+
+  // When T1 tower destroyed -> Level 2
+  assert.equal(calculateLaneCreepLevel([{ tier: 1, isDestroyed: true }]), 2);
+
+  // When T2 tower destroyed -> Level 3
+  assert.equal(calculateLaneCreepLevel([
+    { tier: 1, isDestroyed: true },
+    { tier: 2, isDestroyed: true },
+  ]), 3);
+
+  // When T3 tower destroyed -> Level 4
+  assert.equal(calculateLaneCreepLevel([
+    { tier: 1, isDestroyed: true },
+    { tier: 2, isDestroyed: true },
+    { tier: 3, isDestroyed: true },
+  ]), 4);
+
+  // When T4 tower destroyed -> Level 5 (max)
+  assert.equal(calculateLaneCreepLevel([
+    { tier: 1, isDestroyed: true },
+    { tier: 2, isDestroyed: true },
+    { tier: 3, isDestroyed: true },
+    { tier: 4, isDestroyed: true },
+  ]), 5);
+});
+
+test('16. Class-Based Hero Level Up Stat Scaling', () => {
+  // 1. Strength Hero: HP +50%, regen +25%, mana +10%, manaRegen +10%, damage +25%, crit +25%, pen +25%, hit +10%, armor +25%
+  const strHero = {
+    heroClass: 'STRENGTH',
+    level: 1,
+    maxHp: 150,
+    hp: 150,
+    hpRegen: 10,
+    maxMana: 100,
+    mana: 100,
+    manaRegen: 10,
+    damage: 40,
+    critDamage: 80,
+    penetration: 20,
+    hit: 50,
+    armor: 4,
+    agility: 1,
+  };
+  const leveledStr = applyClassLevelUp(strHero);
+  assert.equal(leveledStr.level, 2);
+  assert.equal(leveledStr.maxHp, Math.round(150 * 1.50)); // 225
+  assert.equal(leveledStr.hpRegen, Math.round(10 * 1.25)); // 13 (or 12.5 rounded)
+  assert.equal(leveledStr.maxMana, Math.round(100 * 1.10)); // 110
+  assert.equal(leveledStr.damage, Math.round(40 * 1.25)); // 50
+  assert.equal(leveledStr.armor, Math.round(4 * 1.25)); // 5
+
+  // 2. Agility Hero: HP +25%, regen +10%, mana +10%, damage +10%, crit +20%, pen +10%, hit +30%, agi +25%
+  const agiHero = {
+    heroClass: 'AGILITY',
+    level: 1,
+    maxHp: 100,
+    hp: 100,
+    hpRegen: 5,
+    maxMana: 150,
+    mana: 150,
+    manaRegen: 10,
+    damage: 40,
+    critDamage: 100,
+    penetration: 15,
+    hit: 50,
+    armor: 1,
+    agility: 8,
+  };
+  const leveledAgi = applyClassLevelUp(agiHero);
+  assert.equal(leveledAgi.level, 2);
+  assert.equal(leveledAgi.maxHp, 125);
+  assert.equal(leveledAgi.damage, 44);
+  assert.equal(leveledAgi.agility, 10);
+  assert.equal(leveledAgi.hit, 65);
+
+  // 3. Intelligence Hero: HP +10%, regen +10%, mana +50%, manaRegen +25%, damage +25%, pen +25%, hit +25%, armor +10%, agi +10%
+  const intHero = {
+    heroClass: 'INTELLIGENCE',
+    level: 1,
+    maxHp: 100,
+    hp: 100,
+    hpRegen: 5,
+    maxMana: 200,
+    mana: 200,
+    manaRegen: 12,
+    damage: 30,
+    critDamage: 60,
+    penetration: 10,
+    hit: 40,
+    armor: 1,
+    agility: 3,
+  };
+  const leveledInt = applyClassLevelUp(intHero);
+  assert.equal(leveledInt.level, 2);
+  assert.equal(leveledInt.maxMana, 300);
+  assert.equal(leveledInt.manaRegen, 15);
+  assert.equal(leveledInt.damage, Math.round(30 * 1.25)); // 38 (or 37.5 -> 38)
+});
+
+test('17. Control Status Effects (Silence, Fear, Taunt, Grievous Wounds)', () => {
+  const normalUnit = { speed: 6, statuses: {} };
+  assert.equal(canCastSkills(normalUnit), true);
+  assert.equal(getEffectiveSpeed(normalUnit), 6);
+  assert.equal(calculateHealing(100, normalUnit), 100);
+
+  // Silence: cannot cast skills
+  const silencedUnit = { speed: 6, statuses: { silence: { duration: 4 } } };
+  assert.equal(canCastSkills(silencedUnit), false);
+
+  // Fear: cannot cast skills, speed reduced by 50%
+  const fearedUnit = { speed: 6, statuses: { fear: { duration: 4 } } };
+  assert.equal(canCastSkills(fearedUnit), false);
+  assert.equal(getEffectiveSpeed(fearedUnit), 3);
+
+  // Taunt: cannot cast skills
+  const tauntedUnit = { speed: 6, statuses: { taunt: { duration: 4 } } };
+  assert.equal(canCastSkills(tauntedUnit), false);
+
+  // Grievous Wounds: reduces healing by x% (e.g. 40%)
+  const woundedUnit = { speed: 6, statuses: { grievous_wounds: { reduction: 0.4 } } };
+  assert.equal(calculateHealing(100, woundedUnit), 60);
+});
+
+test('18. Google Doc New Heroes Integration (Schrodinger, Alucard, Gabriel)', () => {
+  const heroIds = HEROES_ROSTER.map(h => h.id);
+  assert.ok(heroIds.includes('schrodinger'), 'Schrodinger must exist in HEROES_ROSTER');
+  assert.ok(heroIds.includes('alucard'), 'Alucard must exist in HEROES_ROSTER');
+  assert.ok(heroIds.includes('gabriel'), 'Gabriel must exist in HEROES_ROSTER');
+
+  const schrodinger = HEROES_ROSTER.find(h => h.id === 'schrodinger');
+  assert.equal(schrodinger.heroClass, 'INTELLIGENCE');
+  assert.equal(schrodinger.stats.hp, 100);
+  assert.equal(schrodinger.stats.damage, 20);
+  assert.ok(schrodinger.skills.length >= 5);
+
+  const alucard = HEROES_ROSTER.find(h => h.id === 'alucard');
+  assert.equal(alucard.heroClass, 'INTELLIGENCE');
+  assert.equal(alucard.stats.hp, 115);
+  assert.equal(alucard.stats.damage, 40);
+  assert.ok(alucard.skills.length >= 5);
+
+  const gabriel = HEROES_ROSTER.find(h => h.id === 'gabriel');
+  assert.equal(gabriel.heroClass, 'AGILITY');
+  assert.equal(gabriel.stats.hp, 100);
+  assert.equal(gabriel.stats.armor, 5);
+  assert.ok(gabriel.skills.length >= 5);
+});
+
+test('19. New Heroes Skill Engine Mechanics', () => {
+  // 1. Gabriel: Light Speed (instant teleport to tile, 0s cost, 20 mana)
+  const gabriel = {
+    instanceId: 'hero_gabriel',
+    id: 'gabriel',
+    name: 'Габриэль',
+    x: 10,
+    y: 10,
+    mana: 100,
+    skills: [{ id: 'light-speed', name: 'Light Speed', timeCost: 0, manaCost: 20, cooldown: 12.0 }],
+  };
+  const mockState1 = {
+    remainingTurnTime: 8.0,
+    heroes: [gabriel],
+    creeps: [],
+  };
+  const res1 = executeSkill({
+    skill: gabriel.skills[0],
+    caster: gabriel,
+    targetTile: { x: 18, y: 18 },
+    gameState: mockState1,
+  });
+  assert.equal(res1.success, true);
+  const updatedGabriel = res1.updatedHeroes.find(h => h.instanceId === 'hero_gabriel');
+  assert.equal(updatedGabriel.x, 18);
+  assert.equal(updatedGabriel.y, 18);
+  assert.equal(updatedGabriel.mana, 80);
+  assert.equal(res1.newRemainingTime, 8.0); // 0s time cost
+
+  // 2. Alucard: Blood Drain (deals 40 damage, heals caster for 20 HP)
+  const alucard = {
+    instanceId: 'hero_alucard',
+    id: 'alucard',
+    name: 'Алукард',
+    x: 20,
+    y: 20,
+    hp: 50,
+    maxHp: 115,
+    mana: 100,
+    soulsCount: 2,
+    skills: [{ id: 'blood-drain', name: 'Вытягивание крови', timeCost: 2.0, manaCost: 35, cooldown: 28.0 }],
+  };
+  const enemy = {
+    instanceId: 'hero_enemy',
+    id: 'axe',
+    name: 'Axe',
+    x: 22,
+    y: 22,
+    hp: 150,
+    maxHp: 150,
+    armor: 5,
+    faction: 'dire',
+  };
+  const mockState2 = {
+    remainingTurnTime: 8.0,
+    heroes: [alucard, enemy],
+    creeps: [],
+  };
+  const res2 = executeSkill({
+    skill: alucard.skills[0],
+    caster: alucard,
+    targetHero: enemy,
+    gameState: mockState2,
+  });
+  assert.equal(res2.success, true);
+  const updatedAlucard = res2.updatedHeroes.find(h => h.instanceId === 'hero_alucard');
+  const updatedEnemy = res2.updatedHeroes.find(h => h.instanceId === 'hero_enemy');
+  assert.equal(updatedAlucard.hp, 50 + 20 + 2 * 3); // 50 + 20 + 6 = 76
+  assert.equal(updatedEnemy.hp, 110); // 150 - 40
+  assert.equal(res2.newRemainingTime, 6.0); // 8.0 - 2.0s
+
+  // 3. Schrodinger: Mind Control (applies silence to enemy hero)
+  const schrodinger = {
+    instanceId: 'hero_schrodinger',
+    id: 'schrodinger',
+    name: 'Шрёдингер',
+    x: 30,
+    y: 30,
+    mana: 100,
+    skills: [{ id: 'mind-control', name: 'Mind Control', timeCost: 2.0, manaCost: 35, cooldown: 32.0 }],
+  };
+  const enemy2 = {
+    instanceId: 'hero_enemy2',
+    id: 'pudge',
+    name: 'Pudge',
+    x: 32,
+    y: 32,
+    hp: 100,
+    statuses: {},
+    faction: 'radiant',
+  };
+  const mockState3 = {
+    remainingTurnTime: 8.0,
+    heroes: [schrodinger, enemy2],
+    creeps: [],
+  };
+  const res3 = executeSkill({
+    skill: schrodinger.skills[0],
+    caster: schrodinger,
+    targetHero: enemy2,
+    gameState: mockState3,
+  });
+  assert.equal(res3.success, true);
+  const updatedEnemy2 = res3.updatedHeroes.find(h => h.instanceId === 'hero_enemy2');
+  assert.ok(updatedEnemy2.statuses?.silence, 'Enemy must have silence status');
+});
+
+
+
 
