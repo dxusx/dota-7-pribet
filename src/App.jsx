@@ -15,6 +15,7 @@ import {
 } from './game/combatRules';
 import { executeSkill } from './game/skillEngine';
 import { decideBotAction } from './game/botAI';
+import { createSkillVfx, createAttackVfx } from './game/vfxRules';
 import {
   Grid,
   Trees,
@@ -81,6 +82,27 @@ export default function App() {
     const id = `${Date.now()}_${Math.random()}`;
     setFloatingTexts(prev => [...prev.slice(-15), { id, x, y, text, color, createdAt: Date.now() }]);
   }, []);
+
+  const [vfxList, setVfxList] = useState([]);
+
+  // Helper to add visual effect
+  const addVfx = useCallback(vfx => {
+    if (!vfx) return;
+    setVfxList(prev => [...prev.slice(-25), vfx]);
+    setTimeout(() => {
+      setVfxList(prev => prev.filter(item => item.id !== vfx.id));
+    }, (vfx.durationMs || 1000) + 100);
+  }, []);
+
+  // Flush pending turn VFX (such as autonomous tower defense shots) and floating texts
+  useEffect(() => {
+    if (gameState.pendingVfx && gameState.pendingVfx.length > 0) {
+      gameState.pendingVfx.forEach(v => addVfx(v));
+    }
+    if (gameState.pendingFloatingTexts && gameState.pendingFloatingTexts.length > 0) {
+      gameState.pendingFloatingTexts.forEach(ft => addFloatingText(ft.x, ft.y, ft.text, ft.color));
+    }
+  }, [gameState.turnNumber, addVfx, addFloatingText]);
 
   const timelineRef = useRef(null);
 
@@ -335,6 +357,8 @@ export default function App() {
           return;
         }
 
+        addVfx(createSkillVfx(targetingSkill.id, { x: activeHero.x, y: activeHero.y }, { x: tile.x, y: tile.y }));
+
         setGameState(prev => ({
           ...prev,
           heroes: result.updatedHeroes,
@@ -380,6 +404,7 @@ export default function App() {
           const isRanged = (activeHero.range || 1) > 2;
 
           if (targetHero) {
+            addVfx(createAttackVfx({ x: activeHero.x, y: activeHero.y }, { x: targetHero.x, y: targetHero.y }, isRanged, activeHero.faction));
             const res = resolveAttack({
               averageDamage: activeHero.damage,
               penetration: activeHero.penetration,
@@ -425,6 +450,7 @@ export default function App() {
           }
 
           if (targetCreep) {
+            addVfx(createAttackVfx({ x: activeHero.x, y: activeHero.y }, { x: targetCreep.x, y: targetCreep.y }, isRanged, activeHero.faction));
             const res = resolveAttack({
               averageDamage: activeHero.damage,
               penetration: activeHero.penetration,
@@ -501,6 +527,7 @@ export default function App() {
           }
 
           if (targetTower) {
+            addVfx(createAttackVfx({ x: activeHero.x, y: activeHero.y }, { x: tile.x, y: tile.y }, isRanged, activeHero.faction));
             const res = resolveAttack({
               averageDamage: activeHero.damage,
               penetration: activeHero.penetration,
@@ -602,6 +629,7 @@ export default function App() {
       gameState,
       mapData,
       addFloatingText,
+      addVfx,
     ]
   );
 
@@ -652,6 +680,7 @@ export default function App() {
       });
 
       if (res.success) {
+        addVfx(createSkillVfx(skill.id, { x: activeHero.x, y: activeHero.y }, { x: activeHero.x, y: activeHero.y }));
         setGameState(prev => ({
           ...prev,
           heroes: res.updatedHeroes,
@@ -733,6 +762,8 @@ export default function App() {
         const targetElevation = mapData?.tiles?.[target.y * MAP_SIZE + target.x]?.elevation || 1;
         const isRanged = (activeHero.range || 1) > 2;
 
+        addVfx(createAttackVfx({ x: activeHero.x, y: activeHero.y }, { x: target.x, y: target.y }, isRanged, activeHero.faction));
+
         const res = resolveAttack({
           averageDamage: activeHero.damage,
           penetration: activeHero.penetration,
@@ -812,6 +843,8 @@ export default function App() {
         });
 
         if (res.success) {
+          const targetPos = decision.target ? { x: decision.target.x, y: decision.target.y } : { x: activeHero.x, y: activeHero.y };
+          addVfx(createSkillVfx(decision.skill.id, { x: activeHero.x, y: activeHero.y }, targetPos));
           setGameState(prev => ({
             ...prev,
             heroes: res.updatedHeroes,
@@ -835,6 +868,7 @@ export default function App() {
     handleEndTurn,
     mapData,
     addFloatingText,
+    addVfx,
   ]);
 
   // Keyboard Hotkeys
@@ -1088,6 +1122,7 @@ export default function App() {
           heroSpeed={heroSpeed}
           isMaxCapReached={isMaxCapReached}
           floatingTexts={floatingTexts}
+          vfxList={vfxList}
           onCellClick={handleCellClick}
           onHoverTile={setHoveredTile}
         />

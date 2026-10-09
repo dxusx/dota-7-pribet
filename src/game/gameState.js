@@ -22,6 +22,7 @@ import { TOWER_STATS } from './towerData.js';
 import { CREEP_STATS, LANE_WAVE_FORMATIONS, NEUTRAL_CAMP_FORMATIONS } from './creepData.js';
 import { HEROES_ROSTER } from './heroesData.js';
 import { MAP_SIZE, TERRAIN, NEUTRAL_CAMPS } from '../map/dotaMapData.js';
+import { createTowerVfx } from './vfxRules.js';
 
 // Formation offsets so squad members move side-by-side and in ranks, never merging into 1 point
 export const SQUAD_FORMATION_OFFSETS = {
@@ -567,6 +568,17 @@ export function endTurn(state) {
     newCombatLogs.push(...towerResult.combatLogs);
   }
 
+  const towerVfxList = [];
+  (towerResult.attacks || []).forEach(att => {
+    const tower = (state.towers || []).find(t => t.id === att.towerId);
+    let target = att.targetType === 'CREEP'
+      ? (state.creeps || []).find(c => c.id === att.targetId)
+      : (state.heroes || []).find(h => h.instanceId === att.targetId);
+    if (tower && target) {
+      towerVfxList.push(createTowerVfx(tower, { x: target.x, y: target.y }, tower.faction));
+    }
+  });
+
   // De-clumping: guarantee no two creeps share the exact same tile
   const occupiedTiles = new Set();
   updatedCreeps.forEach(creep => {
@@ -644,6 +656,8 @@ export function endTurn(state) {
     nextNeutralSpawnTime: nextNeutral,
     waveCycleIndex: waveIdx,
     combatLogs: [...newCombatLogs, ...state.combatLogs].slice(0, 25),
+    pendingVfx: towerVfxList,
+    pendingFloatingTexts: towerResult.floatingTexts || [],
   };
 }
 

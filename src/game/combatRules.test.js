@@ -703,6 +703,52 @@ test('22. Dota 2 Camera Grip Mechanics (Mouse Wheel Drag)', async () => {
   assert.deepEqual(panned, { x: 85, y: 225, zoom: 0.5 }, 'panCamera must update x and y offsets correctly');
 });
 
+test('23. Visual Effects (VFX) & Projectiles Engine Mechanics', async () => {
+  const { createSkillVfx, createAttackVfx, createTowerVfx, getVfxProgress } = await import('./vfxRules.js');
+
+  // 1. Meat Hook VFX creates chain hook from caster to target
+  const hookVfx = createSkillVfx('meat-hook', { x: 10, y: 10 }, { x: 15, y: 10 });
+  assert.equal(hookVfx.type, 'hook', 'Meat Hook must produce hook type VFX');
+  assert.deepEqual(hookVfx.from, { x: 10, y: 10 });
+  assert.deepEqual(hookVfx.to, { x: 15, y: 10 });
+  assert.equal(hookVfx.color, '#84cc16');
+
+  // 2. Sun Strike VFX creates vertical sky beam
+  const sunVfx = createSkillVfx('sun-strike', { x: 20, y: 20 }, { x: 50, y: 50 });
+  assert.equal(sunVfx.type, 'beam', 'Sun Strike must produce sky beam VFX');
+  assert.deepEqual(sunVfx.to, { x: 50, y: 50 });
+  assert.equal(sunVfx.color, '#f59e0b');
+
+  // 3. AWP Wallbang VFX creates sniper ballistic tracer
+  const awpVfx = createSkillVfx('awp-wallbang', { x: 5, y: 5 }, { x: 25, y: 5 });
+  assert.equal(awpVfx.type, 'tracer', 'AWP Wallbang must produce tracer VFX');
+  assert.equal(awpVfx.color, '#22c55e');
+
+  // 4. Dismantle VFX creates razor slashes
+  const slashVfx = createSkillVfx('dismantle', { x: 30, y: 30 }, { x: 32, y: 32 });
+  assert.equal(slashVfx.type, 'slash', 'Dismantle must produce slash VFX');
+  assert.equal(slashVfx.color, '#dc2626');
+
+  // 5. Attack VFX
+  const rangedAttackVfx = createAttackVfx({ x: 10, y: 10 }, { x: 14, y: 10 }, true, 'radiant');
+  assert.equal(rangedAttackVfx.type, 'projectile', 'Ranged attack must produce flying projectile');
+  const meleeAttackVfx = createAttackVfx({ x: 10, y: 10 }, { x: 11, y: 10 }, false, 'dire');
+  assert.equal(meleeAttackVfx.type, 'impact', 'Melee attack must produce melee impact VFX');
+
+  // 6. Tower Attack VFX
+  const towerVfx = createTowerVfx({ x: 15, y: 15, size: 2 }, { x: 18, y: 18 }, 'radiant');
+  assert.equal(towerVfx.type, 'tower_shot');
+  assert.deepEqual(towerVfx.from, { x: 16, y: 16 }, 'Tower shot origin should be tower center');
+
+  // 7. Progress calculation
+  const now = Date.now();
+  const vfxInstance = { createdAt: now - 300, durationMs: 600 };
+  const prog = getVfxProgress(vfxInstance, now);
+  assert.ok(Math.abs(prog - 0.5) < 0.05, 'Progress after 300ms of 600ms should be ~0.5');
+  assert.equal(getVfxProgress(vfxInstance, now + 500), 1.0, 'Progress past duration should cap at 1.0');
+});
+
+
 
 
 

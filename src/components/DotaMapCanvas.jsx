@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { MAP_SIZE, TERRAIN, ELEVATION } from '../map/dotaMapData';
 import { getHeroCanvasImage } from '../assets/heroPortraits';
 import { isCameraDragButton, panCamera } from '../game/cameraControls';
+import { drawVfx } from '../game/vfxRules';
 
 const TILE_SIZE = 28; // Base pixel size per tile in the world
 const WORLD_SIZE = MAP_SIZE * TILE_SIZE; // 2800 x 2800 px
@@ -29,6 +30,7 @@ export default function DotaMapCanvas({
   heroSpeed = 6,
   isMaxCapReached = false,
   floatingTexts = [],
+  vfxList = [],
   onCellClick = null,
   onHoverTile = null,
 }) {
@@ -929,6 +931,11 @@ export default function DotaMapCanvas({
         }
       });
 
+      // 10b. Visual Effects & Projectiles
+      vfxList.forEach(vfx => {
+        drawVfx(ctx, vfx, now, TILE_SIZE);
+      });
+
       // 11. Move Badge on Hovered Destination Cell
       if (hoveredTile && pathTimeCost !== null) {
         const destCell = hoverPath.length > 0 ? hoverPath[hoverPath.length - 1] : hoveredTile;
@@ -1025,6 +1032,7 @@ export default function DotaMapCanvas({
     pathTimeCost,
     canAffordPath,
     floatingTexts,
+    vfxList,
     renderMinimap,
   ]);
 
