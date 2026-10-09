@@ -896,6 +896,67 @@ test('26. Strict Skill Targeting Validation (No Ground-Casting of Targeted Abili
   );
 });
 
+test('27. Dota-Style Rich Ability Tooltip & Hero HUD Spec', async () => {
+  const { getSkillDetails, getHeroDerivedStats } = await import('./heroHudUtils.js');
+
+  const testSkill = {
+    id: 'telekinesis',
+    name: 'Telekinesis',
+    type: 'ACTIVE',
+    timeCost: 1.5,
+    manaCost: 35,
+    range: 5,
+    cooldown: 18.0,
+    desc: 'Поднимает цель в воздух на 1.5 сек и швыряет её на расстояние до 3 клеток, оглушая при падении.',
+  };
+
+  const details = getSkillDetails(testSkill);
+  assert.ok(details.targetType.includes('Направленная'), 'Target type must identify unit target');
+  assert.ok(details.damageType, 'Damage type must be present');
+  assert.ok(details.affects, 'Affects field must be present');
+  assert.ok(Array.isArray(details.attributes), 'Attributes list must be array');
+  assert.ok(details.attributes.length >= 2, 'Must provide detailed attribute rows');
+
+  const passiveSkill = {
+    id: 'counter-helix',
+    name: 'Counter Helix',
+    type: 'PASSIVE',
+    timeCost: 0,
+    manaCost: 0,
+    radius: 1,
+    damage: 50,
+    desc: 'Кружится с топором при получении ударов: 50 чистого урона вокруг.',
+  };
+  const passiveDetails = getSkillDetails(passiveSkill);
+  assert.equal(passiveDetails.targetType, 'Пассивная', 'Passive skill must have passive target type');
+  assert.equal(passiveDetails.damageType, 'Чистый', 'Counter helix deals pure damage');
+
+  const testHero = {
+    id: 'rubick',
+    name: 'Rubick',
+    level: 1,
+    xp: 25,
+    hp: 90,
+    maxHp: 90,
+    hpRegen: 4,
+    mana: 170,
+    maxMana: 170,
+    manaRegen: 14,
+    armor: 2,
+    agility: 3,
+    speed: 6,
+    damage: 38,
+  };
+
+  const derived = getHeroDerivedStats(testHero);
+  assert.equal(derived.xpPercent, 25, 'XP progress should be 25%');
+  assert.ok(derived.armorReductionPercent > 0, 'Armor reduction must be computed');
+  assert.ok(derived.evasionPercent > 0, 'Evasion must be computed');
+  assert.equal(derived.hpRegenText, '+4.0 HP/с');
+  assert.equal(derived.manaRegenText, '+14.0 MP/с');
+});
+
+
 
 
 

@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { generateDotaMap, MAP_SIZE, TERRAIN } from './map/dotaMapData';
 import DotaMapCanvas from './components/DotaMapCanvas';
+import DotaHeroConsole from './components/DotaHeroConsole';
+import DotaSkillTooltip from './components/DotaSkillTooltip';
 import { getHeroPortrait } from './assets/heroPortraits';
 import { getSkillIcon } from './assets/skillIcons';
 import { createInitialGameState, endTurn, swapHeroInGameState } from './game/gameState';
@@ -1412,6 +1414,30 @@ export default function App() {
                       <span className="text-rose-400 font-bold">{tileHero.penetration || 0}</span>
                     </div>
                   </div>
+
+                  {/* Inspected Hero Skills */}
+                  {tileHero.skills && tileHero.skills.length > 0 && (
+                    <div className="pt-2 border-t border-slate-800/80">
+                      <div className="text-[10px] font-mono text-slate-400 mb-1">Способности героя:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {tileHero.skills.map((s) => (
+                          <div key={s.id} className="relative group/skill">
+                            <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 hover:border-amber-400/80 rounded px-1.5 py-0.5 cursor-help transition-all">
+                              <img src={getSkillIcon(s.id)} alt={s.name} className="w-3.5 h-3.5 rounded-sm object-cover" />
+                              <span className="text-[9px] font-mono text-slate-300 font-bold">{s.name}</span>
+                            </div>
+                            <div className="hidden group-hover/skill:block absolute bottom-full mb-1 right-0 z-50 pointer-events-none">
+                              <DotaSkillTooltip
+                                skill={s}
+                                hero={tileHero}
+                                skillIconUrl={getSkillIcon(s.id)}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1489,95 +1515,23 @@ export default function App() {
       {/* 3. Bottom Deck — Permanent Command Console & Skills Bar */}
       {activeHero && (
         <footer className="h-28 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-4 flex items-center justify-between shrink-0 z-20 relative">
-          {/* Left Column: Active Hero Profile */}
-          <div className="flex items-center gap-3 w-80 shrink-0">
-            <div
-              className={`w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 relative bg-slate-900 cursor-pointer transition-all ${
-                activeHero.faction === 'radiant'
-                  ? 'border-emerald-400 shadow-lg shadow-emerald-500/25 hover:border-emerald-300 ring-1 ring-emerald-400/40'
-                  : 'border-rose-400 shadow-lg shadow-rose-500/25 hover:border-rose-300 ring-1 ring-rose-400/40'
-              }`}
-              onClick={() => setTargetPos({ x: activeHero.x, y: activeHero.y })}
-              title="Центрировать камеру на герое"
-            >
-              <img src={getHeroPortrait(activeHero.defId || activeHero.id)} alt={activeHero.name} className="w-full h-full object-cover" />
-            </div>
+          {/* Left Column: Dota-Style Active Hero Console */}
+          <DotaHeroConsole
+            hero={activeHero}
+            onCenterCamera={() => setTargetPos({ x: activeHero.x, y: activeHero.y })}
+            onToggleWeskerMode={
+              activeHero.id === 'wesker' || activeHero.defId === 'wesker' ? toggleWeskerMode : null
+            }
+            getHeroPortrait={getHeroPortrait}
+          />
 
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-sm text-slate-100 truncate">{activeHero.name}</span>
-                <span className="text-[10px] text-amber-400 font-mono">Ур. {activeHero.level}</span>
-              </div>
-
-              {/* HP Bar */}
-              <div className="relative w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-1">
-                <div
-                  className="h-full bg-emerald-500 transition-all duration-300 rounded-full"
-                  style={{ width: `${Math.max(0, (activeHero.hp / activeHero.maxHp) * 100)}%` }}
-                />
-              </div>
-
-              {/* Mana Bar */}
-              <div className="relative w-full h-1.5 bg-slate-800 rounded-full overflow-hidden mt-0.5">
-                <div
-                  className="h-full bg-blue-500 transition-all duration-300 rounded-full"
-                  style={{ width: `${Math.max(0, (activeHero.mana / activeHero.maxMana) * 100)}%` }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 mt-0.5">
-                <span className="text-emerald-400 font-bold">HP: {activeHero.hp}/{activeHero.maxHp}</span>
-                <span className="text-blue-400 font-bold">MP: {activeHero.mana}/{activeHero.maxMana}</span>
-                {activeHero.id === 'wesker' && (
-                  <button
-                    onClick={() => {
-                      const toggleSkill = activeHero.skills.find(s => s.id === 'stars-agent');
-                      if (toggleSkill) handleSkillClick(toggleSkill);
-                    }}
-                    className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-500/20 border border-amber-500/40 text-amber-300 hover:bg-amber-500/30 transition-all flex items-center gap-1"
-                    title="Переключить стойку Вескера (Пистолет / Ближний бой)"
-                  >
-                    {activeHero.stats?.weaponMode === 'ranged' ? '🔫 Дальний' : '👊 Ближний'}
-                  </button>
-                )}
-              </div>
-
-              {/* Stat Plaques */}
-              <div className="grid grid-cols-6 gap-1 text-[9px] font-mono text-center mt-1">
-                <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Урон">
-                  <span className="text-slate-400 block text-[7px]">⚔️ АТК</span>
-                  <span className="text-red-400 font-bold">{activeHero.damage}</span>
-                </div>
-                <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Броня">
-                  <span className="text-slate-400 block text-[7px]">🛡️ БРО</span>
-                  <span className="text-blue-400 font-bold">{activeHero.armor}</span>
-                </div>
-                <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Ловкость">
-                  <span className="text-slate-400 block text-[7px]">⚡ ЛОВ</span>
-                  <span className="text-emerald-400 font-bold">{activeHero.agility || 15}</span>
-                </div>
-                <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Пробитие брони">
-                  <span className="text-slate-400 block text-[7px]">🏹 ПРОБ</span>
-                  <span className="text-rose-400 font-bold">{activeHero.penetration || 0}</span>
-                </div>
-                <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Дальность атаки">
-                  <span className="text-slate-400 block text-[7px]">🎯 ДАЛЬ</span>
-                  <span className="text-purple-400 font-bold">{activeHero.range}</span>
-                </div>
-                <div className="bg-slate-900/90 border border-slate-800 rounded px-0.5 py-0.5" title="Скорость">
-                  <span className="text-slate-400 block text-[7px]">🦶 СКОР</span>
-                  <span className="text-amber-300 font-bold">{activeHero.speed}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Center Column: Direct Skills Bar (Always visible!) */}
-          <div className="flex items-center gap-2 overflow-x-auto px-2 py-1 max-w-2xl no-scrollbar">
+          {/* Center Column: Direct Skills Bar with Dota 2 style presentation */}
+          <div className="flex items-center gap-2.5 px-3 py-1 relative">
             {activeHero.skills.map((skill, sIdx) => {
-              const hotkeys = ['Q', 'W', 'E', 'R', 'D'];
+              const hotkeys = ['Q', 'W', 'E', 'R', 'D', 'F'];
               const hotkey = hotkeys[sIdx] || `${sIdx + 1}`;
               const isPassive = skill.type === 'PASSIVE';
+              const isUltimate = skill.type === 'ULTIMATE';
               const onCooldown = skill.currentCooldown > 0;
               const hasMana = activeHero.mana >= (skill.manaCost || 0);
               const hasTime = canPerformAction(gameState.remainingTurnTime, skill.timeCost || 0);
@@ -1588,15 +1542,17 @@ export default function App() {
                   <button
                     disabled={isPassive || onCooldown || !hasMana || !hasTime}
                     onClick={() => handleSkillClick(skill)}
-                    onMouseEnter={() => setHoveredSkillTooltip(skill)}
+                    onMouseEnter={() => setHoveredSkillTooltip({ skill, hotkey })}
                     onMouseLeave={() => setHoveredSkillTooltip(null)}
-                    className={`h-16 w-16 rounded-xl border flex flex-col items-center justify-between p-1 transition-all text-left relative overflow-hidden shrink-0 group ${
+                    className={`h-16 w-16 rounded-xl border flex flex-col items-center justify-between p-1 transition-all text-left relative overflow-hidden shrink-0 cursor-pointer ${
                       isTargetingThis
-                        ? 'border-purple-300 shadow-lg shadow-purple-500/40 scale-105 ring-2 ring-purple-400'
+                        ? 'border-purple-300 shadow-xl shadow-purple-500/50 scale-105 ring-2 ring-purple-400'
+                        : isUltimate
+                        ? 'border-amber-400/90 shadow-lg shadow-amber-500/25 hover:border-amber-300 hover:scale-105 ring-1 ring-amber-400/50'
                         : isPassive
-                        ? 'border-slate-800 opacity-70 cursor-default'
+                        ? 'border-slate-800 opacity-80 cursor-default ring-1 ring-slate-700/50'
                         : onCooldown || !hasMana || !hasTime
-                        ? 'border-slate-800 opacity-50 cursor-not-allowed'
+                        ? 'border-slate-800 opacity-55 cursor-not-allowed'
                         : 'border-slate-700 hover:border-amber-400 hover:scale-105 shadow-md'
                     }`}
                   >
@@ -1606,76 +1562,76 @@ export default function App() {
                       alt={skill.name}
                       className="absolute inset-0 w-full h-full object-cover -z-0 opacity-85 group-hover:opacity-100 transition-opacity"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/60 -z-0" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/60 -z-0" />
+
                     {/* Top row: Hotkey & Mana */}
-                    <div className="w-full flex items-center justify-between">
-                      <span className="text-[10px] font-mono font-bold px-1 rounded bg-slate-950 text-amber-400 border border-slate-800">
+                    <div className="w-full flex items-center justify-between z-10">
+                      <span className="text-[10px] font-mono font-bold px-1 rounded bg-slate-950/90 text-amber-400 border border-slate-800 shadow-sm">
                         [{hotkey}]
                       </span>
                       {skill.manaCost > 0 && (
-                        <span className="text-[9px] font-mono text-blue-400 font-bold">
+                        <span className="text-[9px] font-mono text-sky-300 font-bold bg-sky-950/90 px-1 rounded border border-sky-500/30 shadow-sm">
                           💧{skill.manaCost}
                         </span>
                       )}
                     </div>
 
                     {/* Skill Name */}
-                    <span className="text-[10px] font-bold text-slate-100 truncate w-full text-center leading-tight">
-                      {skill.name.split(' ')[0]}
+                    <span className="text-[9px] font-bold text-slate-100 truncate w-full text-center leading-tight z-10 px-0.5 drop-shadow">
+                      {skill.name}
                     </span>
 
-                    {/* Bottom: Time Cost */}
-                    <div className="w-full text-center">
+                    {/* Bottom: Time Cost / Passive Indicator */}
+                    <div className="w-full text-center z-10">
                       {isPassive ? (
-                        <span className="text-[8px] text-slate-400 uppercase font-mono">Пассивно</span>
+                        <span className="text-[8px] text-slate-300 uppercase font-mono font-bold bg-slate-900/90 px-1 py-0.2 rounded border border-slate-700/50">
+                          Пассив
+                        </span>
                       ) : (
-                        <span className="text-[9px] font-mono text-amber-300">
+                        <span className="text-[9px] font-mono font-bold text-amber-300 bg-amber-950/90 px-1 rounded border border-amber-500/30">
                           ⏳{skill.timeCost}с
                         </span>
                       )}
                     </div>
 
+                    {/* Insufficient Mana Warning */}
+                    {!isPassive && !onCooldown && !hasMana && (
+                      <div className="absolute inset-0 bg-blue-950/85 backdrop-blur-[1px] flex flex-col items-center justify-center text-blue-200 font-mono font-bold text-[9px] z-20">
+                        <span>💧 МАНА</span>
+                      </div>
+                    )}
+
+                    {/* Insufficient Turn Time Warning */}
+                    {!isPassive && !onCooldown && hasMana && !hasTime && (
+                      <div className="absolute inset-0 bg-red-950/85 backdrop-blur-[1px] flex flex-col items-center justify-center text-red-200 font-mono font-bold text-[9px] z-20">
+                        <span>⏳ ВРЕМЯ</span>
+                      </div>
+                    )}
+
                     {/* Cooldown Overlay */}
                     {onCooldown && (
-                      <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center text-amber-400 font-mono font-bold text-xs">
-                        <span>⏱️</span>
+                      <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center text-amber-400 font-mono font-bold text-xs z-20">
+                        <span className="text-[10px]">⏱️</span>
                         <span>{skill.currentCooldown.toFixed(0)}с</span>
                       </div>
                     )}
                   </button>
-
-                  {/* Tooltip on Hover */}
-                  {hoveredSkillTooltip?.id === skill.id && (
-                    <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-64 bg-slate-900/95 border border-slate-700 rounded-xl p-3 shadow-2xl text-xs font-mono pointer-events-none z-30 space-y-1.5">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-1">
-                        <span className="font-bold text-amber-300">{skill.name}</span>
-                        <span className="text-[9px] uppercase px-1 rounded bg-slate-800 text-slate-300">
-                          {skill.type}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                        {skill.timeCost > 0 && <span className="text-amber-400">⏳ Время: {skill.timeCost}с</span>}
-                        {skill.manaCost > 0 && <span className="text-blue-400">💧 Мана: {skill.manaCost}</span>}
-                        {skill.cooldown > 0 && <span>⏱️ КД: {skill.cooldown}с</span>}
-                      </div>
-                      <p className="text-[11px] text-slate-300 font-sans leading-relaxed">{skill.desc}</p>
-                    </div>
-                  )}
                 </div>
               );
             })}
-          </div>
 
-          {activeHero.defId === 'wesker' && (
-            <button
-              onClick={toggleWeskerMode}
-              title="Переключить стойку Вескера"
-              className="h-12 px-2 rounded-lg border border-cyan-500/40 bg-cyan-950/40 text-[10px] font-mono text-cyan-200 hover:bg-cyan-900/60 transition-colors"
-            >
-              {weskerMode === 'ranged' ? 'ПИСТОЛЕТ' : 'КУЛАКИ'}
-              <span className="block text-[8px] text-slate-400">стойка</span>
-            </button>
-          )}
+            {/* Floating Dota 2 Skill Tooltip (Anchored above ability bar) */}
+            {hoveredSkillTooltip && (
+              <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+                <DotaSkillTooltip
+                  skill={hoveredSkillTooltip.skill}
+                  hero={activeHero}
+                  skillIconUrl={getSkillIcon(hoveredSkillTooltip.skill.id)}
+                  hotkey={hoveredSkillTooltip.hotkey}
+                />
+              </div>
+            )}
+          </div>
 
           {/* Right Column: Time Budget, Actions & End Turn */}
           <div className="flex items-center gap-3 shrink-0">
@@ -1811,13 +1767,19 @@ export default function App() {
                         <div className="text-[11px] font-semibold text-slate-400 mb-1.5">Способности:</div>
                         <div className="flex flex-wrap gap-1">
                           {hero.skills.map(s => (
-                            <span
-                              key={s.id}
-                              className="text-[10px] font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800 text-slate-300"
-                              title={s.desc}
-                            >
-                              {s.name}
-                            </span>
+                            <div key={s.id} className="relative group/rosterSkill">
+                              <div className="flex items-center gap-1 text-[10px] font-mono bg-slate-950 px-2 py-0.5 rounded border border-slate-800 hover:border-amber-400 text-slate-300 cursor-help transition-all">
+                                <img src={getSkillIcon(s.id)} alt={s.name} className="w-3.5 h-3.5 rounded-sm object-cover" />
+                                <span>{s.name}</span>
+                              </div>
+                              <div className="hidden group-hover/rosterSkill:block absolute bottom-full mb-1 left-0 z-50 pointer-events-none">
+                                <DotaSkillTooltip
+                                  skill={s}
+                                  hero={hero}
+                                  skillIconUrl={getSkillIcon(s.id)}
+                                />
+                              </div>
+                            </div>
                           ))}
                         </div>
                       </div>
