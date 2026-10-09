@@ -353,7 +353,7 @@ export default function App() {
         });
 
         if (!result.success) {
-          addFloatingText(activeHero.x, activeHero.y, result.reason, '#ef4444');
+          addFloatingText(tile.x, tile.y, result.reason, '#ef4444');
           return;
         }
 
@@ -674,6 +674,8 @@ export default function App() {
       skill.id === 'unlimited-void' ||
       skill.id === 'infinity' ||
       skill.id === 'requiem-of-souls' ||
+      skill.id === 'whirlwind-slash' ||
+      skill.id === 'malevolent-shrine' ||
       skill.id === 'blade-dance' ||
       skill.id === 'holy-barrier';
 
@@ -1093,7 +1095,15 @@ export default function App() {
         {targetingSkill && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-purple-950/95 border border-purple-500/70 py-1.5 px-4 rounded-xl shadow-2xl text-center text-xs font-mono font-bold text-purple-200 flex items-center justify-center gap-3 z-30 animate-in fade-in duration-150 backdrop-blur-md">
             <Sparkles size={14} className="text-purple-300 animate-spin" />
-            <span>🎯 Выберите цель для способности: {targetingSkill.name} (Дальность: {targetingSkill.range || 4})</span>
+            <span>
+              🎯 Выберите {
+                ['spell-steal', 'mind-control', 'divine-rapier', 'prion'].includes(targetingSkill.id)
+                  ? 'вражеского героя'
+                  : ['meat-hook', 'shunpo', 'barrier-seal', 'sun-strike', 'chaos-meteor', 'shadowraze-near', 'shadowraze-medium', 'shadowraze-far', 'awp-wallbang', 'oneway-smoke', 'flashbang', 'furnace-open', 'hollow-purple', 'everywhere-nowhere', 'light-speed', 'prepare-thyself', 'crush'].includes(targetingSkill.id)
+                  ? 'точку на карте'
+                  : 'цель (вражеского героя или крипа)'
+              } для [{targetingSkill.name}] (Дальность: {targetingSkill.range || targetingSkill.radius || 4})
+            </span>
             <button
               onClick={() => {
                 setTargetingSkill(null);

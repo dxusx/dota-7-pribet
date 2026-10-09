@@ -34,6 +34,86 @@ export function executeSkill({
     return { success: false, reason: 'Способность на перезарядке!' };
   }
 
+  // Strict Target Validation Guards
+  const isEnemyHeroOnly =
+    skill.id === 'spell-steal' ||
+    skill.id === 'mind-control' ||
+    skill.id === 'divine-rapier' ||
+    skill.id === 'prion';
+
+  if (isEnemyHeroOnly) {
+    if (!targetHero || targetHero.isDead) {
+      return { success: false, reason: 'Нужно выбрать вражеского героя!' };
+    }
+    if (caster.faction && targetHero.faction === caster.faction) {
+      return { success: false, reason: 'Нельзя применить на союзника!' };
+    }
+  }
+
+  const isPointSkill =
+    skill.id === 'meat-hook' ||
+    skill.id === 'shunpo' ||
+    skill.id === 'barrier-seal' ||
+    skill.id === 'sun-strike' ||
+    skill.id === 'chaos-meteor' ||
+    skill.id === 'shadowraze-near' ||
+    skill.id === 'shadowraze-medium' ||
+    skill.id === 'shadowraze-far' ||
+    skill.id === 'awp-wallbang' ||
+    skill.id === 'oneway-smoke' ||
+    skill.id === 'flashbang' ||
+    skill.id === 'furnace-open' ||
+    skill.id === 'hollow-purple' ||
+    skill.id === 'everywhere-nowhere' ||
+    skill.id === 'light-speed' ||
+    skill.id === 'prepare-thyself' ||
+    skill.id === 'crush';
+
+  const isSelfSkill =
+    skill.id === 'stars-agent' ||
+    skill.id === 'mastermind' ||
+    skill.id === 'ouroboros' ||
+    skill.id === 'wesker-speed' ||
+    skill.id === 'berserkers-call' ||
+    skill.id === 'counter-helix' ||
+    skill.id === 'voracity' ||
+    skill.id === 'preparation' ||
+    skill.id === 'death-lotus' ||
+    skill.id === 'superhuman' ||
+    skill.id === 'whirlwind-slash' ||
+    skill.id === 'divine-regen' ||
+    skill.id === 'infinity-shield' ||
+    skill.id === 'unlimited-void' ||
+    skill.id === 'king-of-curses' ||
+    skill.id === 'malevolent-shrine' ||
+    skill.id === 'rot' ||
+    skill.id === 'flesh-heap' ||
+    skill.id === 'requiem-of-souls' ||
+    skill.id === 'clutch-master' ||
+    skill.id === 'dead-alive' ||
+    skill.id === 'last-cat-live' ||
+    skill.id === 'army-of-souls' ||
+    skill.id === 'cromwell-seal-2' ||
+    skill.id === 'cromwell-seal-1' ||
+    skill.id === 'cromwell-seal-0' ||
+    skill.id === 'angel-rage' ||
+    skill.id === 'angel-power';
+
+  const isUnitTarget =
+    !isSelfSkill &&
+    !isPointSkill &&
+    !isEnemyHeroOnly;
+
+  if (isUnitTarget) {
+    const targetUnit = targetHero || targetCreep;
+    if (!targetUnit || targetUnit.isDead) {
+      return { success: false, reason: 'Нужно выбрать цель (вражеского героя или крипа)!' };
+    }
+    if (caster.faction && targetUnit.faction && targetUnit.faction === caster.faction) {
+      return { success: false, reason: 'Нельзя применить на союзника!' };
+    }
+  }
+
   let updatedHeroes = [...gameState.heroes];
   let updatedCreeps = [...(gameState.creeps || [])];
   let floatingTexts = [];
@@ -408,6 +488,44 @@ export function executeSkill({
     floatingTexts.push({ x: pullX, y: pullY, text: `🪝 HOOK! -${damage}`, color: '#84cc16' });
   }
 
+  // 13.5 Dismember (Pudge Ultimate: damage, heal, and silence)
+  else if (skill.id === 'dismember' && (targetHero || targetCreep)) {
+    const damage = 90;
+    const heal = 60;
+    if (targetHero) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          const newHp = Math.max(0, h.hp - damage);
+          return { ...h, hp: newHp, statuses: { ...(h.statuses || {}), silence: { duration: 3.0 } }, isDead: newHp <= 0 };
+        }
+        if (h.instanceId === caster.instanceId) {
+          return { ...h, hp: Math.min(h.maxHp, h.hp + heal) };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} терзает ${targetHero.name} [Dismember]: -${damage} урона, +${heal} HP!`;
+      floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `🥩 DISMEMBER! -${damage}`, color: '#84cc16' });
+      floatingTexts.push({ x: caster.x, y: caster.y, text: `+${heal} HP`, color: '#22c55e' });
+    } else if (targetCreep) {
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === targetCreep.id) {
+          const newHp = Math.max(0, c.hp - damage);
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+        return c;
+      });
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === caster.instanceId) {
+          return { ...h, hp: Math.min(h.maxHp, h.hp + heal) };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} сожрал крипа [Dismember]: -${damage} урона, +${heal} HP!`;
+      floatingTexts.push({ x: targetCreep.x, y: targetCreep.y, text: `🥩 -${damage}`, color: '#84cc16' });
+      floatingTexts.push({ x: caster.x, y: caster.y, text: `+${heal} HP`, color: '#22c55e' });
+    }
+  }
+
   // 14. Lapse: Blue (Gojo pull)
   else if (skill.id === 'lapse-blue' && (targetHero || targetCreep)) {
     const damage = 45;
@@ -500,6 +618,93 @@ export function executeSkill({
     });
     logMessage = `${caster.name} активировал [Last Cat Live]: квантовое бессмертие кота, восстановление до 70% HP!`;
     floatingTexts.push({ x: caster.x, y: caster.y, text: '🐱 LAST CAT LIVE!', color: '#38bdf8' });
+  }
+
+  // --- Rubick Skills ---
+  else if (skill.id === 'spell-steal') {
+    if (!targetHero) return { success: false, reason: 'Нужно выбрать вражеского героя!' };
+    const candidate = (targetHero.skills || []).find(s => s.type !== 'PASSIVE' && s.id !== 'spell-steal') || targetHero.skills?.[0];
+    if (!candidate) return { success: false, reason: 'У цели нет подходящих способностей для кражи!' };
+    const stolen = { ...candidate, currentCooldown: 0, isStolen: true };
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.instanceId === caster.instanceId) {
+        const filtered = (h.skills || []).filter(s => !s.isStolen);
+        return { ...h, skills: [...filtered, stolen] };
+      }
+      return h;
+    });
+    logMessage = `${caster.name} украл способность [${stolen.name}] у ${targetHero.name}!`;
+    floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: '✨ СПОСОБНОСТЬ УКРАДЕНА!', color: '#10b981' });
+    floatingTexts.push({ x: caster.x, y: caster.y, text: `✨ +${stolen.name}`, color: '#10b981' });
+  } else if (skill.id === 'telekinesis' && (targetHero || targetCreep)) {
+    if (targetHero) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          return {
+            ...h,
+            statuses: { ...(h.statuses || {}), stun: { duration: 2.0 } },
+          };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} поднял ${targetHero.name} [Telekinesis]: оглушение!`;
+      floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: '🌀 ТЕЛЕКИНЕЗ (Оглушение)', color: '#10b981' });
+    } else if (targetCreep) {
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === targetCreep.id) {
+          return { ...c, isStunned: true };
+        }
+        return c;
+      });
+      logMessage = `${caster.name} поднял крипа [Telekinesis]!`;
+      floatingTexts.push({ x: targetCreep.x, y: targetCreep.y, text: '🌀 ТЕЛЕКИНЕЗ', color: '#10b981' });
+    }
+  } else if (skill.id === 'fade-bolt' && (targetHero || targetCreep)) {
+    const damage = 45;
+    if (targetHero) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          const newHp = Math.max(0, h.hp - damage);
+          return { ...h, hp: newHp, damage: Math.max(1, Math.round(h.damage * 0.85)), isDead: newHp <= 0 };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} поразил ${targetHero.name} [Fade Bolt]: -${damage} урона и -15% атаки!`;
+      floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `⚡ -${damage} (Атака -15%)`, color: '#10b981' });
+    } else if (targetCreep) {
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === targetCreep.id) {
+          const newHp = Math.max(0, c.hp - damage);
+          return { ...c, hp: newHp, damage: Math.max(1, Math.round(c.damage * 0.85)), isDead: newHp <= 0 };
+        }
+        return c;
+      });
+      logMessage = `${caster.name} поразил крипа [Fade Bolt]: -${damage} урона!`;
+      floatingTexts.push({ x: targetCreep.x, y: targetCreep.y, text: `⚡ -${damage}`, color: '#10b981' });
+    }
+  } else if (skill.id === 'cold-snap' && (targetHero || targetCreep)) {
+    const damage = 25;
+    if (targetHero) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === targetHero.instanceId) {
+          const newHp = Math.max(0, h.hp - damage);
+          return { ...h, hp: newHp, statuses: { ...(h.statuses || {}), stun: { duration: 1.0 } }, isDead: newHp <= 0 };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} применил [Cold Snap] на ${targetHero.name}: -${damage} урона и заморозка!`;
+      floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `❄️ COLD SNAP! -${damage}`, color: '#38bdf8' });
+    } else if (targetCreep) {
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.id === targetCreep.id) {
+          const newHp = Math.max(0, c.hp - damage);
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+        return c;
+      });
+      logMessage = `${caster.name} применил [Cold Snap] на крипа: -${damage} урона!`;
+      floatingTexts.push({ x: targetCreep.x, y: targetCreep.y, text: `❄️ -${damage}`, color: '#38bdf8' });
+    }
   }
 
   // --- 14. Alucard Skills ---

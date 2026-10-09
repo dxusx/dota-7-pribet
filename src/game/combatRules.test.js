@@ -808,6 +808,95 @@ test('25. Extended Stylized Hero Skills VFX Coverage & Procedural Rendering', as
   assert.equal(domainVfx.type, 'unlimited_void', 'Gojo must produce cosmic domain expansion void');
 });
 
+test('26. Strict Skill Targeting Validation (No Ground-Casting of Targeted Abilities & Rubick Spell Steal)', async () => {
+  const { executeSkill } = await import('./skillEngine.js');
+
+  const axeHero = {
+    instanceId: 'axe_1',
+    id: 'axe',
+    name: 'Axe',
+    faction: 'radiant',
+    x: 10,
+    y: 10,
+    mana: 100,
+    skills: [
+      { id: 'culling-blade', name: 'Culling Blade', manaCost: 60, timeCost: 2.0, cooldown: 50.0 },
+      { id: 'battle-hunger', name: 'Battle Hunger', manaCost: 25, timeCost: 2.0, cooldown: 16.0 },
+    ],
+  };
+
+  const rubickHero = {
+    instanceId: 'rubick_1',
+    id: 'rubick',
+    name: 'Rubick',
+    faction: 'radiant',
+    x: 12,
+    y: 10,
+    mana: 100,
+    skills: [
+      { id: 'spell-steal', name: 'Spell Steal', manaCost: 50, timeCost: 1.0, cooldown: 20.0 },
+      { id: 'fade-bolt', name: 'Fade Bolt', manaCost: 40, timeCost: 1.5, cooldown: 12.0 },
+    ],
+  };
+
+  const enemyHero = {
+    instanceId: 'gojo_1',
+    id: 'gojo',
+    name: 'Gojo Satoru',
+    faction: 'dire',
+    x: 14,
+    y: 10,
+    hp: 100,
+    maxHp: 100,
+    skills: [
+      { id: 'hollow-purple', name: 'Hollow Purple', type: 'ACTIVE', manaCost: 80, timeCost: 3.0, cooldown: 30.0 },
+    ],
+  };
+
+  const mockState = {
+    remainingTurnTime: 8.0,
+    heroes: [axeHero, rubickHero, enemyHero],
+    creeps: [],
+  };
+
+  // 1. Culling blade cast on empty ground must FAIL
+  const groundRes = executeSkill({
+    skill: axeHero.skills[0],
+    caster: axeHero,
+    targetTile: { x: 11, y: 11 },
+    targetHero: null,
+    targetCreep: null,
+    gameState: mockState,
+  });
+  assert.equal(groundRes.success, false, 'Culling Blade on ground must fail');
+
+  // 2. Spell Steal cast on ground must FAIL
+  const rubickGroundRes = executeSkill({
+    skill: rubickHero.skills[0],
+    caster: rubickHero,
+    targetTile: { x: 11, y: 11 },
+    targetHero: null,
+    gameState: mockState,
+  });
+  assert.equal(rubickGroundRes.success, false, 'Spell Steal on ground must fail');
+
+  // 3. Spell Steal on enemy hero must SUCCEED and steal their active skill
+  const stealRes = executeSkill({
+    skill: rubickHero.skills[0],
+    caster: rubickHero,
+    targetTile: { x: 14, y: 10 },
+    targetHero: enemyHero,
+    gameState: mockState,
+  });
+  assert.equal(stealRes.success, true, 'Spell Steal on enemy hero must succeed');
+  const updatedRubick = stealRes.updatedHeroes.find(h => h.instanceId === 'rubick_1');
+  assert.ok(
+    updatedRubick.skills.some(s => s.id === 'hollow-purple'),
+    'Rubick must acquire stolen skill'
+  );
+});
+
+
 
 
 
