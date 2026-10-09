@@ -1537,24 +1537,31 @@ export default function App() {
                 const hasMana = activeHero.mana >= (skill.manaCost || 0);
                 const hasTime = canPerformAction(gameState.remainingTurnTime, skill.timeCost || 0);
                 const isTargetingThis = targetingSkill?.id === skill.id;
+                const isDisabled = isPassive || onCooldown || !hasMana || !hasTime;
 
                 return (
-                  <div key={skill.id} className="relative group">
+                  <div
+                    key={skill.id}
+                    className="relative group"
+                    onMouseEnter={() => setHoveredSkillTooltip({ skill, hotkey })}
+                    onMouseLeave={() => setHoveredSkillTooltip(null)}
+                  >
                     <button
-                      disabled={isPassive || onCooldown || !hasMana || !hasTime}
-                      onClick={() => handleSkillClick(skill)}
+                      type="button"
+                      aria-disabled={isDisabled}
+                      onClick={() => !isDisabled && handleSkillClick(skill)}
                       onMouseEnter={() => setHoveredSkillTooltip({ skill, hotkey })}
                       onMouseLeave={() => setHoveredSkillTooltip(null)}
-                      className={`h-16 w-16 rounded-xl border flex flex-col items-center justify-between p-1 transition-all text-left relative overflow-hidden shrink-0 cursor-pointer ${
+                      className={`h-16 w-16 rounded-xl border flex flex-col items-center justify-between p-1 transition-all text-left relative overflow-hidden shrink-0 ${
                         isTargetingThis
-                          ? 'border-purple-300 shadow-xl shadow-purple-500/50 scale-105 ring-2 ring-purple-400'
+                          ? 'border-purple-300 shadow-xl shadow-purple-500/50 scale-105 ring-2 ring-purple-400 cursor-pointer'
                           : isUltimate
-                          ? 'border-amber-400/90 shadow-lg shadow-amber-500/25 hover:border-amber-300 hover:scale-105 ring-1 ring-amber-400/50'
+                          ? 'border-amber-400/90 shadow-lg shadow-amber-500/25 hover:border-amber-300 hover:scale-105 ring-1 ring-amber-400/50 cursor-pointer'
                           : isPassive
                           ? 'border-slate-800 opacity-80 cursor-default ring-1 ring-slate-700/50'
                           : onCooldown || !hasMana || !hasTime
                           ? 'border-slate-800 opacity-55 cursor-not-allowed'
-                          : 'border-slate-700 hover:border-amber-400 hover:scale-105 shadow-md'
+                          : 'border-slate-700 hover:border-amber-400 hover:scale-105 shadow-md cursor-pointer'
                       }`}
                     >
                       {/* Background SVG Skill Icon */}

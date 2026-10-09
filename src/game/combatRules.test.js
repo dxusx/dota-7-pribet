@@ -980,6 +980,21 @@ test('28. Full Passive Abilities Detailed Specifications & Bot Default State', a
   );
 });
 
+test('29. Passive & Cooldown Skills Tooltip Hover Accessibility', async () => {
+  const fs = await import('fs');
+  const appCode = fs.readFileSync('src/App.jsx', 'utf-8');
+
+  // Verify that HTML disabled attribute does not block mouse events on passive/cooldown skills
+  assert.ok(
+    !appCode.includes('disabled={isPassive || onCooldown || !hasMana || !hasTime}'),
+    'Must not use native disabled attribute on skill buttons because it suppresses mouseenter tooltips in browsers'
+  );
+  assert.ok(
+    appCode.includes('aria-disabled={isDisabled}'),
+    'Must use aria-disabled to preserve hover tooltips while preventing action execution'
+  );
+});
+
 
 
 
