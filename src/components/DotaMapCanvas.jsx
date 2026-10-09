@@ -31,6 +31,12 @@ export default function DotaMapCanvas({
   isMaxCapReached = false,
   floatingTexts = [],
   vfxList = [],
+  wards = [],
+  fogOfWarEnabled = true,
+  visionMask = null,
+  exploredMask = null,
+  wardTargetCells = [],
+  wardMode = null,
   onCellClick = null,
   onHoverTile = null,
 }) {
@@ -189,11 +195,32 @@ export default function DotaMapCanvas({
       mCtx.drawImage(offscreenCanvasRef.current, 0, 0, mWidth, mHeight);
     }
 
-    const scale = mWidth / WORLD_SIZE;
+    // Draw Fog of War on Minimap
+    if (fogOfWarEnabled && visionMask && exploredMask) {
+      for (let y = 0; y < MAP_SIZE; y += 2) {
+        for (let x = 0; x < MAP_SIZE; x += 2) {
+          const idx = y * MAP_SIZE + x;
+          if (visionMask[idx] === 1) continue;
+          const px = x * TILE_SIZE * scale;
+          const py = y * TILE_SIZE * scale;
+          const s = 2 * TILE_SIZE * scale;
+          if (exploredMask[idx] === 1) {
+            mCtx.fillStyle = 'rgba(7, 11, 20, 0.65)';
+            mCtx.fillRect(px, py, s, s);
+          } else {
+            mCtx.fillStyle = 'rgba(3, 5, 10, 0.98)';
+            mCtx.fillRect(px, py, s, s);
+          }
+        }
+      }
+    }
 
     // Draw Towers and Ancients on Minimap
     towers.forEach(t => {
       if (t.hp <= 0) return;
+      if (t.faction !== 'radiant' && fogOfWarEnabled && exploredMask && exploredMask[t.y * MAP_SIZE + t.x] !== 1) {
+        return;
+      }
       const tx = t.x * TILE_SIZE * scale;
       const ty = t.y * TILE_SIZE * scale;
       const tw = (t.size || 2) * TILE_SIZE * scale;
@@ -210,18 +237,33 @@ export default function DotaMapCanvas({
       const px = p.x * TILE_SIZE * scale;
       const py = p.y * TILE_SIZE * scale;
       const isActive = roshan && !roshan.isDead && roshan.pitId === p.id;
+      const isVisible = !fogOfWarEnabled || !visionMask || visionMask[p.y * MAP_SIZE + p.x] === 1;
       mCtx.beginPath();
       mCtx.arc(px, py, 2.5, 0, Math.PI * 2);
-      mCtx.fillStyle = isActive ? '#ef4444' : '#64748b';
+      mCtx.fillStyle = (isActive && isVisible) ? '#ef4444' : '#64748b';
+      mCtx.fill();
+    });
+
+    // Draw Wards on Minimap
+    wards.forEach(w => {
+      if (w.turnsLeft <= 0) return;
+      if (w.faction !== 'radiant' && fogOfWarEnabled && visionMask && visionMask[w.y * MAP_SIZE + w.x] !== 1) return;
+      mCtx.beginPath();
+      mCtx.arc(w.x * TILE_SIZE * scale, w.y * TILE_SIZE * scale, 2.5, 0, Math.PI * 2);
+      mCtx.fillStyle = w.type === 'sentry' ? '#06b6d4' : '#eab308';
       mCtx.fill();
     });
 
     // Draw Heroes on Minimap
     heroes.forEach(h => {
       if (h.isDead) return;
+      const isRad = h.faction === 'radiant';
+      if (!isRad && fogOfWarEnabled && visionMask && visionMask[h.y * MAP_SIZE + h.x] !== 1) {
+        return;
+      }
       mCtx.beginPath();
       mCtx.arc(h.x * TILE_SIZE * scale, h.y * TILE_SIZE * scale, 3, 0, Math.PI * 2);
-      mCtx.fillStyle = h.faction === 'radiant' ? '#4ade80' : '#f87171';
+      mCtx.fillStyle = isRad ? '#4ade80' : '#f87171';
       mCtx.fill();
       mCtx.strokeStyle = '#ffffff';
       mCtx.lineWidth = 0.5;
@@ -240,7 +282,7 @@ export default function DotaMapCanvas({
     mCtx.strokeRect(viewWorldX * scale, viewWorldY * scale, viewWorldW * scale, viewWorldH * scale);
     mCtx.fillStyle = 'rgba(245, 158, 11, 0.1)';
     mCtx.fillRect(viewWorldX * scale, viewWorldY * scale, viewWorldW * scale, viewWorldH * scale);
-  }, [camera, mapData, heroes, towers, roshan]);
+  }, [camera, mapData, heroes, towers, roshan, wards, fogOfWarEnabled, visionMask, exploredMask]);
 
   // Center initial view to middle of map on mount
   useEffect(() => {
@@ -330,6 +372,19 @@ export default function DotaMapCanvas({
         ctx.strokeStyle = '#3b82f6';
         ctx.lineWidth = 1.5 / zoom;
         reachableMoveCells.forEach(cell => {
+          const px = cell.x * TILE_SIZE;
+          const py = cell.y * TILE_SIZE;
+          ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+          ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
+        });
+      }
+
+      // Ward Placement Target Cells
+      if (wardTargetCells.length > 0) {
+        ctx.fillStyle = 'rgba(234, 179, 8, 0.25)';
+        ctx.strokeStyle = '#facc15';
+        ctx.lineWidth = 1.5 / zoom;
+        wardTargetCells.forEach(cell => {
           const px = cell.x * TILE_SIZE;
           const py = cell.y * TILE_SIZE;
           ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
@@ -519,6 +574,32 @@ export default function DotaMapCanvas({
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(tile.object.symbol || '⛲', px, py);
+          }
+        }
+      }
+
+      // 6.5 Fog of War Shading Layer (Pitch Black Unexplored & Shaded Explored)
+      if (fogOfWarEnabled && visionMask && exploredMask) {
+        const startX = Math.max(0, Math.floor(-camX / (zoom * TILE_SIZE)));
+        const endX = Math.min(MAP_SIZE, Math.ceil((-camX + canvas.width) / (zoom * TILE_SIZE)));
+        const startY = Math.max(0, Math.floor(-camY / (zoom * TILE_SIZE)));
+        const endY = Math.min(MAP_SIZE, Math.ceil((-camY + canvas.height) / (zoom * TILE_SIZE)));
+
+        for (let y = startY; y < endY; y++) {
+          for (let x = startX; x < endX; x++) {
+            const idx = y * MAP_SIZE + x;
+            if (visionMask[idx] === 1) continue;
+
+            const px = x * TILE_SIZE;
+            const py = y * TILE_SIZE;
+
+            if (exploredMask[idx] === 1) {
+              ctx.fillStyle = 'rgba(7, 11, 20, 0.65)';
+              ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            } else {
+              ctx.fillStyle = 'rgba(3, 5, 10, 0.98)';
+              ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+            }
           }
         }
       }
@@ -727,17 +808,18 @@ export default function DotaMapCanvas({
         const px = pit.x * TILE_SIZE + TILE_SIZE / 2;
         const py = pit.y * TILE_SIZE + TILE_SIZE / 2;
         const isActive = roshan && !roshan.isDead && roshan.pitId === pit.pitId;
+        const isPitVisible = !fogOfWarEnabled || !visionMask || visionMask[pit.y * MAP_SIZE + pit.x] === 1;
 
         // Large Cavern Arena Ring
         ctx.beginPath();
         ctx.arc(px, py, TILE_SIZE * 2.8, 0, Math.PI * 2);
-        ctx.fillStyle = isActive ? 'rgba(239, 68, 68, 0.18)' : 'rgba(71, 85, 105, 0.12)';
+        ctx.fillStyle = (isActive && isPitVisible) ? 'rgba(239, 68, 68, 0.18)' : 'rgba(71, 85, 105, 0.12)';
         ctx.fill();
-        ctx.strokeStyle = isActive ? '#ef4444' : '#64748b';
+        ctx.strokeStyle = (isActive && isPitVisible) ? '#ef4444' : '#64748b';
         ctx.lineWidth = 2 / zoom;
         ctx.stroke();
 
-        if (isActive) {
+        if (isActive && isPitVisible) {
           // Menacing Fiery Aura
           ctx.beginPath();
           ctx.arc(px, py, TILE_SIZE * 1.35, 0, Math.PI * 2);
@@ -773,7 +855,7 @@ export default function DotaMapCanvas({
           ctx.fillStyle = '#ffffff';
           ctx.fillText(`${roshan.hp}/${roshan.maxHp} HP`, px, py + TILE_SIZE * 1.55);
         } else {
-          // Inactive empty pit
+          // Inactive or hidden pit
           ctx.font = `bold ${Math.max(8, Math.round(TILE_SIZE * 0.32))}px monospace`;
           ctx.fillStyle = '#94a3b8';
           ctx.textAlign = 'center';
@@ -788,10 +870,13 @@ export default function DotaMapCanvas({
       // 8. Draw Creeps (Melee, Ranged, and Neutrals with Distinct Formations & Visuals)
       creeps.forEach(creep => {
         if (creep.isDead || creep.hp <= 0) return;
+        const isRad = creep.faction === 'radiant';
+        if (!isRad && fogOfWarEnabled && visionMask && visionMask[Math.round(creep.y) * MAP_SIZE + Math.round(creep.x)] !== 1) {
+          return;
+        }
 
         const px = creep.x * TILE_SIZE + TILE_SIZE / 2;
         const py = creep.y * TILE_SIZE + TILE_SIZE / 2;
-        const isRad = creep.faction === 'radiant';
         const isNeutral = creep.faction === 'neutral' || creep.isNeutral;
         const isMelee = creep.type === 'MELEE';
         const isHovered = hoveredTile && hoveredTile.x === creep.x && hoveredTile.y === creep.y;
@@ -861,10 +946,14 @@ export default function DotaMapCanvas({
       const timeMs = Date.now();
       heroes.forEach(hero => {
         if (hero.isDead) return;
+        const isRad = hero.faction === 'radiant';
+        if (!isRad && fogOfWarEnabled && visionMask && visionMask[Math.round(hero.y) * MAP_SIZE + Math.round(hero.x)] !== 1) {
+          return;
+        }
+
         const px = hero.x * TILE_SIZE + TILE_SIZE / 2;
         const py = hero.y * TILE_SIZE + TILE_SIZE / 2;
         const isActive = hero.instanceId === activeHeroId;
-        const isRad = hero.faction === 'radiant';
 
         if (isActive) {
           const pulse = Math.sin(timeMs / 200) * 0.2 + 0.8;
@@ -923,6 +1012,54 @@ export default function DotaMapCanvas({
         ctx.fillStyle = '#3b82f6';
         ctx.fillRect(px - 12, py + TILE_SIZE * 0.55 + 4, 24 * manaPct, 2);
       });
+
+      // 9.5 Draw Active Wards (Observer & Sentry)
+      wards.forEach(ward => {
+        if (ward.turnsLeft <= 0) return;
+        const isAllied = ward.faction === 'radiant';
+        if (!isAllied && fogOfWarEnabled && visionMask && visionMask[ward.y * MAP_SIZE + ward.x] !== 1) {
+          return;
+        }
+        const px = ward.x * TILE_SIZE + TILE_SIZE / 2;
+        const py = ward.y * TILE_SIZE + TILE_SIZE / 2;
+        const isObserver = ward.type === 'observer';
+
+        ctx.beginPath();
+        ctx.arc(px, py, TILE_SIZE * 0.44, 0, Math.PI * 2);
+        ctx.fillStyle = isObserver ? 'rgba(234, 179, 8, 0.35)' : 'rgba(6, 182, 212, 0.35)';
+        ctx.fill();
+        ctx.strokeStyle = isObserver ? '#facc15' : '#22d3ee';
+        ctx.lineWidth = 1.8 / zoom;
+        ctx.stroke();
+
+        ctx.font = `${Math.round(TILE_SIZE * 0.52)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(isObserver ? '👁️' : '🔮', px, py);
+
+        ctx.font = `bold ${Math.max(8, Math.round(7 / zoom))}px monospace`;
+        ctx.fillStyle = isObserver ? '#fef08a' : '#cffafe';
+        ctx.fillText(`${ward.turnsLeft}t`, px + TILE_SIZE * 0.35, py - TILE_SIZE * 0.35);
+
+        if (hoveredTile && hoveredTile.x === ward.x && hoveredTile.y === ward.y) {
+          ctx.beginPath();
+          ctx.arc(px, py, (ward.visionRadius || 12) * TILE_SIZE, 0, Math.PI * 2);
+          ctx.strokeStyle = isObserver ? 'rgba(250, 204, 21, 0.45)' : 'rgba(34, 211, 238, 0.45)';
+          ctx.lineWidth = 1.5 / zoom;
+          ctx.stroke();
+        }
+      });
+
+      // Hover vision preview in Ward Placement mode
+      if (wardMode && hoveredTile) {
+        const hpx = hoveredTile.x * TILE_SIZE + TILE_SIZE / 2;
+        const hpy = hoveredTile.y * TILE_SIZE + TILE_SIZE / 2;
+        ctx.beginPath();
+        ctx.arc(hpx, hpy, (wardMode === 'sentry' ? 10 : 12) * TILE_SIZE, 0, Math.PI * 2);
+        ctx.strokeStyle = wardMode === 'sentry' ? 'rgba(34, 211, 238, 0.6)' : 'rgba(250, 204, 21, 0.6)';
+        ctx.lineWidth = 1.8 / zoom;
+        ctx.stroke();
+      }
 
       // 10. Floating Combat Texts
       const now = Date.now();

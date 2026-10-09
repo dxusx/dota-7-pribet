@@ -995,6 +995,97 @@ test('29. Passive & Cooldown Skills Tooltip Hover Accessibility', async () => {
   );
 });
 
+test('30. Fog of War, Vision Radii, High Ground Occlusion & Wards', async () => {
+  const {
+    HERO_DAY_VISION,
+    HERO_NIGHT_VISION,
+    TOWER_VISION,
+    OBSERVER_WARD_VISION,
+    computeFactionVision,
+    isUnitVisibleToFaction,
+  } = await import('./visionEngine.js');
+
+  assert.equal(HERO_DAY_VISION, 16, 'Hero day vision must be 16 tiles');
+  assert.equal(HERO_NIGHT_VISION, 8, 'Hero night vision must be 8 tiles');
+  assert.equal(TOWER_VISION, 12, 'Tower vision must be 12 tiles');
+  assert.equal(OBSERVER_WARD_VISION, 12, 'Observer ward vision must be 12 tiles');
+
+  // Create a minimal 100x100 dummy map data
+  const tiles = [];
+  for (let y = 0; y < 100; y++) {
+    for (let x = 0; x < 100; x++) {
+      tiles.push({
+        x,
+        y,
+        elevation: (x >= 40 && x <= 60 && y >= 40 && y <= 60) ? 1 : 0, // High ground plateau
+        terrain: 'grass_radiant',
+      });
+    }
+  }
+  const mapData = { tiles, size: 100 };
+
+  // Test 1: Day vs Night vision for hero at (10, 10)
+  const heroDay = [{ instanceId: 'h1', faction: 'radiant', x: 10, y: 10, isDead: false }];
+  const dayVision = computeFactionVision({
+    mapData,
+    faction: 'radiant',
+    heroes: heroDay,
+    creeps: [],
+    towers: [],
+    wards: [],
+    isDay: true,
+  });
+  assert.ok(dayVision.visibleMask[10 * 100 + (10 + 15)], 'Tile 15 cells away must be visible during day');
+  assert.ok(!dayVision.visibleMask[10 * 100 + (10 + 17)], 'Tile 17 cells away must not be visible during day');
+
+  const nightVision = computeFactionVision({
+    mapData,
+    faction: 'radiant',
+    heroes: heroDay,
+    creeps: [],
+    towers: [],
+    wards: [],
+    isDay: false,
+  });
+  assert.ok(nightVision.visibleMask[10 * 100 + (10 + 7)], 'Tile 7 cells away must be visible during night');
+  assert.ok(!nightVision.visibleMask[10 * 100 + (10 + 10)], 'Tile 10 cells away must not be visible during night');
+
+  // Test 2: High Ground Occlusion - unit at low ground (35, 50) looking at high ground (45, 50)
+  const lowGroundHero = [{ instanceId: 'h2', faction: 'radiant', x: 35, y: 50, isDead: false }];
+  const hgVision = computeFactionVision({
+    mapData,
+    faction: 'radiant',
+    heroes: lowGroundHero,
+    creeps: [],
+    towers: [],
+    wards: [],
+    isDay: true,
+  });
+  // Tile (45, 50) is on High ground (elevation 1), while hero is on low ground (elevation 0) 10 cells away
+  assert.ok(!hgVision.visibleMask[50 * 100 + 45], 'Low ground hero must not see deep high ground tile');
+
+  // Test 3: Observer Ward placement provides vision
+  const ward = [{ id: 'w1', faction: 'radiant', x: 80, y: 80, type: 'observer', visionRadius: 12 }];
+  const wardVision = computeFactionVision({
+    mapData,
+    faction: 'radiant',
+    heroes: [],
+    creeps: [],
+    towers: [],
+    wards: [ward[0]],
+    isDay: false,
+  });
+  assert.ok(wardVision.visibleMask[80 * 100 + 80], 'Ward tile must be visible');
+  assert.ok(wardVision.visibleMask[80 * 100 + 90], 'Tile 10 cells from ward must be visible');
+
+  // Test 4: isUnitVisibleToFaction
+  const enemyVisible = { x: 80, y: 80 };
+  const enemyHidden = { x: 5, y: 5 };
+  assert.equal(isUnitVisibleToFaction(enemyVisible, wardVision.visibleMask), true);
+  assert.equal(isUnitVisibleToFaction(enemyHidden, wardVision.visibleMask), false);
+});
+
+
 
 
 

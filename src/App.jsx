@@ -5,7 +5,7 @@ import DotaHeroConsole from './components/DotaHeroConsole';
 import DotaSkillTooltip from './components/DotaSkillTooltip';
 import { getHeroPortrait } from './assets/heroPortraits';
 import { getSkillIcon } from './assets/skillIcons';
-import { createInitialGameState, endTurn, swapHeroInGameState } from './game/gameState';
+import { createInitialGameState, endTurn, swapHeroInGameState, placeWard } from './game/gameState';
 import { HEROES_ROSTER } from './game/heroesData';
 import {
   canPerformAction,
@@ -18,6 +18,7 @@ import {
 import { executeSkill } from './game/skillEngine';
 import { decideBotAction } from './game/botAI';
 import { createSkillVfx, createAttackVfx } from './game/vfxRules';
+import { computeFactionVision } from './game/visionEngine';
 import {
   Grid,
   Trees,
@@ -33,6 +34,7 @@ import {
   Info,
   Users,
   Bot,
+  Eye,
 } from 'lucide-react';
 
 export default function App() {
@@ -54,10 +56,50 @@ export default function App() {
   const [weskerMode, setWeskerMode] = useState('ranged');
   const [showRosterModal, setShowRosterModal] = useState(false);
   const [botAiEnabled, setBotAiEnabled] = useState(false);
+  const [fogOfWarEnabled, setFogOfWarEnabled] = useState(true);
+  const [exploredMask, setExploredMask] = useState(null);
+  const [wardMode, setWardMode] = useState(null);
 
   // Active hero
   const activeHeroId = gameState.initiativeQueue[gameState.activeUnitIndex];
   const activeHero = gameState.heroes.find(h => h.instanceId === activeHeroId) || gameState.heroes[0];
+
+  const isDay = gameState.roshan?.dayNightPhase !== 'night';
+  const { visibleMask, exploredMask: updatedExplored } = useMemo(() => {
+    return computeFactionVision({
+      mapData,
+      faction: 'radiant',
+      heroes: gameState.heroes,
+      creeps: gameState.creeps,
+      towers: gameState.towers,
+      wards: gameState.wards,
+      isDay,
+      previousExploredMask: exploredMask,
+    });
+  }, [mapData, gameState.heroes, gameState.creeps, gameState.towers, gameState.wards, isDay, exploredMask]);
+
+  useEffect(() => {
+    if (updatedExplored && updatedExplored !== exploredMask) {
+      setExploredMask(updatedExplored);
+    }
+  }, [updatedExplored]);
+
+  // Ward target cells (Radius 5 around active hero)
+  const wardTargetCells = useMemo(() => {
+    if (!wardMode || !activeHero) return [];
+    const cells = [];
+    const maxR = 5;
+    for (let dy = -maxR; dy <= maxR; dy++) {
+      for (let dx = -maxR; dx <= maxR; dx++) {
+        const tx = activeHero.x + dx;
+        const ty = activeHero.y + dy;
+        if (tx >= 0 && tx < MAP_SIZE && ty >= 0 && ty < MAP_SIZE && Math.hypot(dx, dy) <= maxR) {
+          cells.push({ x: tx, y: ty });
+        }
+      }
+    }
+    return cells;
+  }, [wardMode, activeHero]);
 
   useEffect(() => {
     if (activeHero?.defId === 'wesker') {
@@ -323,10 +365,35 @@ export default function App() {
     return cells;
   }, [actionMode, activeHero]);
 
-  // Handle Cell Click (Move in 1 click, or Attack, or Cast Skill)
+  // Handle Cell Click (Move in 1 click, or Attack, or Cast Skill, or Place Ward)
   const handleCellClick = useCallback(
     tile => {
       if (!activeHero || activeHero.isDead) return;
+
+      // 0. Place Ward
+      if (wardMode) {
+        const isWithinRange = wardTargetCells.some(c => c.x === tile.x && c.y === tile.y);
+        if (!isWithinRange) {
+          addFloatingText(tile.x, tile.y, 'Вне радиуса (5 кл)!', '#ef4444');
+          return;
+        }
+        if (gameState.remainingTurnTime < 1.0) {
+          addFloatingText(tile.x, tile.y, 'Недостаточно времени (1.0с)!', '#ef4444');
+          return;
+        }
+
+        setGameState(prev => placeWard(prev, { heroId: activeHero.instanceId, x: tile.x, y: tile.y, type: wardMode }));
+        setWardMode(null);
+        addFloatingText(tile.x, tile.y, wardMode === 'sentry' ? '🔮 Sentry установлен!' : '👁️ Observer установлен!', '#facc15');
+        addVfx({
+          id: `vfx_ward_${Date.now()}`,
+          type: 'aoe_impact',
+          targetPos: { x: tile.x, y: tile.y },
+          color: wardMode === 'sentry' ? '#06b6d4' : '#eab308',
+          durationMs: 800,
+        });
+        return;
+      }
 
       // 1. Cast Targeted Skill
       if (targetingSkill) {
@@ -620,6 +687,8 @@ export default function App() {
     },
     [
       activeHero,
+      wardMode,
+      wardTargetCells,
       targetingSkill,
       skillTargetCells,
       actionMode,
@@ -1024,6 +1093,19 @@ export default function App() {
         {/* Right: Map Toggles & Roster */}
         <div className="flex items-center gap-1.5">
           <button
+            onClick={() => setFogOfWarEnabled(prev => !prev)}
+            title={fogOfWarEnabled ? 'Туман войны включен' : 'Туман войны выключен'}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border font-semibold transition-colors cursor-pointer ${
+              fogOfWarEnabled
+                ? 'bg-amber-950/80 border-amber-500/50 text-amber-300 hover:bg-amber-900'
+                : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-slate-700'
+            }`}
+          >
+            <Eye size={14} />
+            <span>{fogOfWarEnabled ? '👁️ Туман: ВКЛ' : '👁️ Туман: ВЫКЛ'}</span>
+          </button>
+
+          <button
             onClick={() => setBotAiEnabled(prev => !prev)}
             title={botAiEnabled ? 'ИИ ботов Dire включен (автоматический ход)' : 'ИИ ботов Dire выключен'}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border font-semibold transition-colors cursor-pointer ${
@@ -1093,6 +1175,20 @@ export default function App() {
 
       {/* 2. Main Battlefield Viewport */}
       <div className="relative flex-1 w-full h-full overflow-hidden">
+        {/* Ward Placement Banner */}
+        {wardMode && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-amber-950/95 border border-amber-500/70 py-1.5 px-4 rounded-xl shadow-2xl text-center text-xs font-mono font-bold text-amber-200 flex items-center justify-center gap-3 z-30 animate-in fade-in duration-150 backdrop-blur-md">
+            <Eye size={14} className="text-amber-300 animate-pulse" />
+            <span>👁️ Выберите клетку на карте для установки {wardMode === 'sentry' ? 'Sentry Ward' : 'Observer Ward'} (Дальность: 5)</span>
+            <button
+              onClick={() => setWardMode(null)}
+              className="px-2.5 py-0.5 rounded bg-amber-900 hover:bg-amber-800 text-[10px] uppercase border border-amber-400/50 text-white cursor-pointer ml-1 transition-colors"
+            >
+              Отмена [Esc]
+            </button>
+          </div>
+        )}
+
         {/* Targeting Banner if targeting skill (Floating HUD overlay - prevents canvas layout shift) */}
         {targetingSkill && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-purple-950/95 border border-purple-500/70 py-1.5 px-4 rounded-xl shadow-2xl text-center text-xs font-mono font-bold text-purple-200 flex items-center justify-center gap-3 z-30 animate-in fade-in duration-150 backdrop-blur-md">
@@ -1130,6 +1226,12 @@ export default function App() {
           creeps={gameState.creeps}
           towers={gameState.towers}
           roshan={gameState.roshan}
+          wards={gameState.wards}
+          fogOfWarEnabled={fogOfWarEnabled}
+          visionMask={visibleMask}
+          exploredMask={exploredMask}
+          wardTargetCells={wardTargetCells}
+          wardMode={wardMode}
           reachableMoveCells={reachableMoveCells}
           reachableAttackCells={reachableAttackCells}
           skillTargetCells={skillTargetCells}
@@ -1643,36 +1745,57 @@ export default function App() {
 
             {/* 3. Right Panel: Actions, Turn Budget & End Turn */}
             <div className="h-[98px] flex items-center gap-3 bg-[#0d121c]/90 border border-slate-800/80 rounded-2xl px-3 py-2 shadow-xl backdrop-blur-md shrink-0">
-              {/* Action buttons (Move & Attack) */}
-              <div className="flex flex-col gap-1.5">
-                <button
-                  onClick={() => {
-                    setActionMode(actionMode === 'move' ? null : 'move');
-                    setTargetingSkill(null);
-                  }}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono border transition-all ${
-                    actionMode === 'move' && !targetingSkill
-                      ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Footprints size={13} />
-                  <span>Ход [M]</span>
-                </button>
+              {/* Action buttons (Move, Attack & Ward) */}
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => {
+                      setActionMode(actionMode === 'move' ? null : 'move');
+                      setTargetingSkill(null);
+                      setWardMode(null);
+                    }}
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold font-mono border transition-all ${
+                      actionMode === 'move' && !targetingSkill && !wardMode
+                        ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Footprints size={12} />
+                    <span>Ход [M]</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActionMode(actionMode === 'attack' ? null : 'attack');
+                      setTargetingSkill(null);
+                      setWardMode(null);
+                    }}
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold font-mono border transition-all ${
+                      actionMode === 'attack' && !targetingSkill && !wardMode
+                        ? 'bg-red-600 border-red-400 text-white shadow-md'
+                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Swords size={12} />
+                    <span>Атака [A]</span>
+                  </button>
+                </div>
 
                 <button
                   onClick={() => {
-                    setActionMode(actionMode === 'attack' ? null : 'attack');
+                    setWardMode(wardMode ? null : 'observer');
+                    setActionMode(null);
                     setTargetingSkill(null);
                   }}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono border transition-all ${
-                    actionMode === 'attack' && !targetingSkill
-                      ? 'bg-red-600 border-red-400 text-white shadow-md'
-                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                  className={`flex items-center justify-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold font-mono border transition-all cursor-pointer ${
+                    wardMode
+                      ? 'bg-amber-500 border-amber-300 text-black shadow-md font-extrabold'
+                      : 'bg-slate-900 border-slate-800 text-amber-300 hover:text-amber-200'
                   }`}
+                  title="Установить Observer Ward (дальность 5 клеток, обзор 12 клеток, стоимость 1.0с)"
                 >
-                  <Swords size={13} />
-                  <span>Атака [A]</span>
+                  <Eye size={12} />
+                  <span>Вард [W]</span>
                 </button>
               </div>
 

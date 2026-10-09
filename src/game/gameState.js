@@ -272,6 +272,7 @@ export function createInitialGameState() {
     towers,
     roshan,
     creeps: [], // Initial creeps array is [] per spec (first wave at 60s)
+    wards: [], // Active vision wards (Observer & Sentry Wards)
     waveCycleIndex: 0,
     nextLaneWaveTime: 60.0, // First wave after 60s
     nextNeutralSpawnTime: 120.0, // First neutral spawn after 120s
@@ -642,6 +643,11 @@ export function endTurn(state) {
     }
   }
 
+  // 6. Tick wards timers
+  const updatedWards = (state.wards || [])
+    .map(w => ({ ...w, turnsLeft: w.turnsLeft - 1 }))
+    .filter(w => w.turnsLeft > 0);
+
   return {
     ...state,
     gameTimeSeconds: nextGameTime,
@@ -651,6 +657,8 @@ export function endTurn(state) {
     remainingTurnTime: TURN_DURATION_SECONDS,
     heroes: updatedHeroes,
     creeps: updatedCreeps,
+    towers: updatedTowers,
+    wards: updatedWards,
     roshan: updatedRoshan,
     nextLaneWaveTime: nextWave,
     nextNeutralSpawnTime: nextNeutral,
@@ -658,6 +666,43 @@ export function endTurn(state) {
     combatLogs: [...newCombatLogs, ...state.combatLogs].slice(0, 25),
     pendingVfx: towerVfxList,
     pendingFloatingTexts: towerResult.floatingTexts || [],
+  };
+}
+
+/**
+ * Places an Observer or Sentry Ward on the map at the given coordinate.
+ */
+export function placeWard(state, { heroId, x, y, type = 'observer' }) {
+  const hero = state.heroes.find(h => h.instanceId === heroId);
+  if (!hero || hero.isDead) return state;
+
+  const dist = Math.hypot(hero.x - x, hero.y - y);
+  if (dist > 5.5) return state; // Placement range 5 tiles
+
+  if (state.remainingTurnTime < 1.0) return state; // Needs 1.0s action time
+
+  const newWard = {
+    id: `ward_${hero.faction}_${Date.now()}`,
+    type,
+    faction: hero.faction,
+    x: Math.round(x),
+    y: Math.round(y),
+    turnsLeft: 10,
+    maxTurns: 10,
+    visionRadius: type === 'sentry' ? 10 : 12,
+  };
+
+  return {
+    ...state,
+    remainingTurnTime: Number(Math.max(0, state.remainingTurnTime - 1.0).toFixed(1)),
+    wards: [...(state.wards || []), newWard],
+    combatLogs: [
+      {
+        text: `🔭 ${hero.name} установил ${type === 'sentry' ? 'Sentry Ward' : 'Observer Ward'} на [${newWard.x}, ${newWard.y}].`,
+        time: state.gameTimeSeconds,
+      },
+      ...state.combatLogs,
+    ].slice(0, 25),
   };
 }
 
