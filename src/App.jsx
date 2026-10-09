@@ -53,7 +53,7 @@ export default function App() {
   const [floatingTexts, setFloatingTexts] = useState([]);
   const [weskerMode, setWeskerMode] = useState('ranged');
   const [showRosterModal, setShowRosterModal] = useState(false);
-  const [botAiEnabled, setBotAiEnabled] = useState(true);
+  const [botAiEnabled, setBotAiEnabled] = useState(false);
 
   // Active hero
   const activeHeroId = gameState.initiativeQueue[gameState.activeUnitIndex];
@@ -1512,188 +1512,190 @@ export default function App() {
         })()}
       </div>
 
-      {/* 3. Bottom Deck — Permanent Command Console & Skills Bar */}
+      {/* 3. Bottom Deck — Unified Dota 2 Command Console & Skills Bar */}
       {activeHero && (
-        <footer className="h-28 bg-slate-950/95 backdrop-blur-md border-t border-slate-800 px-4 flex items-center justify-between shrink-0 z-20 relative">
-          {/* Left Column: Dota-Style Active Hero Console */}
-          <DotaHeroConsole
-            hero={activeHero}
-            onCenterCamera={() => setTargetPos({ x: activeHero.x, y: activeHero.y })}
-            onToggleWeskerMode={
-              activeHero.id === 'wesker' || activeHero.defId === 'wesker' ? toggleWeskerMode : null
-            }
-            getHeroPortrait={getHeroPortrait}
-          />
+        <footer className="h-28 bg-[#080b11]/95 backdrop-blur-md border-t border-slate-800/80 px-2 flex items-center justify-center shrink-0 z-20 relative">
+          <div className="flex items-center justify-center gap-2.5 max-w-7xl w-full">
+            {/* 1. Left Panel: Dota-Style Active Hero Console */}
+            <DotaHeroConsole
+              hero={activeHero}
+              onCenterCamera={() => setTargetPos({ x: activeHero.x, y: activeHero.y })}
+              onToggleWeskerMode={
+                activeHero.id === 'wesker' || activeHero.defId === 'wesker' ? toggleWeskerMode : null
+              }
+              getHeroPortrait={getHeroPortrait}
+            />
 
-          {/* Center Column: Direct Skills Bar with Dota 2 style presentation */}
-          <div className="flex items-center gap-2.5 px-3 py-1 relative">
-            {activeHero.skills.map((skill, sIdx) => {
-              const hotkeys = ['Q', 'W', 'E', 'R', 'D', 'F'];
-              const hotkey = hotkeys[sIdx] || `${sIdx + 1}`;
-              const isPassive = skill.type === 'PASSIVE';
-              const isUltimate = skill.type === 'ULTIMATE';
-              const onCooldown = skill.currentCooldown > 0;
-              const hasMana = activeHero.mana >= (skill.manaCost || 0);
-              const hasTime = canPerformAction(gameState.remainingTurnTime, skill.timeCost || 0);
-              const isTargetingThis = targetingSkill?.id === skill.id;
+            {/* 2. Center Panel: Abilities Console */}
+            <div className="h-[98px] flex items-center gap-2 px-3 bg-[#0d121c]/90 border border-slate-800/80 rounded-2xl shadow-xl relative backdrop-blur-md shrink-0">
+              {activeHero.skills.map((skill, sIdx) => {
+                const hotkeys = ['Q', 'W', 'E', 'R', 'D', 'F'];
+                const hotkey = hotkeys[sIdx] || `${sIdx + 1}`;
+                const isPassive = skill.type === 'PASSIVE';
+                const isUltimate = skill.type === 'ULTIMATE';
+                const onCooldown = skill.currentCooldown > 0;
+                const hasMana = activeHero.mana >= (skill.manaCost || 0);
+                const hasTime = canPerformAction(gameState.remainingTurnTime, skill.timeCost || 0);
+                const isTargetingThis = targetingSkill?.id === skill.id;
 
-              return (
-                <div key={skill.id} className="relative group">
-                  <button
-                    disabled={isPassive || onCooldown || !hasMana || !hasTime}
-                    onClick={() => handleSkillClick(skill)}
-                    onMouseEnter={() => setHoveredSkillTooltip({ skill, hotkey })}
-                    onMouseLeave={() => setHoveredSkillTooltip(null)}
-                    className={`h-16 w-16 rounded-xl border flex flex-col items-center justify-between p-1 transition-all text-left relative overflow-hidden shrink-0 cursor-pointer ${
-                      isTargetingThis
-                        ? 'border-purple-300 shadow-xl shadow-purple-500/50 scale-105 ring-2 ring-purple-400'
-                        : isUltimate
-                        ? 'border-amber-400/90 shadow-lg shadow-amber-500/25 hover:border-amber-300 hover:scale-105 ring-1 ring-amber-400/50'
-                        : isPassive
-                        ? 'border-slate-800 opacity-80 cursor-default ring-1 ring-slate-700/50'
-                        : onCooldown || !hasMana || !hasTime
-                        ? 'border-slate-800 opacity-55 cursor-not-allowed'
-                        : 'border-slate-700 hover:border-amber-400 hover:scale-105 shadow-md'
-                    }`}
-                  >
-                    {/* Background SVG Skill Icon */}
-                    <img
-                      src={getSkillIcon(skill.id)}
-                      alt={skill.name}
-                      className="absolute inset-0 w-full h-full object-cover -z-0 opacity-85 group-hover:opacity-100 transition-opacity"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/60 -z-0" />
+                return (
+                  <div key={skill.id} className="relative group">
+                    <button
+                      disabled={isPassive || onCooldown || !hasMana || !hasTime}
+                      onClick={() => handleSkillClick(skill)}
+                      onMouseEnter={() => setHoveredSkillTooltip({ skill, hotkey })}
+                      onMouseLeave={() => setHoveredSkillTooltip(null)}
+                      className={`h-16 w-16 rounded-xl border flex flex-col items-center justify-between p-1 transition-all text-left relative overflow-hidden shrink-0 cursor-pointer ${
+                        isTargetingThis
+                          ? 'border-purple-300 shadow-xl shadow-purple-500/50 scale-105 ring-2 ring-purple-400'
+                          : isUltimate
+                          ? 'border-amber-400/90 shadow-lg shadow-amber-500/25 hover:border-amber-300 hover:scale-105 ring-1 ring-amber-400/50'
+                          : isPassive
+                          ? 'border-slate-800 opacity-80 cursor-default ring-1 ring-slate-700/50'
+                          : onCooldown || !hasMana || !hasTime
+                          ? 'border-slate-800 opacity-55 cursor-not-allowed'
+                          : 'border-slate-700 hover:border-amber-400 hover:scale-105 shadow-md'
+                      }`}
+                    >
+                      {/* Background SVG Skill Icon */}
+                      <img
+                        src={getSkillIcon(skill.id)}
+                        alt={skill.name}
+                        className="absolute inset-0 w-full h-full object-cover -z-0 opacity-85 group-hover:opacity-100 transition-opacity"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/60 -z-0" />
 
-                    {/* Top row: Hotkey & Mana */}
-                    <div className="w-full flex items-center justify-between z-10">
-                      <span className="text-[10px] font-mono font-bold px-1 rounded bg-slate-950/90 text-amber-400 border border-slate-800 shadow-sm">
-                        [{hotkey}]
+                      {/* Top row: Hotkey & Mana */}
+                      <div className="w-full flex items-center justify-between z-10">
+                        <span className="text-[10px] font-mono font-bold px-1 rounded bg-slate-950/90 text-amber-400 border border-slate-800 shadow-sm">
+                          [{hotkey}]
+                        </span>
+                        {skill.manaCost > 0 && (
+                          <span className="text-[9px] font-mono text-sky-300 font-bold bg-sky-950/90 px-1 rounded border border-sky-500/30 shadow-sm">
+                            💧{skill.manaCost}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Skill Name */}
+                      <span className="text-[9px] font-bold text-slate-100 truncate w-full text-center leading-tight z-10 px-0.5 drop-shadow">
+                        {skill.name}
                       </span>
-                      {skill.manaCost > 0 && (
-                        <span className="text-[9px] font-mono text-sky-300 font-bold bg-sky-950/90 px-1 rounded border border-sky-500/30 shadow-sm">
-                          💧{skill.manaCost}
-                        </span>
+
+                      {/* Bottom: Time Cost / Passive Indicator */}
+                      <div className="w-full text-center z-10">
+                        {isPassive ? (
+                          <span className="text-[8px] text-slate-300 uppercase font-mono font-bold bg-slate-900/90 px-1 py-0.2 rounded border border-slate-700/50">
+                            Пассив
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-mono font-bold text-amber-300 bg-amber-950/90 px-1 rounded border border-amber-500/30">
+                            ⏳{skill.timeCost}с
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Insufficient Mana Warning */}
+                      {!isPassive && !onCooldown && !hasMana && (
+                        <div className="absolute inset-0 bg-blue-950/85 backdrop-blur-[1px] flex flex-col items-center justify-center text-blue-200 font-mono font-bold text-[9px] z-20">
+                          <span>💧 МАНА</span>
+                        </div>
                       )}
-                    </div>
 
-                    {/* Skill Name */}
-                    <span className="text-[9px] font-bold text-slate-100 truncate w-full text-center leading-tight z-10 px-0.5 drop-shadow">
-                      {skill.name}
-                    </span>
-
-                    {/* Bottom: Time Cost / Passive Indicator */}
-                    <div className="w-full text-center z-10">
-                      {isPassive ? (
-                        <span className="text-[8px] text-slate-300 uppercase font-mono font-bold bg-slate-900/90 px-1 py-0.2 rounded border border-slate-700/50">
-                          Пассив
-                        </span>
-                      ) : (
-                        <span className="text-[9px] font-mono font-bold text-amber-300 bg-amber-950/90 px-1 rounded border border-amber-500/30">
-                          ⏳{skill.timeCost}с
-                        </span>
+                      {/* Insufficient Turn Time Warning */}
+                      {!isPassive && !onCooldown && hasMana && !hasTime && (
+                        <div className="absolute inset-0 bg-red-950/85 backdrop-blur-[1px] flex flex-col items-center justify-center text-red-200 font-mono font-bold text-[9px] z-20">
+                          <span>⏳ ВРЕМЯ</span>
+                        </div>
                       )}
-                    </div>
 
-                    {/* Insufficient Mana Warning */}
-                    {!isPassive && !onCooldown && !hasMana && (
-                      <div className="absolute inset-0 bg-blue-950/85 backdrop-blur-[1px] flex flex-col items-center justify-center text-blue-200 font-mono font-bold text-[9px] z-20">
-                        <span>💧 МАНА</span>
-                      </div>
-                    )}
+                      {/* Cooldown Overlay */}
+                      {onCooldown && (
+                        <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center text-amber-400 font-mono font-bold text-xs z-20">
+                          <span className="text-[10px]">⏱️</span>
+                          <span>{skill.currentCooldown.toFixed(0)}с</span>
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
 
-                    {/* Insufficient Turn Time Warning */}
-                    {!isPassive && !onCooldown && hasMana && !hasTime && (
-                      <div className="absolute inset-0 bg-red-950/85 backdrop-blur-[1px] flex flex-col items-center justify-center text-red-200 font-mono font-bold text-[9px] z-20">
-                        <span>⏳ ВРЕМЯ</span>
-                      </div>
-                    )}
-
-                    {/* Cooldown Overlay */}
-                    {onCooldown && (
-                      <div className="absolute inset-0 bg-black/85 flex flex-col items-center justify-center text-amber-400 font-mono font-bold text-xs z-20">
-                        <span className="text-[10px]">⏱️</span>
-                        <span>{skill.currentCooldown.toFixed(0)}с</span>
-                      </div>
-                    )}
-                  </button>
+              {/* Floating Dota 2 Skill Tooltip (Anchored above ability bar) */}
+              {hoveredSkillTooltip && (
+                <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+                  <DotaSkillTooltip
+                    skill={hoveredSkillTooltip.skill}
+                    hero={activeHero}
+                    skillIconUrl={getSkillIcon(hoveredSkillTooltip.skill.id)}
+                    hotkey={hoveredSkillTooltip.hotkey}
+                  />
                 </div>
-              );
-            })}
-
-            {/* Floating Dota 2 Skill Tooltip (Anchored above ability bar) */}
-            {hoveredSkillTooltip && (
-              <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-                <DotaSkillTooltip
-                  skill={hoveredSkillTooltip.skill}
-                  hero={activeHero}
-                  skillIconUrl={getSkillIcon(hoveredSkillTooltip.skill.id)}
-                  hotkey={hoveredSkillTooltip.hotkey}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Right Column: Time Budget, Actions & End Turn */}
-          <div className="flex items-center gap-3 shrink-0">
-            {/* Action buttons (Move & Attack) */}
-            <div className="flex flex-col gap-1">
-              <button
-                onClick={() => {
-                  setActionMode(actionMode === 'move' ? null : 'move');
-                  setTargetingSkill(null);
-                }}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono border transition-all ${
-                  actionMode === 'move' && !targetingSkill
-                    ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                <Footprints size={13} />
-                <span>Ход [M]</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setActionMode(actionMode === 'attack' ? null : 'attack');
-                  setTargetingSkill(null);
-                }}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono border transition-all ${
-                  actionMode === 'attack' && !targetingSkill
-                    ? 'bg-red-600 border-red-400 text-white shadow-md'
-                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                <Swords size={13} />
-                <span>Атака [A]</span>
-              </button>
+              )}
             </div>
 
-            {/* Turn Time Display */}
-            <div className="flex flex-col items-center gap-1 w-36">
-              <div className="flex items-center justify-between w-full text-xs font-mono">
-                <span className="text-slate-400 flex items-center gap-1">
-                  <Clock size={12} className="text-amber-400" /> Ход:
-                </span>
-                <span className="font-bold text-amber-400">
-                  {gameState.remainingTurnTime.toFixed(1)} / 8.0s
-                </span>
-              </div>
-              <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-amber-500 to-red-500 transition-all duration-200"
-                  style={{ width: `${(gameState.remainingTurnTime / TURN_DURATION_SECONDS) * 100}%` }}
-                />
-              </div>
-            </div>
+            {/* 3. Right Panel: Actions, Turn Budget & End Turn */}
+            <div className="h-[98px] flex items-center gap-3 bg-[#0d121c]/90 border border-slate-800/80 rounded-2xl px-3 py-2 shadow-xl backdrop-blur-md shrink-0">
+              {/* Action buttons (Move & Attack) */}
+              <div className="flex flex-col gap-1.5">
+                <button
+                  onClick={() => {
+                    setActionMode(actionMode === 'move' ? null : 'move');
+                    setTargetingSkill(null);
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono border transition-all ${
+                    actionMode === 'move' && !targetingSkill
+                      ? 'bg-blue-600 border-blue-400 text-white shadow-md'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Footprints size={13} />
+                  <span>Ход [M]</span>
+                </button>
 
-            {/* End Turn Golden Button */}
-            <button
-              onClick={handleEndTurn}
-              className="h-14 px-4 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-black shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all"
-            >
-              <span>Конец хода</span>
-              <ChevronRight size={16} />
-            </button>
+                <button
+                  onClick={() => {
+                    setActionMode(actionMode === 'attack' ? null : 'attack');
+                    setTargetingSkill(null);
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono border transition-all ${
+                    actionMode === 'attack' && !targetingSkill
+                      ? 'bg-red-600 border-red-400 text-white shadow-md'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Swords size={13} />
+                  <span>Атака [A]</span>
+                </button>
+              </div>
+
+              {/* Turn Time Display */}
+              <div className="flex flex-col items-center justify-center gap-1.5 w-32">
+                <div className="flex items-center justify-between w-full text-xs font-mono">
+                  <span className="text-slate-400 flex items-center gap-1 text-[11px]">
+                    <Clock size={12} className="text-amber-400" /> Ход:
+                  </span>
+                  <span className="font-bold text-amber-400 text-[11px]">
+                    {gameState.remainingTurnTime.toFixed(1)} / 8.0s
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-slate-950 rounded-full border border-slate-800 overflow-hidden shadow-inner">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-500 to-red-500 transition-all duration-200"
+                    style={{ width: `${(gameState.remainingTurnTime / TURN_DURATION_SECONDS) * 100}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* End Turn Golden Button */}
+              <button
+                onClick={handleEndTurn}
+                className="h-16 px-4 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-black shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <span>Конец хода</span>
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
         </footer>
       )}

@@ -198,6 +198,46 @@ export function getSkillDetails(skill, hero = null) {
     attributes.push({ label: 'Исцеление', value: '20 HP (+3 за душу)' });
   }
 
+  // Passive skill-specific mechanical attributes
+  if (skill.id === 'ouroboros') {
+    attributes.push({ label: 'Бонус регенерации', value: '+5 HP/с' });
+    attributes.push({ label: 'Бонус брони', value: '+5' });
+    attributes.push({ label: 'Бонус урона', value: '+5' });
+    attributes.push({ label: 'Бонус пробития', value: '+3' });
+  } else if (skill.id === 'wesker-speed') {
+    attributes.push({ label: 'Бонус скорости', value: '+4 кл./ход' });
+    attributes.push({ label: 'Бонус ловкости', value: '+5' });
+  } else if (skill.id === 'counter-helix') {
+    attributes.push({ label: 'Контрудар топором', value: '50 чистого урона' });
+    attributes.push({ label: 'Радиус контратаки', value: '1 клетка вокруг' });
+    attributes.push({ label: 'Срабатывание', value: 'При получении любого удара' });
+  } else if (skill.id === 'voracity') {
+    attributes.push({ label: 'Урон при подборе кинжала', value: '31 физ. урона' });
+    attributes.push({ label: 'Снижение КД при убийстве', value: '-16.0 сек ко всем скиллам' });
+  } else if (skill.id === 'superhuman') {
+    attributes.push({ label: 'Святая регенерация', value: '+10% макс. HP каждые 4 хода' });
+    attributes.push({ label: 'Защита Искариота', value: 'Блокирует первый эффект контроля' });
+  } else if (skill.id === 'infinity-shield') {
+    attributes.push({ label: 'Барьер Бесконечности', value: 'Поглощает первые 50 ед. входящего урона' });
+    attributes.push({ label: 'Тип защиты', value: 'Абсолютное поглощение любого типа урона' });
+    attributes.push({ label: 'Перезарядка барьера', value: 'Каждый раунд' });
+  } else if (skill.id === 'king-of-curses') {
+    attributes.push({ label: 'Иммунитет Короля Проклятий', value: 'Яд, кровотечение, аура гниения' });
+    attributes.push({ label: 'Бонус за убийство героя', value: '+5 макс. HP и +3 урона навсегда' });
+  } else if (skill.id === 'flesh-heap') {
+    attributes.push({ label: 'Сопротивление магии', value: '+10%' });
+    attributes.push({ label: 'Сила плоти', value: '+2 макс. HP за каждое убийство' });
+  } else if (skill.id === 'dead-alive') {
+    attributes.push({ label: 'Квантовая суперпозиция', value: 'Мгновенное возрождение на фонтане' });
+    attributes.push({ label: 'Время ожидания смерти', value: '0 секунд' });
+  } else if (skill.id === 'army-of-souls') {
+    attributes.push({ label: 'Радиус поглощения душ', value: '8 клеток' });
+    attributes.push({ label: 'Бонус за каждую душу', value: '+2.5 к урону, +10 к макс. HP' });
+  } else if (skill.id === 'angel-rage') {
+    attributes.push({ label: 'Порог активации', value: 'Ниже 50% HP' });
+    attributes.push({ label: 'Священный гнев', value: 'Скорость x2, скорость действий x2, кулдауны x2' });
+  }
+
   return {
     id: skill.id,
     name: skill.name,

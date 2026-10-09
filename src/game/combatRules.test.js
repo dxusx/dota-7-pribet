@@ -956,6 +956,31 @@ test('27. Dota-Style Rich Ability Tooltip & Hero HUD Spec', async () => {
   assert.equal(derived.manaRegenText, '+14.0 MP/с');
 });
 
+test('28. Full Passive Abilities Detailed Specifications & Bot Default State', async () => {
+  const { getSkillDetails } = await import('./heroHudUtils.js');
+  const { HEROES_ROSTER } = await import('./heroesData.js');
+
+  const allPassives = HEROES_ROSTER.flatMap(h => h.skills.filter(s => s.type === 'PASSIVE'));
+  assert.ok(allPassives.length >= 10, 'Must have at least 10 passives across heroes roster');
+
+  for (const passive of allPassives) {
+    const details = getSkillDetails(passive);
+    assert.equal(details.targetType, 'Пассивная', `Passive ${passive.id} must have targetType 'Пассивная'`);
+    assert.ok(
+      details.attributes && details.attributes.length >= 2,
+      `Passive ${passive.id} must have at least 2 mechanical attributes, got ${details.attributes?.length}`
+    );
+  }
+
+  const fs = await import('fs');
+  const appCode = fs.readFileSync('src/App.jsx', 'utf-8');
+  assert.ok(
+    appCode.includes('const [botAiEnabled, setBotAiEnabled] = useState(false);'),
+    'botAiEnabled must be initialized to false by default'
+  );
+});
+
+
 
 
 
