@@ -770,6 +770,45 @@ test('24. Viewport Coordinate Mapping & Aspect Ratio Scaling (No Tile Shift)', a
   assert.equal(tile2.tileY, 20, 'Tile Y must account for canvas aspect ratio stretch without shifting upward');
 });
 
+test('25. Extended Stylized Hero Skills VFX Coverage & Procedural Rendering', async () => {
+  const { createSkillVfx } = await import('./vfxRules.js');
+
+  // Verify unique stylized types for heroes across the roster
+  const shadowrazeVfx = createSkillVfx('shadowraze', { x: 10, y: 10 }, { x: 12, y: 10 });
+  assert.equal(shadowrazeVfx.type, 'shadowraze', 'Shadowraze must produce soul geyser VFX');
+
+  const bayonetVfx = createSkillVfx('bayonet-barrage', { x: 10, y: 10 }, { x: 14, y: 12 });
+  assert.equal(bayonetVfx.type, 'bayonet_barrage', 'Anderson must produce holy bayonet barrage');
+
+  const spearVfx = createSkillVfx('spear-of-justice', { x: 20, y: 20 }, { x: 25, y: 20 });
+  assert.equal(spearVfx.type, 'spear', 'Gabriel must produce radiant holy spear');
+
+  const twinShotVfx = createSkillVfx('twin-shot', { x: 15, y: 15 }, { x: 18, y: 15 });
+  assert.equal(twinShotVfx.type, 'twin_shot', 'Alucard must produce dual gun muzzle blasts');
+
+  const cromwellVfx = createSkillVfx('cromwell-seal-1', { x: 15, y: 15 }, { x: 15, y: 15 });
+  assert.equal(cromwellVfx.type, 'cromwell_seal', 'Alucard seal must produce eldritch eye summoning circle');
+
+  const warpVfx = createSkillVfx('quantum-warp', { x: 30, y: 30 }, { x: 35, y: 35 });
+  assert.equal(warpVfx.type, 'quantum_warp', 'Schrodinger must produce quantum digital glitch warp');
+
+  const lightningVfx = createSkillVfx('fade-bolt', { x: 40, y: 40 }, { x: 44, y: 40 });
+  assert.equal(lightningVfx.type, 'lightning', 'Rubick must produce arcane chain lightning');
+
+  const rotVfx = createSkillVfx('rot', { x: 22, y: 22 }, { x: 22, y: 22 });
+  assert.equal(rotVfx.type, 'rot_cloud', 'Pudge must produce toxic bubbling gas cloud');
+
+  const cullingVfx = createSkillVfx('culling-blade', { x: 18, y: 18 }, { x: 19, y: 18 });
+  assert.equal(cullingVfx.type, 'culling_blade', 'Axe must produce massive execution slam');
+
+  const fugaVfx = createSkillVfx('fire-arrow', { x: 50, y: 50 }, { x: 55, y: 50 });
+  assert.equal(fugaVfx.type, 'fire_arrow', 'Sukuna must produce Kamino blazing fire arrow');
+
+  const domainVfx = createSkillVfx('unlimited-void', { x: 60, y: 60 }, { x: 60, y: 60 });
+  assert.equal(domainVfx.type, 'unlimited_void', 'Gojo must produce cosmic domain expansion void');
+});
+
+
 
 
 

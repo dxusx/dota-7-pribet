@@ -656,7 +656,7 @@ export default function App() {
       return;
     }
 
-    // If instant/self skill (timeCost 0 or self buff or weapon toggle)
+    // If instant/self skill (timeCost 0 or self buff or weapon toggle or self AoE)
     const isSelfCast =
       skill.id === 'stars-agent' ||
       skill.id === 'mastermind' ||
@@ -669,7 +669,13 @@ export default function App() {
       skill.id === 'prion' ||
       skill.id === 'cromwell-seal-1' ||
       skill.id === 'cromwell-seal-2' ||
-      skill.id === 'cromwell-seal-0';
+      skill.id === 'cromwell-seal-0' ||
+      skill.id === 'berserkers-call' ||
+      skill.id === 'unlimited-void' ||
+      skill.id === 'infinity' ||
+      skill.id === 'requiem-of-souls' ||
+      skill.id === 'blade-dance' ||
+      skill.id === 'holy-barrier';
 
     if (isSelfCast) {
       const res = executeSkill({
