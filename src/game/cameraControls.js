@@ -39,3 +39,20 @@ export function zoomCamera(camera, deltaY, viewportRect, mousePos) {
     zoom: newZoom,
   };
 }
+
+export function screenToTile(screenX, screenY, camera, rect, canvasBuffer, tileSize = 16) {
+  const scaleX = rect && rect.width > 0 && canvasBuffer?.width ? canvasBuffer.width / rect.width : 1;
+  const scaleY = rect && rect.height > 0 && canvasBuffer?.height ? canvasBuffer.height / rect.height : 1;
+  const mouseCanvasX = (screenX - (rect?.left || 0)) * scaleX;
+  const mouseCanvasY = (screenY - (rect?.top || 0)) * scaleY;
+  const zoom = Math.max(camera?.zoom || 1, 0.05);
+  const worldX = (mouseCanvasX - (camera?.x || 0)) / zoom;
+  const worldY = (mouseCanvasY - (camera?.y || 0)) / zoom;
+  return {
+    tileX: Math.floor(worldX / tileSize),
+    tileY: Math.floor(worldY / tileSize),
+    worldX,
+    worldY,
+  };
+}
+

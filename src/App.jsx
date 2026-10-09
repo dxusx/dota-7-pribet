@@ -1081,25 +1081,25 @@ export default function App() {
         </div>
       </header>
 
-      {/* Targeting Banner if targeting skill */}
-      {targetingSkill && (
-        <div className="bg-purple-900/90 border-b border-purple-500/50 py-1.5 px-4 text-center text-xs font-mono font-bold text-purple-200 flex items-center justify-center gap-3 z-20 animate-in fade-in duration-150">
-          <Sparkles size={14} className="text-purple-300 animate-spin" />
-          <span>🎯 Выберите цель для способности: {targetingSkill.name} (Дальность: {targetingSkill.range || 4})</span>
-          <button
-            onClick={() => {
-              setTargetingSkill(null);
-              setActionMode('move');
-            }}
-            className="px-2 py-0.5 rounded bg-purple-950 hover:bg-purple-800 text-[10px] uppercase border border-purple-400/50 text-white"
-          >
-            Отмена [Esc]
-          </button>
-        </div>
-      )}
-
       {/* 2. Main Battlefield Viewport */}
       <div className="relative flex-1 w-full h-full overflow-hidden">
+        {/* Targeting Banner if targeting skill (Floating HUD overlay - prevents canvas layout shift) */}
+        {targetingSkill && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-purple-950/95 border border-purple-500/70 py-1.5 px-4 rounded-xl shadow-2xl text-center text-xs font-mono font-bold text-purple-200 flex items-center justify-center gap-3 z-30 animate-in fade-in duration-150 backdrop-blur-md">
+            <Sparkles size={14} className="text-purple-300 animate-spin" />
+            <span>🎯 Выберите цель для способности: {targetingSkill.name} (Дальность: {targetingSkill.range || 4})</span>
+            <button
+              onClick={() => {
+                setTargetingSkill(null);
+                setActionMode('move');
+              }}
+              className="px-2.5 py-0.5 rounded bg-purple-900 hover:bg-purple-800 text-[10px] uppercase border border-purple-400/50 text-white cursor-pointer ml-1 transition-colors"
+            >
+              Отмена [Esc]
+            </button>
+          </div>
+        )}
+
         <DotaMapCanvas
           mapData={mapData}
           selectedTile={selectedTile}

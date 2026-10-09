@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { MAP_SIZE, TERRAIN, ELEVATION } from '../map/dotaMapData';
 import { getHeroCanvasImage } from '../assets/heroPortraits';
-import { isCameraDragButton, panCamera } from '../game/cameraControls';
+import { isCameraDragButton, panCamera, screenToTile } from '../game/cameraControls';
 import { drawVfx } from '../game/vfxRules';
 
 const TILE_SIZE = 28; // Base pixel size per tile in the world
@@ -250,11 +250,13 @@ export default function DotaMapCanvas({
     const updateCanvasSize = () => {
       const parent = canvas.parentElement;
       const rect = parent ? parent.getBoundingClientRect() : null;
-      const width = Math.max(rect?.width || 0, window.innerWidth || 800);
-      const height = Math.max(rect?.height || 0, (window.innerHeight - 150) || 600);
+      const width = Math.max(Math.round(rect?.width || 0), window.innerWidth || 800);
+      const height = Math.max(Math.round(rect?.height || 0), (window.innerHeight - 150) || 600);
 
-      canvas.width = width;
-      canvas.height = height;
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
 
       const fitZoom = Math.max(Math.min(width / WORLD_SIZE, height / WORLD_SIZE) * 1.05, 0.35);
 
@@ -270,8 +272,17 @@ export default function DotaMapCanvas({
     };
 
     updateCanvasSize();
+    const resizeObserver = new ResizeObserver(() => {
+      updateCanvasSize();
+    });
+    if (canvas.parentElement) {
+      resizeObserver.observe(canvas.parentElement);
+    }
     window.addEventListener('resize', updateCanvasSize);
-    return () => window.removeEventListener('resize', updateCanvasSize);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateCanvasSize);
+    };
   }, []);
 
   // Main Render Loop
@@ -1090,14 +1101,7 @@ export default function DotaMapCanvas({
       setCamera(prev => panCamera(prev, dx, dy));
     } else {
       const rect = canvas.getBoundingClientRect();
-      const mouseCanvasX = e.clientX - rect.left;
-      const mouseCanvasY = e.clientY - rect.top;
-
-      const worldX = (mouseCanvasX - camera.x) / camera.zoom;
-      const worldY = (mouseCanvasY - camera.y) / camera.zoom;
-
-      const tileX = Math.floor(worldX / TILE_SIZE);
-      const tileY = Math.floor(worldY / TILE_SIZE);
+      const { tileX, tileY } = screenToTile(e.clientX, e.clientY, camera, rect, canvas, TILE_SIZE);
 
       if (tileX >= 0 && tileX < MAP_SIZE && tileY >= 0 && tileY < MAP_SIZE) {
         const idx = tileY * MAP_SIZE + tileX;
@@ -1140,8 +1144,10 @@ export default function DotaMapCanvas({
     const newZoom = Math.min(Math.max(camera.zoom * zoomFactor, 0.15), 3.0);
 
     const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
+    const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
+    const mouseX = (e.clientX - rect.left) * scaleX;
+    const mouseY = (e.clientY - rect.top) * scaleY;
 
     setCamera(prev => ({
       x: mouseX - (mouseX - prev.x) * (newZoom / prev.zoom),

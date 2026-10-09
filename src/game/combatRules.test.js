@@ -748,6 +748,28 @@ test('23. Visual Effects (VFX) & Projectiles Engine Mechanics', async () => {
   assert.equal(getVfxProgress(vfxInstance, now + 500), 1.0, 'Progress past duration should cap at 1.0');
 });
 
+test('24. Viewport Coordinate Mapping & Aspect Ratio Scaling (No Tile Shift)', async () => {
+  const { screenToTile } = await import('./cameraControls.js');
+
+  // Case 1: Exact 1:1 buffer-to-rect ratio (standard 16px tile, zoom 1)
+  const cam = { x: 0, y: 0, zoom: 1 };
+  const rect1 = { left: 0, top: 0, width: 800, height: 600 };
+  const buffer1 = { width: 800, height: 600 };
+
+  const tile1 = screenToTile(160, 320, cam, rect1, buffer1, 16);
+  assert.equal(tile1.tileX, 10);
+  assert.equal(tile1.tileY, 20);
+
+  // Case 2: Banner shrinks CSS element height to 567 while canvas buffer is 600
+  // Without scale correction, mouse at Y=310 would calculate Math.floor(310/16) = 19 (tile above!)
+  // With scale correction, mouse at Y=310 scales to 310 * (600 / 567) = 328.04 -> Math.floor(328.04/16) = 20 (correct tile!)
+  const rect2 = { left: 0, top: 33, width: 800, height: 567 };
+  const buffer2 = { width: 800, height: 600 };
+
+  const tile2 = screenToTile(160, 33 + 310, cam, rect2, buffer2, 16);
+  assert.equal(tile2.tileY, 20, 'Tile Y must account for canvas aspect ratio stretch without shifting upward');
+});
+
 
 
 
