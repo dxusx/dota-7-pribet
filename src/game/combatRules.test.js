@@ -1150,6 +1150,48 @@ test('31. Ward Placement Stability & VFX Draw Safety', async () => {
   }, 'drawVfx must not throw when from/to is missing');
 });
 
+test('32. End Turn Lifecycle & Ward Timer Progression', async () => {
+  const { createInitialGameState, placeWard, endTurn } = await import('./gameState.js');
+  const { computeFactionVision } = await import('./visionEngine.js');
+
+  let state = createInitialGameState();
+  const hero = state.heroes[0];
+
+  // Place an observer ward
+  state = placeWard(state, {
+    heroId: hero.instanceId,
+    x: hero.x + 1,
+    y: hero.y + 1,
+    type: 'observer',
+  });
+  assert.equal(state.wards.length, 1);
+  assert.equal(state.wards[0].turnsLeft, 10);
+
+  // Calling endTurn must NOT throw ReferenceError: updatedTowers is not defined
+  state = endTurn(state);
+
+  assert.equal(state.turnNumber, 2);
+  assert.equal(state.wards.length, 1);
+  assert.equal(state.wards[0].turnsLeft, 9, 'Ward turnsLeft must decrement by 1');
+  assert.ok(Array.isArray(state.towers), 'Towers array must be preserved');
+  assert.ok(state.towers.length > 0, 'Towers must exist');
+
+  // Verify vision computation succeeds on the new state
+  const exploredMask = new Uint8Array(100 * 100);
+  const v = computeFactionVision({
+    mapData: { tiles: [], size: 100 },
+    faction: 'radiant',
+    heroes: state.heroes,
+    creeps: state.creeps,
+    towers: state.towers,
+    wards: state.wards,
+    isDay: true,
+    previousExploredMask: exploredMask,
+  });
+  assert.ok(v.visibleMask);
+  assert.ok(v.exploredMask);
+});
+
 
 
 

@@ -657,7 +657,7 @@ export function endTurn(state) {
     remainingTurnTime: TURN_DURATION_SECONDS,
     heroes: updatedHeroes,
     creeps: updatedCreeps,
-    towers: updatedTowers,
+    towers: state.towers,
     wards: updatedWards,
     roshan: updatedRoshan,
     nextLaneWaveTime: nextWave,
