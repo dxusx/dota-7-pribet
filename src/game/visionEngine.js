@@ -124,9 +124,7 @@ export function computeFactionVision({
   const totalTiles = size * size;
 
   const visibleMask = new Uint8Array(totalTiles);
-  const exploredMask = previousExploredMask
-    ? new Uint8Array(previousExploredMask)
-    : new Uint8Array(totalTiles);
+  const exploredMask = previousExploredMask || new Uint8Array(totalTiles);
 
   // 1. Vision from Allied Heroes
   heroes.forEach(hero => {

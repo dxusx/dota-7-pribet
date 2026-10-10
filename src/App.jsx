@@ -57,7 +57,10 @@ export default function App() {
   const [showRosterModal, setShowRosterModal] = useState(false);
   const [botAiEnabled, setBotAiEnabled] = useState(false);
   const [fogOfWarEnabled, setFogOfWarEnabled] = useState(true);
-  const [exploredMask, setExploredMask] = useState(null);
+  const exploredMaskRef = useRef(null);
+  if (!exploredMaskRef.current) {
+    exploredMaskRef.current = new Uint8Array(MAP_SIZE * MAP_SIZE);
+  }
   const [wardMode, setWardMode] = useState(null);
 
   // Active hero
@@ -65,8 +68,8 @@ export default function App() {
   const activeHero = gameState.heroes.find(h => h.instanceId === activeHeroId) || gameState.heroes[0];
 
   const isDay = gameState.roshan?.dayNightPhase !== 'night';
-  const { visibleMask, exploredMask: updatedExplored } = useMemo(() => {
-    return computeFactionVision({
+  const visibleMask = useMemo(() => {
+    const res = computeFactionVision({
       mapData,
       faction: 'radiant',
       heroes: gameState.heroes,
@@ -74,15 +77,10 @@ export default function App() {
       towers: gameState.towers,
       wards: gameState.wards,
       isDay,
-      previousExploredMask: exploredMask,
+      previousExploredMask: exploredMaskRef.current,
     });
-  }, [mapData, gameState.heroes, gameState.creeps, gameState.towers, gameState.wards, isDay, exploredMask]);
-
-  useEffect(() => {
-    if (updatedExplored && updatedExplored !== exploredMask) {
-      setExploredMask(updatedExplored);
-    }
-  }, [updatedExplored]);
+    return res.visibleMask;
+  }, [mapData, gameState.heroes, gameState.creeps, gameState.towers, gameState.wards, isDay]);
 
   // Ward target cells (Radius 5 around active hero)
   const wardTargetCells = useMemo(() => {
@@ -387,7 +385,9 @@ export default function App() {
         addFloatingText(tile.x, tile.y, wardMode === 'sentry' ? '🔮 Sentry установлен!' : '👁️ Observer установлен!', '#facc15');
         addVfx({
           id: `vfx_ward_${Date.now()}`,
-          type: 'aoe_impact',
+          type: 'beacon',
+          from: { x: activeHero.x, y: activeHero.y },
+          to: { x: tile.x, y: tile.y },
           targetPos: { x: tile.x, y: tile.y },
           color: wardMode === 'sentry' ? '#06b6d4' : '#eab308',
           durationMs: 800,
@@ -1229,7 +1229,7 @@ export default function App() {
           wards={gameState.wards}
           fogOfWarEnabled={fogOfWarEnabled}
           visionMask={visibleMask}
-          exploredMask={exploredMask}
+          exploredMask={exploredMaskRef.current}
           wardTargetCells={wardTargetCells}
           wardMode={wardMode}
           reachableMoveCells={reachableMoveCells}

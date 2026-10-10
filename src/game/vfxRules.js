@@ -240,13 +240,17 @@ export function getVfxProgress(vfx, now = Date.now()) {
  * Procedural stylized VFX rendering inside HTML5 Canvas world transform
  */
 export function drawVfx(ctx, vfx, now, tileSize) {
+  if (!vfx) return;
   const p = getVfxProgress(vfx, now);
   if (p >= 1.0) return;
 
-  const startPx = vfx.from.x * tileSize + tileSize / 2;
-  const startPy = vfx.from.y * tileSize + tileSize / 2;
-  const endPx = vfx.to.x * tileSize + tileSize / 2;
-  const endPy = vfx.to.y * tileSize + tileSize / 2;
+  const from = vfx.from || vfx.targetPos || { x: 0, y: 0 };
+  const to = vfx.to || vfx.targetPos || from;
+
+  const startPx = from.x * tileSize + tileSize / 2;
+  const startPy = from.y * tileSize + tileSize / 2;
+  const endPx = to.x * tileSize + tileSize / 2;
+  const endPy = to.y * tileSize + tileSize / 2;
 
   ctx.save();
 
@@ -1014,6 +1018,28 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     ctx.fillStyle = orbGrad;
     ctx.beginPath();
     ctx.arc(curX, curY, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // 19.5 Beacon / Ward Placement / AoE Ripple
+  else if (vfx.type === 'aoe_impact' || vfx.type === 'beacon') {
+    const alpha = Math.sin(p * Math.PI);
+    const pulseRadius = tileSize * (0.6 + p * 2.2);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    ctx.strokeStyle = vfx.color || '#facc15';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = vfx.color || '#facc15';
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(endPx, endPy, pulseRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Central flash flare
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(endPx, endPy, Math.max(2, (1.0 - p) * tileSize * 0.5), 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
