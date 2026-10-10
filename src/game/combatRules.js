@@ -290,9 +290,9 @@ export function resolveTowerAttacks(gameState, rng = Math.random) {
     const towerRange = tower.range || 10;
     const towerFaction = tower.faction;
 
-    // 1. Check for hostile creeps in range
+    // 1. Check for hostile creeps in range (Lane creeps only, never neutral jungle creeps)
     const hostileCreepsInRange = updatedCreeps.filter(c => {
-      if (c.isDead || c.hp <= 0 || c.faction === towerFaction) return false;
+      if (c.isDead || c.hp <= 0 || c.isNeutral || c.faction === 'neutral' || c.faction === towerFaction) return false;
       const dist = Math.hypot(c.x + 0.5 - towerCenterX, c.y + 0.5 - towerCenterY);
       return dist <= towerRange;
     });

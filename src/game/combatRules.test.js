@@ -1192,6 +1192,49 @@ test('32. End Turn Lifecycle & Ward Timer Progression', async () => {
   assert.ok(v.exploredMask);
 });
 
+test('33. Tower Neutral Creep Immunity & Balanced Jungle Camp Layout', async () => {
+  const { resolveTowerAttacks } = await import('./combatRules.js');
+  const { createInitialGameState } = await import('./gameState.js');
+  const { NEUTRAL_CAMPS } = await import('../map/dotaMapData.js');
+
+  const state = createInitialGameState();
+  const radTower = state.towers.find(t => t.id === 'rad_t1_bot') || state.towers[0];
+
+  // 1. Tower Neutral Immunity: Tower must NEVER fire at neutral creeps even if adjacent
+  const neutralCreep = {
+    id: 'test_neutral_1',
+    isNeutral: true,
+    faction: 'neutral',
+    x: radTower.x + 1,
+    y: radTower.y + 1,
+    hp: 150,
+    maxHp: 150,
+    damage: 20,
+    range: 1,
+  };
+
+  const towerResult = resolveTowerAttacks({
+    towers: [radTower],
+    heroes: [],
+    creeps: [neutralCreep],
+  });
+
+  assert.equal(towerResult.attacks.length, 0, 'Towers must NEVER target neutral jungle creeps');
+
+  // 2. Map Balance: Every neutral camp in NEUTRAL_CAMPS must be at least 12 tiles away from any tower
+  state.towers.forEach(tower => {
+    const tx = tower.x + (tower.size || 2) / 2;
+    const ty = tower.y + (tower.size || 2) / 2;
+    NEUTRAL_CAMPS.forEach(camp => {
+      const dist = Math.hypot(camp.x - tx, camp.y - ty);
+      assert.ok(
+        dist >= 11.5,
+        `Camp ${camp.name} at (${camp.x}, ${camp.y}) is too close to tower ${tower.id} (${tx}, ${ty}), dist: ${dist.toFixed(1)} < 12`
+      );
+    });
+  });
+});
+
 
 
 

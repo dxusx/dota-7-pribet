@@ -35,27 +35,27 @@ export const ELEVATION = {
 };
 
 export const NEUTRAL_CAMPS = [
-  // RADIANT MAIN JUNGLE
-  { id: 'rad_camp_small_pull', x: 35, y: 80, name: 'Radiant Small Pull Camp', tier: 'Easy', faction: 'radiant', pullTo: { x: 35, y: 86 } },
-  { id: 'rad_camp_med_hill', x: 43, y: 74, name: 'Radiant Medium Hill Camp', tier: 'Medium', faction: 'radiant' },
-  { id: 'rad_camp_med_river', x: 54, y: 78, name: 'Radiant Medium River Camp', tier: 'Medium', faction: 'radiant' },
-  { id: 'rad_camp_hard_mid', x: 48, y: 68, name: 'Radiant Hard Mid Camp', tier: 'Hard', faction: 'radiant' },
-  { id: 'rad_camp_hard_pull', x: 62, y: 80, name: 'Radiant Hard Pull Camp', tier: 'Hard', faction: 'radiant', pullTo: { x: 62, y: 86 } },
+  // RADIANT MAIN JUNGLE (SW, well clear of all towers by >12.4 tiles)
+  { id: 'rad_camp_small_pull', x: 50, y: 75, name: 'Radiant Small Pull Camp', tier: 'Easy', faction: 'radiant', pullTo: { x: 50, y: 86 } },
+  { id: 'rad_camp_med_hill', x: 57, y: 72, name: 'Radiant Medium Hill Camp', tier: 'Medium', faction: 'radiant' },
+  { id: 'rad_camp_med_river', x: 66, y: 73, name: 'Radiant Medium River Camp', tier: 'Medium', faction: 'radiant' },
+  { id: 'rad_camp_hard_mid', x: 56, y: 64, name: 'Radiant Hard Mid Camp', tier: 'Hard', faction: 'radiant' },
+  { id: 'rad_camp_hard_pull', x: 46, y: 71, name: 'Radiant Hard Pull Camp', tier: 'Hard', faction: 'radiant', pullTo: { x: 42, y: 78 } },
 
-  // RADIANT TRIANGLE
-  { id: 'rad_camp_ancient', x: 27, y: 64, name: 'Radiant Ancient Camp', tier: 'Ancient', faction: 'radiant' },
-  { id: 'rad_camp_tri_med', x: 23, y: 56, name: 'Radiant Triangle Medium', tier: 'Medium', faction: 'radiant' },
+  // RADIANT TRIANGLE (NW of Mid, well clear of T1/T2 Top and Mid by >13.8 tiles)
+  { id: 'rad_camp_ancient', x: 26, y: 48, name: 'Radiant Ancient Camp', tier: 'Ancient', faction: 'radiant' },
+  { id: 'rad_camp_tri_med', x: 32, y: 44, name: 'Radiant Triangle Medium', tier: 'Medium', faction: 'radiant' },
 
-  // DIRE MAIN JUNGLE
-  { id: 'dire_camp_small_pull', x: 65, y: 20, name: 'Dire Small Pull Camp', tier: 'Easy', faction: 'dire', pullTo: { x: 65, y: 14 } },
-  { id: 'dire_camp_med_hill', x: 57, y: 26, name: 'Dire Medium Hill Camp', tier: 'Medium', faction: 'dire' },
-  { id: 'dire_camp_med_river', x: 46, y: 22, name: 'Dire Medium River Camp', tier: 'Medium', faction: 'dire' },
-  { id: 'dire_camp_hard_mid', x: 52, y: 32, name: 'Dire Hard Mid Camp', tier: 'Hard', faction: 'dire' },
-  { id: 'dire_camp_hard_pull', x: 38, y: 20, name: 'Dire Hard Pull Camp', tier: 'Hard', faction: 'dire', pullTo: { x: 38, y: 14 } },
+  // DIRE MAIN JUNGLE (NE, well clear of all towers by >12.4 tiles)
+  { id: 'dire_camp_small_pull', x: 50, y: 25, name: 'Dire Small Pull Camp', tier: 'Easy', faction: 'dire', pullTo: { x: 50, y: 14 } },
+  { id: 'dire_camp_med_hill', x: 43, y: 28, name: 'Dire Medium Hill Camp', tier: 'Medium', faction: 'dire' },
+  { id: 'dire_camp_med_river', x: 34, y: 27, name: 'Dire Medium River Camp', tier: 'Medium', faction: 'dire' },
+  { id: 'dire_camp_hard_mid', x: 44, y: 36, name: 'Dire Hard Mid Camp', tier: 'Hard', faction: 'dire' },
+  { id: 'dire_camp_hard_pull', x: 54, y: 29, name: 'Dire Hard Pull Camp', tier: 'Hard', faction: 'dire', pullTo: { x: 58, y: 22 } },
 
-  // DIRE TRIANGLE
-  { id: 'dire_camp_ancient', x: 73, y: 36, name: 'Dire Ancient Camp', tier: 'Ancient', faction: 'dire' },
-  { id: 'dire_camp_tri_med', x: 77, y: 44, name: 'Dire Triangle Medium', tier: 'Medium', faction: 'dire' },
+  // DIRE TRIANGLE (SE of Mid, well clear of T1/T2 Bot and Mid by >13.8 tiles)
+  { id: 'dire_camp_ancient', x: 74, y: 52, name: 'Dire Ancient Camp', tier: 'Ancient', faction: 'dire' },
+  { id: 'dire_camp_tri_med', x: 68, y: 56, name: 'Dire Triangle Medium', tier: 'Medium', faction: 'dire' },
 ];
 
 export const BOUNTY_ALTARS = [
@@ -120,10 +120,8 @@ export function generateDotaMap() {
         const py = Math.round(y + dy);
         if (px >= 0 && px < size && py >= 0 && py < size) {
           const idx = py * size + px;
-          if (tiles[idx].terrain !== TERRAIN.WATER) {
-            tiles[idx].terrain = terrainType;
-            tiles[idx].hasTree = false;
-          }
+          tiles[idx].terrain = terrainType;
+          tiles[idx].hasTree = false;
         }
       }
     }
@@ -155,20 +153,20 @@ export function generateDotaMap() {
     }
   };
 
-  // 3. Main Roads / Lanes (Top, Mid, Bot)
+  // 3. Main Roads / Lanes (Top, Mid, Bot) — Authentic 5-Tile Wide Boulevards (radius = 2)
   // Top Lane:
-  for (let y = 85; y >= 14; y--) markPath(13, y, 1, TERRAIN.ROAD);
-  for (let x = 13; x <= 85; x++) markPath(x, 14, 1, TERRAIN.ROAD);
+  for (let y = 85; y >= 14; y--) markPath(13, y, 2, TERRAIN.ROAD);
+  for (let x = 13; x <= 85; x++) markPath(x, 14, 2, TERRAIN.ROAD);
 
   // Bot Lane:
-  for (let x = 15; x <= 86; x++) markPath(x, 86, 1, TERRAIN.ROAD);
-  for (let y = 86; y >= 15; y--) markPath(86, y, 1, TERRAIN.ROAD);
+  for (let x = 15; x <= 86; x++) markPath(x, 86, 2, TERRAIN.ROAD);
+  for (let y = 86; y >= 15; y--) markPath(86, y, 2, TERRAIN.ROAD);
 
   // Mid Lane:
   for (let t = 0; t <= 100; t++) {
     const mx = Math.round(18 + (82 - 18) * (t / 100));
     const my = Math.round(82 + (18 - 82) * (t / 100));
-    markPath(mx, my, 1, TERRAIN.ROAD);
+    markPath(mx, my, 2, TERRAIN.ROAD);
   }
 
   // 4. Bases:
@@ -286,45 +284,39 @@ export function generateDotaMap() {
   // 8. Carve Comprehensive Jungle Trail Network (Dirt Paths)
   // Radiant Jungle Trails:
   // Safelane pull trail from Bot Lane directly through Small Camp
-  drawLinePath(35, 86, 35, 78, 1, TERRAIN.DIRT_PATH);
-  drawLinePath(35, 78, 43, 74, 1, TERRAIN.DIRT_PATH);
-  drawLinePath(43, 74, 48, 68, 1, TERRAIN.DIRT_PATH);
-  drawLinePath(48, 68, 44, 58, 1, TERRAIN.DIRT_PATH); // Connect to Mid T1
-  drawLinePath(48, 68, 54, 62, 1, TERRAIN.DIRT_PATH); // Connect to River
-
-  // Lower Radiant Jungle trail
-  drawLinePath(43, 74, 54, 78, 1, TERRAIN.DIRT_PATH);
-  drawLinePath(54, 78, 62, 80, 1, TERRAIN.DIRT_PATH);
-  drawLinePath(62, 80, 62, 86, 1, TERRAIN.DIRT_PATH); // Connect to Bot Lane
-  drawLinePath(62, 80, 70, 76, 1, TERRAIN.DIRT_PATH); // Connect to River
+  drawLinePath(50, 86, 50, 75, 1, TERRAIN.DIRT_PATH);
+  drawLinePath(50, 75, 57, 72, 1, TERRAIN.DIRT_PATH);
+  drawLinePath(57, 72, 56, 64, 1, TERRAIN.DIRT_PATH);
+  drawLinePath(56, 64, 48, 56, 1, TERRAIN.DIRT_PATH); // Connect to Mid Lane
+  drawLinePath(57, 72, 66, 73, 1, TERRAIN.DIRT_PATH); // Connect to River Camp
+  drawLinePath(66, 73, 72, 74, 1, TERRAIN.DIRT_PATH); // Connect to River
+  drawLinePath(50, 75, 46, 71, 1, TERRAIN.DIRT_PATH); // Connect to Hard Pull
+  drawLinePath(46, 71, 38, 84, 1, TERRAIN.DIRT_PATH); // Connect to Bot Lane
 
   // Radiant Triangle Trails
-  drawLinePath(18, 76, 27, 64, 1, TERRAIN.DIRT_PATH); // From Radiant Top/Base
-  drawLinePath(27, 64, 32, 58, 1, TERRAIN.DIRT_PATH); // To Secret Shop
-  drawLinePath(32, 58, 38, 62, 1, TERRAIN.DIRT_PATH); // To Mid Lane
-  drawLinePath(27, 64, 23, 56, 1, TERRAIN.DIRT_PATH); // To Triangle Medium
-  drawLinePath(23, 56, 22, 45, 1, TERRAIN.DIRT_PATH); // To Top Lane / River
+  drawLinePath(18, 76, 26, 48, 1, TERRAIN.DIRT_PATH); // From Radiant Top/Base
+  drawLinePath(26, 48, 32, 44, 1, TERRAIN.DIRT_PATH); // To Triangle Medium
+  drawLinePath(32, 44, 36, 52, 1, TERRAIN.DIRT_PATH); // To Secret Shop
+  drawLinePath(36, 52, 40, 60, 1, TERRAIN.DIRT_PATH); // To Mid Lane
+  drawLinePath(32, 44, 20, 36, 1, TERRAIN.DIRT_PATH); // To Top Lane / River
 
   // Dire Jungle Trails:
   // Safelane pull trail from Top Lane directly through Small Camp
-  drawLinePath(65, 14, 65, 22, 1, TERRAIN.DIRT_PATH);
-  drawLinePath(65, 22, 57, 26, 1, TERRAIN.DIRT_PATH);
-  drawLinePath(57, 26, 52, 32, 1, TERRAIN.DIRT_PATH);
-  drawLinePath(52, 32, 56, 42, 1, TERRAIN.DIRT_PATH); // Connect to Mid T1
-  drawLinePath(52, 32, 46, 38, 1, TERRAIN.DIRT_PATH); // Connect to River
-
-  // Upper Dire Jungle trail
-  drawLinePath(57, 26, 46, 22, 1, TERRAIN.DIRT_PATH);
-  drawLinePath(46, 22, 38, 20, 1, TERRAIN.DIRT_PATH);
-  drawLinePath(38, 20, 38, 14, 1, TERRAIN.DIRT_PATH); // Connect to Top Lane
-  drawLinePath(38, 20, 30, 24, 1, TERRAIN.DIRT_PATH); // Connect to River
+  drawLinePath(50, 14, 50, 25, 1, TERRAIN.DIRT_PATH);
+  drawLinePath(50, 25, 43, 28, 1, TERRAIN.DIRT_PATH);
+  drawLinePath(43, 28, 44, 36, 1, TERRAIN.DIRT_PATH);
+  drawLinePath(44, 36, 52, 44, 1, TERRAIN.DIRT_PATH); // Connect to Mid Lane
+  drawLinePath(43, 28, 34, 27, 1, TERRAIN.DIRT_PATH); // Connect to River Camp
+  drawLinePath(34, 27, 28, 26, 1, TERRAIN.DIRT_PATH); // Connect to River
+  drawLinePath(50, 25, 54, 29, 1, TERRAIN.DIRT_PATH); // Connect to Hard Pull
+  drawLinePath(54, 29, 62, 16, 1, TERRAIN.DIRT_PATH); // Connect to Top Lane
 
   // Dire Triangle Trails
-  drawLinePath(82, 24, 73, 36, 1, TERRAIN.DIRT_PATH); // From Dire Bot/Base
-  drawLinePath(73, 36, 68, 42, 1, TERRAIN.DIRT_PATH); // To Secret Shop
-  drawLinePath(68, 42, 62, 38, 1, TERRAIN.DIRT_PATH); // To Mid Lane
-  drawLinePath(73, 36, 77, 44, 1, TERRAIN.DIRT_PATH); // To Triangle Medium
-  drawLinePath(77, 44, 78, 55, 1, TERRAIN.DIRT_PATH); // To Bot Lane / River
+  drawLinePath(82, 24, 74, 52, 1, TERRAIN.DIRT_PATH); // From Dire Bot/Base
+  drawLinePath(74, 52, 68, 56, 1, TERRAIN.DIRT_PATH); // To Triangle Medium
+  drawLinePath(68, 56, 64, 48, 1, TERRAIN.DIRT_PATH); // To Secret Shop
+  drawLinePath(64, 48, 60, 40, 1, TERRAIN.DIRT_PATH); // To Mid Lane
+  drawLinePath(68, 56, 80, 64, 1, TERRAIN.DIRT_PATH); // To Bot Lane / River
 
   // 9. Clear Tree Free Zones for All Objects
   const clearTreeCircle = (cx, cy, r) => {
@@ -366,14 +358,22 @@ export function generateDotaMap() {
         continue;
       }
 
-      // Organic cellular noise for natural tree groves
-      const noise =
-        Math.sin(x * 0.35) * Math.cos(y * 0.35) +
-        Math.sin(x * 0.15 + y * 0.15) * 0.4 +
-        pseudoRandom(x * 137 + y * 281) * 0.3;
+      // Dense boundary forests along outer edges
+      const isOuterBorder = (x <= 6 || x >= 93 || y <= 6 || y >= 93);
+      if (isOuterBorder && tile.terrain !== TERRAIN.ROAD) {
+        tile.hasTree = true;
+        tile.treeType = tile.faction === 'dire' ? 'spooky' : 'lush';
+        continue;
+      }
 
-      // Higher threshold = less tree clutter, creating natural gaps and clearings
-      if (noise > 0.30) {
+      // Smooth coherent macro noise for defined forest groves
+      const macroNoise =
+        Math.sin(x * 0.16) * Math.cos(y * 0.16) * 0.65 +
+        Math.sin((x + y) * 0.10) * 0.35 +
+        pseudoRandom(x * 47 + y * 89) * 0.12;
+
+      // Clean threshold for contiguous groves with clearings
+      if (macroNoise > 0.18) {
         tile.hasTree = true;
         tile.treeType = tile.faction === 'dire' ? 'spooky' : 'lush';
       }
@@ -691,10 +691,10 @@ export function generateDotaMap() {
       { name: 'Top Rune', x: 33, y: 35, faction: 'neutral' },
       { name: 'Bot Rune', x: 67, y: 65, faction: 'neutral' },
       ...BOUNTY_ALTARS.map(b => ({ name: b.name, x: b.x, y: b.y, faction: b.faction })),
-      { name: 'Radiant Small Camp', x: 35, y: 80, faction: 'radiant' },
-      { name: 'Dire Small Camp', x: 65, y: 20, faction: 'dire' },
-      { name: 'Radiant Ancient Camp', x: 27, y: 64, faction: 'radiant' },
-      { name: 'Dire Ancient Camp', x: 73, y: 36, faction: 'dire' },
+      { name: 'Radiant Small Camp', x: 50, y: 75, faction: 'radiant' },
+      { name: 'Dire Small Camp', x: 50, y: 25, faction: 'dire' },
+      { name: 'Radiant Ancient Camp', x: 26, y: 48, faction: 'radiant' },
+      { name: 'Dire Ancient Camp', x: 74, y: 52, faction: 'dire' },
     ],
   };
 }
