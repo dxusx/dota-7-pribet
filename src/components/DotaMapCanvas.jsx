@@ -45,6 +45,7 @@ export default function DotaMapCanvas({
   const canvasRef = useRef(null);
   const minimapRef = useRef(null);
   const offscreenCanvasRef = useRef(null);
+  const offscreenMinimapRef = useRef(null);
   const portraitImagesRef = useRef(new Map());
 
   // Viewport camera state (pan offset and zoom scale)
@@ -54,7 +55,13 @@ export default function DotaMapCanvas({
   const isDraggingRef = useRef(false);
   const lastMousePosRef = useRef({ x: 0, y: 0 });
 
-  // 1. Bake base terrain into Offscreen Canvas
+  // Filtered landmarks for high-speed rendering (eliminates 10k tile scan per frame)
+  const objectTiles = useMemo(() => {
+    if (!mapData?.tiles) return [];
+    return mapData.tiles.filter(t => t.object && t.object.type !== 'TOWER' && t.object.type !== 'ANCIENT');
+  }, [mapData]);
+
+  // 1. Bake base terrain AND trees into Offscreen Canvas
   useEffect(() => {
     if (!mapData || !mapData.tiles) return;
 
@@ -164,8 +171,38 @@ export default function DotaMapCanvas({
       }
     }
 
+    // Pre-bake trees directly into offscreen canvas (saves 24,000 canvas calls per frame!)
+    if (showTrees) {
+      for (let i = 0; i < mapData.tiles.length; i++) {
+        const tile = mapData.tiles[i];
+        if (tile.hasTree) {
+          const px = tile.x * TILE_SIZE + TILE_SIZE / 2;
+          const py = tile.y * TILE_SIZE + TILE_SIZE / 2;
+          const r = TILE_SIZE * 0.40;
+
+          ctx.beginPath();
+          ctx.arc(px, py, r, 0, Math.PI * 2);
+          ctx.fillStyle = tile.treeType === 'spooky' ? '#472b38' : '#1f542a';
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.arc(px - 1.5, py - 1.5, r * 0.5, 0, Math.PI * 2);
+          ctx.fillStyle = tile.treeType === 'spooky' ? '#693e53' : '#2e7a3d';
+          ctx.fill();
+        }
+      }
+    }
+
     offscreenCanvasRef.current = offscreen;
-  }, [mapData]);
+
+    // Pre-bake 200x200 minimap background canvas once for instant 60 FPS drawing
+    const mmOff = document.createElement('canvas');
+    mmOff.width = 200;
+    mmOff.height = 200;
+    const mmCtx = mmOff.getContext('2d');
+    mmCtx.drawImage(offscreen, 0, 0, 200, 200);
+    offscreenMinimapRef.current = mmOff;
+  }, [mapData, showTrees]);
 
   // Handle external camera focus (e.g. from landmark quick jump or hero click)
   useEffect(() => {
@@ -182,7 +219,7 @@ export default function DotaMapCanvas({
     });
   }, [targetPos]);
 
-  // Minimap Rendering
+  // Minimap Rendering (Instant 60 FPS via pre-baked minimap texture)
   const renderMinimap = useCallback(() => {
     const mCanvas = minimapRef.current;
     const vCanvas = canvasRef.current;
@@ -190,10 +227,13 @@ export default function DotaMapCanvas({
     const mCtx = mCanvas.getContext('2d');
     const mWidth = mCanvas.width;
     const mHeight = mCanvas.height;
+    const scale = mWidth / WORLD_SIZE;
 
     mCtx.clearRect(0, 0, mWidth, mHeight);
 
-    if (offscreenCanvasRef.current) {
+    if (offscreenMinimapRef.current) {
+      mCtx.drawImage(offscreenMinimapRef.current, 0, 0, mWidth, mHeight);
+    } else if (offscreenCanvasRef.current) {
       mCtx.drawImage(offscreenCanvasRef.current, 0, 0, mWidth, mHeight);
     }
 
@@ -454,17 +494,35 @@ export default function DotaMapCanvas({
         ctx.setLineDash([]);
       }
 
-      // 4. Grid lines
+      // Calculate visible viewport tile boundaries for Frustum Culling
+      const startX = Math.max(0, Math.floor(-camX / (zoom * TILE_SIZE)));
+      const endX = Math.min(MAP_SIZE, Math.ceil((-camX + canvas.width) / (zoom * TILE_SIZE)));
+      const startY = Math.max(0, Math.floor(-camY / (zoom * TILE_SIZE)));
+      const endY = Math.min(MAP_SIZE, Math.ceil((-camY + canvas.height) / (zoom * TILE_SIZE)));
+
+      // 4. Grid lines (Culled to visible viewport)
       if (showGrid) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
         ctx.lineWidth = 1 / zoom;
         ctx.beginPath();
-        for (let i = 0; i <= MAP_SIZE; i++) {
+        const minX = Math.max(0, startX);
+        const maxX = Math.min(MAP_SIZE, endX);
+        const minY = Math.max(0, startY);
+        const maxY = Math.min(MAP_SIZE, endY);
+        const yTop = minY * TILE_SIZE;
+        const yBot = maxY * TILE_SIZE;
+        const xLeft = minX * TILE_SIZE;
+        const xRight = maxX * TILE_SIZE;
+
+        for (let i = minX; i <= maxX; i++) {
           const pos = i * TILE_SIZE;
-          ctx.moveTo(pos, 0);
-          ctx.lineTo(pos, WORLD_SIZE);
-          ctx.moveTo(0, pos);
-          ctx.lineTo(WORLD_SIZE, pos);
+          ctx.moveTo(pos, yTop);
+          ctx.lineTo(pos, yBot);
+        }
+        for (let i = minY; i <= maxY; i++) {
+          const pos = i * TILE_SIZE;
+          ctx.moveTo(xLeft, pos);
+          ctx.lineTo(xRight, pos);
         }
         ctx.stroke();
 
@@ -472,46 +530,32 @@ export default function DotaMapCanvas({
         ctx.strokeStyle = 'rgba(255, 215, 0, 0.12)';
         ctx.lineWidth = 2 / zoom;
         ctx.beginPath();
-        for (let i = 0; i <= MAP_SIZE; i += 5) {
-          const pos = i * TILE_SIZE;
-          ctx.moveTo(pos, 0);
-          ctx.lineTo(pos, WORLD_SIZE);
-          ctx.moveTo(0, pos);
-          ctx.lineTo(WORLD_SIZE, pos);
+        const majorStartX = Math.floor(minX / 5) * 5;
+        const majorStartY = Math.floor(minY / 5) * 5;
+        for (let i = majorStartX; i <= maxX; i += 5) {
+          if (i >= minX) {
+            const pos = i * TILE_SIZE;
+            ctx.moveTo(pos, yTop);
+            ctx.lineTo(pos, yBot);
+          }
+        }
+        for (let i = majorStartY; i <= maxY; i += 5) {
+          if (i >= minY) {
+            const pos = i * TILE_SIZE;
+            ctx.moveTo(xLeft, pos);
+            ctx.lineTo(xRight, pos);
+          }
         }
         ctx.stroke();
       }
 
-      // 5. Draw Trees
-      if (showTrees && mapData?.tiles) {
-        for (let i = 0; i < mapData.tiles.length; i++) {
-          const tile = mapData.tiles[i];
-          if (tile.hasTree) {
-            const px = tile.x * TILE_SIZE + TILE_SIZE / 2;
-            const py = tile.y * TILE_SIZE + TILE_SIZE / 2;
-            const r = TILE_SIZE * 0.40;
+      // 5. Trees are pre-baked into offscreenCanvas (saves 24,000 canvas calls per frame!)
 
-            ctx.beginPath();
-            ctx.arc(px, py, r, 0, Math.PI * 2);
-            ctx.fillStyle = tile.treeType === 'spooky' ? '#472b38' : '#1f542a';
-            ctx.fill();
-
-            ctx.beginPath();
-            ctx.arc(px - 1.5, py - 1.5, r * 0.5, 0, Math.PI * 2);
-            ctx.fillStyle = tile.treeType === 'spooky' ? '#693e53' : '#2e7a3d';
-            ctx.fill();
-          }
-        }
-      }
-
-      // 6. Draw Objects & Landmarks (Bounty Altars, Neutral Camps, Shops, Outposts, Runes)
-      if (showIcons && mapData?.tiles) {
-        for (let i = 0; i < mapData.tiles.length; i++) {
-          const tile = mapData.tiles[i];
-          if (!tile.object) continue;
-
-          // Towers and Ancients are drawn in dedicated multi-tile steps below
-          if (tile.object.type === 'TOWER' || tile.object.type === 'ANCIENT') continue;
+      // 6. Draw Objects & Landmarks (Culled to visible viewport via pre-filtered objectTiles)
+      if (showIcons && objectTiles.length > 0) {
+        for (let i = 0; i < objectTiles.length; i++) {
+          const tile = objectTiles[i];
+          if (tile.x < startX - 2 || tile.x > endX + 2 || tile.y < startY - 2 || tile.y > endY + 2) continue;
 
           const px = tile.x * TILE_SIZE + TILE_SIZE / 2;
           const py = tile.y * TILE_SIZE + TILE_SIZE / 2;
@@ -622,10 +666,6 @@ export default function DotaMapCanvas({
 
       // 6.5 Fog of War Shading Layer (Pitch Black Unexplored & Shaded Explored)
       if (fogOfWarEnabled && visionMask && exploredMask) {
-        const startX = Math.max(0, Math.floor(-camX / (zoom * TILE_SIZE)));
-        const endX = Math.min(MAP_SIZE, Math.ceil((-camX + canvas.width) / (zoom * TILE_SIZE)));
-        const startY = Math.max(0, Math.floor(-camY / (zoom * TILE_SIZE)));
-        const endY = Math.min(MAP_SIZE, Math.ceil((-camY + canvas.height) / (zoom * TILE_SIZE)));
 
         for (let y = startY; y < endY; y++) {
           for (let x = startX; x < endX; x++) {
@@ -759,7 +799,7 @@ export default function DotaMapCanvas({
       // 8. Dedicated 2x2 Towers Rendering (Fortress Walls with Pixel-Perfect Alignment)
       const normalTowers = towers.filter(t => t.id !== 'rad_throne' && t.id !== 'dire_throne');
       normalTowers.forEach(t => {
-        if (t.hp <= 0) return;
+        if (t.hp <= 0 || t.x < startX - 3 || t.x > endX + 3 || t.y < startY - 3 || t.y > endY + 3) return;
 
         const leftX = t.x * TILE_SIZE;
         const topY = t.y * TILE_SIZE;
@@ -911,7 +951,7 @@ export default function DotaMapCanvas({
 
       // 8. Draw Creeps (Melee, Ranged, and Neutrals with Distinct Formations & Visuals)
       creeps.forEach(creep => {
-        if (creep.isDead || creep.hp <= 0) return;
+        if (creep.isDead || creep.hp <= 0 || creep.x < startX - 2 || creep.x > endX + 2 || creep.y < startY - 2 || creep.y > endY + 2) return;
         const isRad = creep.faction === 'radiant';
         if (!isRad && fogOfWarEnabled && visionMask && visionMask[Math.round(creep.y) * MAP_SIZE + Math.round(creep.x)] !== 1) {
           return;
@@ -991,7 +1031,7 @@ export default function DotaMapCanvas({
       // 9. Draw Heroes
       const timeMs = Date.now();
       heroes.forEach(hero => {
-        if (hero.isDead) return;
+        if (hero.isDead || hero.x < startX - 2 || hero.x > endX + 2 || hero.y < startY - 2 || hero.y > endY + 2) return;
         const isRad = hero.faction === 'radiant';
         if (!isRad && fogOfWarEnabled && visionMask && visionMask[Math.round(hero.y) * MAP_SIZE + Math.round(hero.x)] !== 1) {
           return;
@@ -1086,7 +1126,7 @@ export default function DotaMapCanvas({
 
       // 9.5 Draw Active Wards (Observer & Sentry)
       wards.forEach(ward => {
-        if (ward.turnsLeft <= 0) return;
+        if (ward.turnsLeft <= 0 || ward.x < startX - 2 || ward.x > endX + 2 || ward.y < startY - 2 || ward.y > endY + 2) return;
         const isAllied = ward.faction === 'radiant';
         if (!isAllied && fogOfWarEnabled && visionMask && visionMask[ward.y * MAP_SIZE + ward.x] !== 1) {
           return;
