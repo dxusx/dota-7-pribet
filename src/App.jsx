@@ -35,6 +35,7 @@ import {
   Users,
   Bot,
   Eye,
+  ScrollText,
 } from 'lucide-react';
 
 export default function App() {
@@ -52,6 +53,8 @@ export default function App() {
   const [actionMode, setActionMode] = useState('move'); // Default to move mode for smooth 1-click navigation
   const [targetingSkill, setTargetingSkill] = useState(null);
   const [hoveredSkillTooltip, setHoveredSkillTooltip] = useState(null);
+  const [hoveredActionRange, setHoveredActionRange] = useState(null);
+  const [showCombatLogDrawer, setShowCombatLogDrawer] = useState(false);
   const [floatingTexts, setFloatingTexts] = useState([]);
   const [weskerMode, setWeskerMode] = useState('ranged');
   const [showRosterModal, setShowRosterModal] = useState(false);
@@ -492,25 +495,49 @@ export default function App() {
               const color = res.isCrit ? '#f59e0b' : '#ef4444';
               addFloatingText(targetHero.x, targetHero.y, text, color);
 
+              const targetWillDie = targetHero.hp - res.damage <= 0;
+              if (targetWillDie) {
+                setTimeout(() => {
+                  addFloatingText(targetHero.x, targetHero.y, `💀 ГЕРОЙ ПОВЕРЖЕН! +250 🪙`, '#fbbf24');
+                }, 300);
+              }
+
               setGameState(prev => {
+                let radiantKills = prev.radiantKills || 0;
+                let direKills = prev.direKills || 0;
+                if (targetWillDie) {
+                  if (activeHero.faction === 'radiant') radiantKills++;
+                  else direKills++;
+                }
+
                 const updatedHeroes = prev.heroes.map(h => {
                   if (h.instanceId === targetHero.instanceId) {
                     const newHp = Math.max(0, h.hp - res.damage);
                     return { ...h, hp: newHp, isDead: newHp <= 0 };
                   }
+                  if (h.instanceId === activeHero.instanceId && targetWillDie) {
+                    return {
+                      ...h,
+                      kills: (h.kills || 0) + 1,
+                      gold: (h.gold || 0) + 250,
+                    };
+                  }
                   return h;
                 });
                 const newTime = deductActionTime(prev.remainingTurnTime, attackTimeCost);
+                const killText = targetWillDie ? ` 💀 [УБИЙСТВО] ${activeHero.name} сразил ${targetHero.name}! (+250 золота)` : '';
                 return {
                   ...prev,
+                  radiantKills,
+                  direKills,
                   heroes: updatedHeroes,
                   remainingTurnTime: newTime,
                   combatLogs: [
                     {
-                      text: `${activeHero.name} атаковал ${targetHero.name}: ${res.damage} урона (${res.reason}) [-${attackTimeCost}с]`,
+                      text: `${activeHero.name} атаковал ${targetHero.name}: ${res.damage} урона (${res.reason}) [-${attackTimeCost}с]${killText}`,
                       time: prev.gameTimeSeconds,
                     },
-                    ...prev.combatLogs.slice(0, 15),
+                    ...prev.combatLogs.slice(0, 30),
                   ],
                 };
               });
@@ -540,10 +567,11 @@ export default function App() {
 
               const willDie = targetCreep.hp - res.damage <= 0;
               const xpReward = 30 + targetCreep.level * 15;
+              const goldReward = 35 + (targetCreep.level || 1) * 10;
 
               if (willDie) {
                 setTimeout(() => {
-                  addFloatingText(targetCreep.x, targetCreep.y, `💀 КРИП УБИТ! +${xpReward} XP`, '#eab308');
+                  addFloatingText(targetCreep.x, targetCreep.y, `💀 +${goldReward} 🪙 (+${xpReward} XP)`, '#eab308');
                 }, 300);
               }
 
@@ -558,16 +586,18 @@ export default function App() {
 
                 const updatedHeroes = prev.heroes.map(h => {
                   if (h.instanceId === activeHero.instanceId && willDie) {
+                    const newGold = (h.gold || 0) + goldReward;
                     const newXp = h.xp + xpReward;
                     const nextLvlXp = h.level * 100;
                     if (newXp >= nextLvlXp && h.level < 18) {
                       const leveled = applyClassLevelUp(h);
                       return {
                         ...leveled,
+                        gold: newGold,
                         xp: newXp - nextLvlXp,
                       };
                     }
-                    return { ...h, xp: newXp };
+                    return { ...h, gold: newGold, xp: newXp };
                   }
                   return h;
                 });
@@ -865,26 +895,40 @@ export default function App() {
         setGameState(prev => {
           const newTime = deductActionTime(prev.remainingTurnTime, attackTimeCost);
           if (target.instanceId) {
+            const targetWillDie = res.isHit && target.hp - res.damage <= 0;
+            let radiantKills = prev.radiantKills || 0;
+            let direKills = prev.direKills || 0;
+            if (targetWillDie) {
+              if (activeHero.faction === 'radiant') radiantKills++;
+              else direKills++;
+            }
             const updatedHeroes = prev.heroes.map(h => {
               if (h.instanceId === target.instanceId && res.isHit) {
                 const newHp = Math.max(0, h.hp - res.damage);
                 return { ...h, hp: newHp, isDead: newHp <= 0 };
               }
+              if (h.instanceId === activeHero.instanceId && targetWillDie) {
+                return { ...h, kills: (h.kills || 0) + 1, gold: (h.gold || 0) + 250 };
+              }
               return h;
             });
             return {
               ...prev,
+              radiantKills,
+              direKills,
               heroes: updatedHeroes,
               remainingTurnTime: newTime,
               combatLogs: [
                 {
-                  text: `[ИИ] ${activeHero.name} атаковал ${target.name}: ${res.isHit ? `${res.damage} ур.` : 'промах'} [-${attackTimeCost}с]`,
+                  text: `[ИИ] ${activeHero.name} атаковал ${target.name}: ${res.isHit ? `${res.damage} ур.` : 'промах'} [-${attackTimeCost}с]${targetWillDie ? ' 💀 СРАЖЕН!' : ''}`,
                   time: prev.gameTimeSeconds,
                 },
-                ...prev.combatLogs.slice(0, 15),
+                ...prev.combatLogs.slice(0, 30),
               ],
             };
           } else {
+            const creepWillDie = res.isHit && target.hp - res.damage <= 0;
+            const goldReward = 35 + (target.level || 1) * 10;
             const updatedCreeps = prev.creeps
               .map(c => {
                 if (c.id === target.id && res.isHit) {
@@ -894,16 +938,20 @@ export default function App() {
                 return c;
               })
               .filter(c => !c.isDead && c.hp > 0);
+            const updatedHeroes = creepWillDie
+              ? prev.heroes.map(h => h.instanceId === activeHero.instanceId ? { ...h, gold: (h.gold || 0) + goldReward } : h)
+              : prev.heroes;
             return {
               ...prev,
               creeps: updatedCreeps,
+              heroes: updatedHeroes,
               remainingTurnTime: newTime,
               combatLogs: [
                 {
                   text: `[ИИ] ${activeHero.name} атаковал крипа: ${res.isHit ? `${res.damage} ур.` : 'промах'} [-${attackTimeCost}с]`,
                   time: prev.gameTimeSeconds,
                 },
-                ...prev.combatLogs.slice(0, 15),
+                ...prev.combatLogs.slice(0, 30),
               ],
             };
           }
@@ -1032,6 +1080,25 @@ export default function App() {
               <span>🐺 Лес: {Math.max(0, Math.round(gameState.nextNeutralSpawnTime - currentMatchTime))}с</span>
             </div>
           </div>
+
+          {/* Team Scoreboard: Radiant vs Dire Kills */}
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950/90 border border-slate-800 shadow-inner">
+            <span className="text-xs font-bold text-emerald-400 font-mono flex items-center gap-1" title="Убийства Radiant">
+              <span className="text-[10px]">🛡️</span> {gameState.radiantKills || 0}
+            </span>
+            <span className="text-xs font-bold text-slate-500">:</span>
+            <span className="text-xs font-bold text-rose-400 font-mono flex items-center gap-1" title="Убийства Dire">
+              {gameState.direKills || 0} <span className="text-[10px]">⚔️</span>
+            </span>
+          </div>
+
+          {/* Active Hero Gold Indicator */}
+          {activeHero && (
+            <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-950/50 border border-amber-500/40 text-amber-300 font-mono text-xs font-bold shadow-inner" title="Текущее золото активного героя">
+              <span>🪙</span>
+              <span>{activeHero.gold ?? 600}</span>
+            </div>
+          )}
         </div>
 
         {/* Center: Initiative Timeline with Left/Right arrows and horizontal wheel scroll */}
@@ -1125,6 +1192,24 @@ export default function App() {
           >
             <Users size={14} />
             <span>Ростер (15)</span>
+          </button>
+
+          <button
+            onClick={() => setShowCombatLogDrawer(prev => !prev)}
+            title="Открыть / закрыть подробный лог боя"
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border font-semibold transition-colors cursor-pointer ${
+              showCombatLogDrawer
+                ? 'bg-amber-950/80 border-amber-500/50 text-amber-300 hover:bg-amber-900 shadow-md'
+                : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700'
+            }`}
+          >
+            <ScrollText size={14} />
+            <span>Лог боя</span>
+            {gameState.combatLogs?.length > 0 && (
+              <span className="text-[10px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono font-bold">
+                {gameState.combatLogs.length}
+              </span>
+            )}
           </button>
 
           <button
@@ -1232,6 +1317,8 @@ export default function App() {
           exploredMask={exploredMaskRef.current}
           wardTargetCells={wardTargetCells}
           wardMode={wardMode}
+          hoveredSkillRange={hoveredSkillTooltip?.skill?.range || null}
+          hoveredActionRange={hoveredActionRange || (wardMode ? 5 : null)}
           reachableMoveCells={reachableMoveCells}
           reachableAttackCells={reachableAttackCells}
           skillTargetCells={skillTargetCells}
@@ -1754,6 +1841,8 @@ export default function App() {
                       setTargetingSkill(null);
                       setWardMode(null);
                     }}
+                    onMouseEnter={() => setHoveredActionRange(maxSteps)}
+                    onMouseLeave={() => setHoveredActionRange(null)}
                     className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold font-mono border transition-all ${
                       actionMode === 'move' && !targetingSkill && !wardMode
                         ? 'bg-blue-600 border-blue-400 text-white shadow-md'
@@ -1770,6 +1859,8 @@ export default function App() {
                       setTargetingSkill(null);
                       setWardMode(null);
                     }}
+                    onMouseEnter={() => setHoveredActionRange(activeHero?.range || 1)}
+                    onMouseLeave={() => setHoveredActionRange(null)}
                     className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold font-mono border transition-all ${
                       actionMode === 'attack' && !targetingSkill && !wardMode
                         ? 'bg-red-600 border-red-400 text-white shadow-md'
@@ -1787,6 +1878,8 @@ export default function App() {
                     setActionMode(null);
                     setTargetingSkill(null);
                   }}
+                  onMouseEnter={() => setHoveredActionRange(5)}
+                  onMouseLeave={() => setHoveredActionRange(null)}
                   className={`flex items-center justify-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold font-mono border transition-all cursor-pointer ${
                     wardMode
                       ? 'bg-amber-500 border-amber-300 text-black shadow-md font-extrabold'
@@ -1826,6 +1919,33 @@ export default function App() {
                 <ChevronRight size={16} />
               </button>
             </div>
+          </div>
+
+          {/* Hotkeys HUD Bar */}
+          <div className="w-full flex items-center justify-center gap-2 sm:gap-4 py-1 px-4 bg-slate-950/90 border-t border-slate-800/80 text-[10px] font-mono text-slate-400 select-none">
+            <span className="flex items-center gap-1">
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 border border-slate-700 font-bold">Space</kbd> Конец хода
+            </span>
+            <span className="text-slate-700">•</span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-purple-300 border border-slate-700 font-bold">Q W E R D</kbd> Способности
+            </span>
+            <span className="text-slate-700">•</span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-red-300 border border-slate-700 font-bold">A / 2</kbd> Атака
+            </span>
+            <span className="text-slate-700">•</span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-blue-300 border border-slate-700 font-bold">M / 1</kbd> Шаг
+            </span>
+            <span className="text-slate-700">•</span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-yellow-300 border border-slate-700 font-bold">W</kbd> Вард
+            </span>
+            <span className="text-slate-700">•</span>
+            <span className="flex items-center gap-1">
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700 font-bold">СКМ Drag</kbd> Камера
+            </span>
           </div>
         </footer>
       )}
@@ -1943,6 +2063,55 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Slide-out Combat Log Drawer */}
+      {showCombatLogDrawer && (
+        <aside className="fixed top-14 right-0 bottom-0 w-80 sm:w-96 bg-slate-900/95 backdrop-blur-xl border-l border-slate-800 shadow-2xl z-40 flex flex-col transition-transform animate-in slide-in-from-right duration-200">
+          <div className="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/70">
+            <div className="flex items-center gap-2">
+              <ScrollText size={16} className="text-amber-400" />
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider">Подробный лог боя</h3>
+              <span className="text-[10px] font-mono text-amber-300 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                {gameState.combatLogs?.length || 0}
+              </span>
+            </div>
+            <button
+              onClick={() => setShowCombatLogDrawer(false)}
+              className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              title="Закрыть лог"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar text-xs font-mono">
+            {gameState.combatLogs && gameState.combatLogs.length > 0 ? (
+              gameState.combatLogs.map((log, i) => (
+                <div
+                  key={i}
+                  className={`p-2 rounded border text-left leading-relaxed ${
+                    log.text.includes('УБИТ') || log.text.includes('сразил') || log.text.includes('💀') || log.text.includes('ПОВЕРЖЕН')
+                      ? 'bg-rose-950/40 border-rose-500/40 text-rose-200'
+                      : log.text.includes('КРИТ')
+                      ? 'bg-amber-950/40 border-amber-500/40 text-amber-200'
+                      : log.text.includes('атаковал')
+                      ? 'bg-slate-800/60 border-slate-700/60 text-slate-200'
+                      : 'bg-slate-950/60 border-slate-800 text-slate-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-[10px] text-slate-500 mb-0.5">
+                    <span>#{gameState.combatLogs.length - i}</span>
+                    <span>⏱️ {typeof log.time === 'number' ? `${log.time.toFixed(1)}с` : ''}</span>
+                  </div>
+                  <div>{log.text}</div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center text-slate-500 py-12">Событий пока нет</div>
+            )}
+          </div>
+        </aside>
       )}
     </div>
   );

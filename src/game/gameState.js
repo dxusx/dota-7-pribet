@@ -157,6 +157,8 @@ export function createInitialGameState() {
       isDead: false,
       respawnTurnsLeft: 0,
       initiativeRoll: 0,
+      kills: 0,
+      gold: 600,
     });
   });
 
@@ -193,6 +195,8 @@ export function createInitialGameState() {
       isDead: false,
       respawnTurnsLeft: 0,
       initiativeRoll: 0,
+      kills: 0,
+      gold: 600,
     });
   });
 
@@ -265,6 +269,8 @@ export function createInitialGameState() {
     gameTimeSeconds: 0.0,
     turnNumber: 1,
     roundNumber: 1,
+    radiantKills: 0,
+    direKills: 0,
     activeUnitIndex: 0,
     remainingTurnTime: TURN_DURATION_SECONDS, // 8.0 seconds
     initiativeQueue: queue,
@@ -344,6 +350,8 @@ export function endTurn(state) {
   let updatedCreeps = [...state.creeps];
   let nextWave = state.nextLaneWaveTime;
   let waveIdx = state.waveCycleIndex;
+  let currentRadiantKills = state.radiantKills || 0;
+  let currentDireKills = state.direKills || 0;
   const newCombatLogs = [];
 
   // Determine lane creep levels based on destroyed enemy towers according to Google Doc:
@@ -524,6 +532,8 @@ export function endTurn(state) {
           target.isDead = true;
           if (target.instanceId) {
             target.respawnTurnsLeft = getRespawnDelayTurns(nextRound);
+            if (target.faction === 'radiant') currentDireKills++;
+            else currentRadiantKills++;
             newCombatLogs.push({
               text: `💀 [Крип] ${creep.faction} ${creep.type} сразил героя ${target.name}!`,
               time: nextGameTime,
@@ -568,6 +578,14 @@ export function endTurn(state) {
   if (towerResult.combatLogs.length > 0) {
     newCombatLogs.push(...towerResult.combatLogs);
   }
+
+  (towerResult.updatedHeroes || []).forEach(th => {
+    const prevHero = (state.heroes || []).find(h => h.instanceId === th.instanceId);
+    if (prevHero && !prevHero.isDead && th.isDead) {
+      if (th.faction === 'radiant') currentDireKills++;
+      else currentRadiantKills++;
+    }
+  });
 
   const towerVfxList = [];
   (towerResult.attacks || []).forEach(att => {
@@ -652,6 +670,8 @@ export function endTurn(state) {
     ...state,
     gameTimeSeconds: nextGameTime,
     roundNumber: nextRound,
+    radiantKills: currentRadiantKills,
+    direKills: currentDireKills,
     turnNumber: state.turnNumber + 1,
     activeUnitIndex: nextActiveIndex,
     remainingTurnTime: TURN_DURATION_SECONDS,

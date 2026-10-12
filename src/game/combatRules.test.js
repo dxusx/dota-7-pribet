@@ -1235,6 +1235,19 @@ test('33. Tower Neutral Creep Immunity & Balanced Jungle Camp Layout', async () 
   });
 });
 
+test('34. Match Scoreboard: Team kills, Hero gold & bounties', async () => {
+  const { createInitialGameState } = await import('./gameState.js');
+  const state = createInitialGameState();
+  assert.equal(state.radiantKills, 0, 'Radiant kills should start at 0');
+  assert.equal(state.direKills, 0, 'Dire kills should start at 0');
+  assert.ok(state.heroes.length >= 10, 'Should have 10 heroes');
+  state.heroes.forEach(h => {
+    assert.equal(h.gold, 600, `Hero ${h.name} should start with 600 gold`);
+    assert.equal(h.kills, 0, `Hero ${h.name} should start with 0 kills`);
+  });
+});
+
+
 
 
 

@@ -37,6 +37,8 @@ export default function DotaMapCanvas({
   exploredMask = null,
   wardTargetCells = [],
   wardMode = null,
+  hoveredSkillRange = null,
+  hoveredActionRange = null,
   onCellClick = null,
   onHoverTile = null,
 }) {
@@ -405,6 +407,25 @@ export default function DotaMapCanvas({
         });
       }
 
+      // 2.5 Active Hero Ability / Attack / Ward Range Indicator Circle
+      const curActiveHero = heroes.find(h => h.instanceId === activeHeroId && !h.isDead);
+      const activeIndicatorRange = hoveredSkillRange || hoveredActionRange;
+      if (curActiveHero && activeIndicatorRange) {
+        const hx = curActiveHero.x * TILE_SIZE + TILE_SIZE / 2;
+        const hy = curActiveHero.y * TILE_SIZE + TILE_SIZE / 2;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(hx, hy, activeIndicatorRange * TILE_SIZE, 0, Math.PI * 2);
+        ctx.fillStyle = hoveredSkillRange ? 'rgba(168, 85, 247, 0.08)' : 'rgba(239, 68, 68, 0.08)';
+        ctx.fill();
+        ctx.setLineDash([8 / zoom, 5 / zoom]);
+        ctx.strokeStyle = hoveredSkillRange ? '#c084fc' : '#f87171';
+        ctx.lineWidth = 2 / zoom;
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+
       // 3. Hover Path Preview (One-Click Walking Line)
       if (hoverPath.length > 0) {
         ctx.fillStyle = canAffordPath ? 'rgba(56, 189, 248, 0.35)' : 'rgba(239, 68, 68, 0.35)';
@@ -561,6 +582,27 @@ export default function DotaMapCanvas({
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(tile.object.symbol || '💠', px, py);
+          } else if (tile.object.type === 'WARD_CLIFF') {
+            ctx.beginPath();
+            ctx.arc(px, py, TILE_SIZE * 0.75, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
+            ctx.fill();
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 1.8 / zoom;
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(px, py, TILE_SIZE * 0.42, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(14, 165, 233, 0.45)';
+            ctx.fill();
+            ctx.strokeStyle = '#7dd3fc';
+            ctx.lineWidth = 1 / zoom;
+            ctx.stroke();
+
+            ctx.font = `${Math.round(TILE_SIZE * 0.65)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('👁️', px, py);
           } else if (tile.object.type === 'FOUNTAIN') {
             ctx.beginPath();
             ctx.arc(px, py, TILE_SIZE * 0.9, 0, Math.PI * 2);
@@ -932,14 +974,18 @@ export default function DotaMapCanvas({
         ctx.fillStyle = '#f8fafc';
         ctx.fillText(`L${creep.level}`, px + radius * 0.65, py - radius * 0.65);
 
-        // High-Contrast Health Bar
+        // High-Contrast Overhead Health Bar
         const barW = 20;
         const barH = 3.5;
         const hpPct = Math.max(0, Math.min(1, creep.hp / creep.maxHp));
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-        ctx.fillRect(px - barW / 2, py - radius - 6, barW, barH);
-        ctx.fillStyle = hpPct > 0.5 ? '#22c55e' : hpPct > 0.25 ? '#f59e0b' : '#ef4444';
-        ctx.fillRect(px - barW / 2, py - radius - 6, barW * hpPct, barH);
+        const barY = py - radius - 7;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+        ctx.fillRect(px - barW / 2 - 1, barY - 1, barW + 2, barH + 2);
+        ctx.fillStyle = isNeutral ? '#eab308' : isRad ? '#22c55e' : '#ef4444';
+        ctx.fillRect(px - barW / 2, barY, barW * hpPct, barH);
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 0.8 / zoom;
+        ctx.strokeRect(px - barW / 2 - 1, barY - 1, barW + 2, barH + 2);
       });
 
       // 9. Draw Heroes
@@ -993,24 +1039,49 @@ export default function DotaMapCanvas({
         ctx.lineWidth = Math.max(1.8, 2.2 / zoom);
         ctx.stroke();
 
+        // Overhead Level, Name & Floating Bars (Dota 2 Overhead Status)
+        const hpPct = Math.max(0, Math.min(1, hero.hp / hero.maxHp));
+        const manaPct = Math.max(0, Math.min(1, hero.mana / hero.maxMana));
+        const barW = 32;
+        const hpBarH = 4.5;
+        const mpBarH = 2.5;
+        const barY = py - radius - 12;
+
+        // Container background
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.92)';
+        ctx.fillRect(px - barW / 2 - 1, barY - 1, barW + 2, hpBarH + mpBarH + 3);
+
+        // Health fill
+        ctx.fillStyle = isRad ? '#22c55e' : '#ef4444';
+        ctx.fillRect(px - barW / 2, barY, barW * hpPct, hpBarH);
+
+        // Mana fill
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(px - barW / 2, barY + hpBarH + 1, barW * manaPct, mpBarH);
+
+        // Border outline
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 1 / zoom;
+        ctx.strokeRect(px - barW / 2 - 1, barY - 1, barW + 2, hpBarH + mpBarH + 3);
+
+        // Level box on the left
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(px - barW / 2 - 9, barY - 1, 8, hpBarH + mpBarH + 3);
+        ctx.strokeStyle = hero.accentColor || (isRad ? '#34d399' : '#f87171');
+        ctx.strokeRect(px - barW / 2 - 9, barY - 1, 8, hpBarH + mpBarH + 3);
+        ctx.font = `bold ${Math.max(6, Math.round(7 / zoom))}px monospace`;
+        ctx.fillStyle = '#f8fafc';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${hero.level}`, px - barW / 2 - 5, barY + (hpBarH + mpBarH + 2) / 2);
+
+        // Name & current HP above the bar if zoomed in
         if (zoom > 0.55) {
           ctx.font = `bold ${Math.round(TILE_SIZE * 0.32)}px sans-serif`;
           ctx.fillStyle = '#ffffff';
-          ctx.fillText(hero.name, px, py - TILE_SIZE * 0.7);
+          ctx.textAlign = 'center';
+          ctx.fillText(`${hero.name} (${hero.hp})`, px, barY - 4);
         }
-
-        const hpPct = Math.max(0, hero.hp / hero.maxHp);
-        const manaPct = Math.max(0, hero.mana / hero.maxMana);
-
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(px - 12, py + TILE_SIZE * 0.55, 24, 3.5);
-        ctx.fillStyle = '#10b981';
-        ctx.fillRect(px - 12, py + TILE_SIZE * 0.55, 24 * hpPct, 3.5);
-
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(px - 12, py + TILE_SIZE * 0.55 + 4, 24, 2);
-        ctx.fillStyle = '#3b82f6';
-        ctx.fillRect(px - 12, py + TILE_SIZE * 0.55 + 4, 24 * manaPct, 2);
       });
 
       // 9.5 Draw Active Wards (Observer & Sentry)
