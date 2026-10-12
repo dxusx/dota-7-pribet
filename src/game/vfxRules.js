@@ -267,8 +267,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     const linkCount = Math.floor(totalDist / linkSpacing);
 
     ctx.save();
-    ctx.shadowColor = '#0f172a';
-    ctx.shadowBlur = 4;
     ctx.strokeStyle = '#475569';
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
@@ -293,8 +291,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     ctx.save();
     ctx.translate(curX, curY);
     ctx.rotate(angle);
-    ctx.shadowColor = '#84cc16';
-    ctx.shadowBlur = 8;
     ctx.fillStyle = '#1e293b';
     ctx.strokeStyle = '#84cc16';
     ctx.lineWidth = 2.5;
@@ -324,8 +320,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     ctx.globalAlpha = alpha;
 
     // Ground celestial runic seal
-    ctx.shadowColor = '#f59e0b';
-    ctx.shadowBlur = 12;
     ctx.strokeStyle = '#fbbf24';
     ctx.lineWidth = 2;
     const sealRadius = tileSize * (1.1 + p * 0.4);
@@ -377,8 +371,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     ctx.globalAlpha = alpha;
 
     // Laser beam core with neon glow
-    ctx.shadowColor = '#22c55e';
-    ctx.shadowBlur = 10;
     ctx.strokeStyle = '#22c55e';
     ctx.lineWidth = 3.5;
     ctx.beginPath();
@@ -427,8 +419,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     const alpha = Math.max(0, 1.0 - p);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = '#dc2626';
-    ctx.shadowBlur = 12;
 
     const len = tileSize * (1.6 + p * 0.4);
     const cuts = [
@@ -481,8 +471,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     ctx.fill();
 
     // Torii Shrine silhouette glyph
-    ctx.shadowColor = '#ef4444';
-    ctx.shadowBlur = 10;
     ctx.strokeStyle = '#ef4444';
     ctx.lineWidth = 2.5;
 
@@ -521,8 +509,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
 
     ctx.save();
     // Blazing flame trail
-    ctx.shadowColor = '#ea580c';
-    ctx.shadowBlur = 14;
     ctx.strokeStyle = '#f97316';
     ctx.lineWidth = 6;
     ctx.beginPath();
@@ -567,16 +553,12 @@ export function drawVfx(ctx, vfx, now, tileSize) {
 
     if (orbitRadius > 2) {
       // Blue orb
-      ctx.shadowColor = '#3b82f6';
-      ctx.shadowBlur = 10;
       ctx.fillStyle = '#60a5fa';
       ctx.beginPath();
       ctx.arc(curX + Math.cos(orbitAngle) * orbitRadius, curY + Math.sin(orbitAngle) * orbitRadius, 6, 0, Math.PI * 2);
       ctx.fill();
 
       // Red orb
-      ctx.shadowColor = '#ef4444';
-      ctx.shadowBlur = 10;
       ctx.fillStyle = '#f87171';
       ctx.beginPath();
       ctx.arc(curX - Math.cos(orbitAngle) * orbitRadius, curY - Math.sin(orbitAngle) * orbitRadius, 6, 0, Math.PI * 2);
@@ -584,9 +566,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     }
 
     // Core Hollow Purple Singularity
-    ctx.shadowColor = '#c084fc';
-    ctx.shadowBlur = 24;
-
     const orbGrad = ctx.createRadialGradient(curX, curY, 0, curX, curY, 24);
     orbGrad.addColorStop(0, '#ffffff');
     orbGrad.addColorStop(0.3, '#c084fc');
@@ -629,8 +608,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     ctx.fill();
 
     // Concentric infinity rings
-    ctx.shadowColor = '#a855f7';
-    ctx.shadowBlur = 12;
     ctx.strokeStyle = '#c084fc';
     ctx.lineWidth = 1.8;
     for (let r = 1; r <= 3; r++) {
@@ -648,8 +625,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     ctx.save();
 
     // Scorched fire furrow trail on the ground
-    ctx.shadowColor = '#f97316';
-    ctx.shadowBlur = 14;
     ctx.strokeStyle = 'rgba(234, 88, 12, 0.7)';
     ctx.lineWidth = 10;
     ctx.beginPath();
@@ -688,8 +663,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     const alpha = Math.sin(p * Math.PI);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = '#dc2626';
-    ctx.shadowBlur = 16;
 
     // Towering crimson soul geyser
     const geyserGrad = ctx.createLinearGradient(endPx - 14, endPy, endPx + 14, endPy - 120);
@@ -714,8 +687,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     const alpha = Math.max(0, 1.0 - p);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = '#facc15';
-    ctx.shadowBlur = 12;
 
     const bayonets = [
       { x: endPx - 16, y: endPy - 8 },
@@ -759,8 +730,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     const angle = Math.atan2(endPy - startPy, endPx - startPx);
 
     ctx.save();
-    ctx.shadowColor = '#fbbf24';
-    ctx.shadowBlur = 14;
 
     // Golden celestial light trail
     ctx.strokeStyle = 'rgba(251, 191, 36, 0.6)';
@@ -795,9 +764,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     ctx.globalAlpha = alpha;
 
     // Dual muzzle tracers (Silver Jackal & Black Casull)
-    ctx.shadowColor = '#f87171';
-    ctx.shadowBlur = 10;
-
     // Shot 1 (Silver)
     ctx.strokeStyle = '#f1f5f9';
     ctx.lineWidth = 3;
@@ -828,8 +794,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     const alpha = Math.sin(p * Math.PI);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = '#dc2626';
-    ctx.shadowBlur = 16;
 
     const radius = tileSize * 2.2;
     // Pentagram circle
@@ -871,8 +835,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     const alpha = Math.max(0, 1.0 - p);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = '#06b6d4';
-    ctx.shadowBlur = 12;
 
     // Digital pixel slices at start and destination
     [
@@ -902,8 +864,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     const alpha = Math.max(0, 1.0 - p);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = '#10b981';
-    ctx.shadowBlur = 12;
     ctx.strokeStyle = '#34d399';
     ctx.lineWidth = 3;
 
@@ -932,8 +892,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     const alpha = Math.sin(p * Math.PI);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = '#84cc16';
-    ctx.shadowBlur = 16;
 
     const cloudRadius = tileSize * 1.8;
     const rotGrad = ctx.createRadialGradient(endPx, endPy, 0, endPx, endPy, cloudRadius);
@@ -962,8 +920,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     const alpha = Math.max(0, 1.0 - p);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = '#ef4444';
-    ctx.shadowBlur = 18;
 
     // Colossal descending red battle-axe
     ctx.strokeStyle = '#ef4444';
@@ -995,8 +951,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     const radius = vfx.type === 'tower_shot' ? 7 : 5;
 
     ctx.save();
-    ctx.shadowColor = vfx.color;
-    ctx.shadowBlur = 12;
 
     // Fading spark particle trail behind projectile
     for (let t = 1; t <= 3; t++) {
@@ -1030,8 +984,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
     ctx.strokeStyle = vfx.color || '#facc15';
     ctx.lineWidth = 2.5;
-    ctx.shadowColor = vfx.color || '#facc15';
-    ctx.shadowBlur = 10;
     ctx.beginPath();
     ctx.arc(endPx, endPy, pulseRadius, 0, Math.PI * 2);
     ctx.stroke();
@@ -1049,8 +1001,6 @@ export function drawVfx(ctx, vfx, now, tileSize) {
     const alpha = Math.max(0, 1.0 - p);
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.shadowColor = vfx.color;
-    ctx.shadowBlur = 14;
 
     // Curved weapon slash arc
     ctx.strokeStyle = vfx.color;

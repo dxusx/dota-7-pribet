@@ -71,6 +71,35 @@ export default function App() {
   const activeHero = gameState.heroes.find(h => h.instanceId === activeHeroId) || gameState.heroes[0];
 
   const isDay = gameState.roshan?.dayNightPhase !== 'night';
+
+  // Vision position hash: only recompute 11,500 raycasts if a unit moves, dies, or a ward is placed
+  const visionSourceKey = useMemo(() => {
+    let k = `${isDay}:`;
+    for (let i = 0; i < gameState.heroes.length; i++) {
+      const h = gameState.heroes[i];
+      if (h.faction === 'radiant' && !h.isDead) k += `${h.id},${h.x},${h.y};`;
+    }
+    if (gameState.creeps) {
+      for (let i = 0; i < gameState.creeps.length; i++) {
+        const c = gameState.creeps[i];
+        if (c.faction === 'radiant' && !c.isDead) k += `${c.id},${c.x},${c.y};`;
+      }
+    }
+    if (gameState.towers) {
+      for (let i = 0; i < gameState.towers.length; i++) {
+        const t = gameState.towers[i];
+        if (t.faction === 'radiant' && t.hp > 0) k += `${t.id};`;
+      }
+    }
+    if (gameState.wards) {
+      for (let i = 0; i < gameState.wards.length; i++) {
+        const w = gameState.wards[i];
+        if (w.faction === 'radiant' && w.turnsLeft > 0) k += `${w.x},${w.y},${w.type};`;
+      }
+    }
+    return k;
+  }, [gameState.heroes, gameState.creeps, gameState.towers, gameState.wards, isDay]);
+
   const visibleMask = useMemo(() => {
     const res = computeFactionVision({
       mapData,
@@ -83,7 +112,7 @@ export default function App() {
       previousExploredMask: exploredMaskRef.current,
     });
     return res.visibleMask;
-  }, [mapData, gameState.heroes, gameState.creeps, gameState.towers, gameState.wards, isDay]);
+  }, [mapData, visionSourceKey]);
 
   // Ward target cells (Radius 5 around active hero)
   const wardTargetCells = useMemo(() => {
@@ -326,6 +355,7 @@ export default function App() {
   const skillTargetCells = useMemo(() => {
     if (!targetingSkill || !activeHero) return [];
     const range = targetingSkill.range || targetingSkill.radius || 4;
+    if (range >= 30) return [];
     const cells = [];
     const { x: startX, y: startY } = activeHero;
 
@@ -373,7 +403,7 @@ export default function App() {
 
       // 0. Place Ward
       if (wardMode) {
-        const isWithinRange = wardTargetCells.some(c => c.x === tile.x && c.y === tile.y);
+        const isWithinRange = Math.hypot(tile.x - activeHero.x, tile.y - activeHero.y) <= 5.5;
         if (!isWithinRange) {
           addFloatingText(tile.x, tile.y, 'Вне радиуса (5 кл)!', '#ef4444');
           return;
@@ -400,7 +430,8 @@ export default function App() {
 
       // 1. Cast Targeted Skill
       if (targetingSkill) {
-        const isWithinRange = skillTargetCells.some(c => c.x === tile.x && c.y === tile.y);
+        const skillRange = targetingSkill.range || targetingSkill.radius || 4;
+        const isWithinRange = skillRange >= 30 || Math.hypot(tile.x - activeHero.x, tile.y - activeHero.y) <= skillRange + 0.5;
         if (!isWithinRange) {
           addFloatingText(tile.x, tile.y, 'Вне радиуса!', '#ef4444');
           return;
@@ -446,7 +477,8 @@ export default function App() {
 
       // 2. Attack Mode
       if (actionMode === 'attack') {
-        const isWithinRange = reachableAttackCells.some(c => c.x === tile.x && c.y === tile.y);
+        const attackRange = activeHero.range || 1;
+        const isWithinRange = Math.hypot(tile.x - activeHero.x, tile.y - activeHero.y) <= attackRange + 0.5;
         if (isWithinRange) {
           const attackTimeCost = activeHero.period || 4.0;
           if (!canPerformAction(gameState.remainingTurnTime, attackTimeCost)) {

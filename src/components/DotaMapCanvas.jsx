@@ -46,6 +46,7 @@ export default function DotaMapCanvas({
   const minimapRef = useRef(null);
   const offscreenCanvasRef = useRef(null);
   const offscreenMinimapRef = useRef(null);
+  const offscreenMinimapFogRef = useRef(null);
   const portraitImagesRef = useRef(new Map());
 
   // Viewport camera state (pan offset and zoom scale)
@@ -204,6 +205,37 @@ export default function DotaMapCanvas({
     offscreenMinimapRef.current = mmOff;
   }, [mapData, showTrees]);
 
+  // Pre-bake 200x200 minimap fog texture whenever vision/explored mask changes (saves 2,500 draw calls/frame)
+  useEffect(() => {
+    if (!fogOfWarEnabled || !visionMask || !exploredMask) {
+      offscreenMinimapFogRef.current = null;
+      return;
+    }
+    const fogCanvas = document.createElement('canvas');
+    fogCanvas.width = 200;
+    fogCanvas.height = 200;
+    const fCtx = fogCanvas.getContext('2d');
+    const scale = 200 / WORLD_SIZE;
+
+    for (let y = 0; y < MAP_SIZE; y += 2) {
+      for (let x = 0; x < MAP_SIZE; x += 2) {
+        const idx = y * MAP_SIZE + x;
+        if (visionMask[idx] === 1) continue;
+        const px = x * TILE_SIZE * scale;
+        const py = y * TILE_SIZE * scale;
+        const s = 2 * TILE_SIZE * scale;
+        if (exploredMask[idx] === 1) {
+          fCtx.fillStyle = 'rgba(7, 11, 20, 0.65)';
+          fCtx.fillRect(px, py, s, s);
+        } else {
+          fCtx.fillStyle = 'rgba(3, 5, 10, 0.98)';
+          fCtx.fillRect(px, py, s, s);
+        }
+      }
+    }
+    offscreenMinimapFogRef.current = fogCanvas;
+  }, [fogOfWarEnabled, visionMask, exploredMask]);
+
   // Handle external camera focus (e.g. from landmark quick jump or hero click)
   useEffect(() => {
     if (!targetPos || !canvasRef.current) return;
@@ -219,7 +251,7 @@ export default function DotaMapCanvas({
     });
   }, [targetPos]);
 
-  // Minimap Rendering (Instant 60 FPS via pre-baked minimap texture)
+  // Minimap Rendering (Instant 60 FPS via pre-baked minimap texture & pre-baked fog)
   const renderMinimap = useCallback(() => {
     const mCanvas = minimapRef.current;
     const vCanvas = canvasRef.current;
@@ -237,24 +269,9 @@ export default function DotaMapCanvas({
       mCtx.drawImage(offscreenCanvasRef.current, 0, 0, mWidth, mHeight);
     }
 
-    // Draw Fog of War on Minimap
-    if (fogOfWarEnabled && visionMask && exploredMask) {
-      for (let y = 0; y < MAP_SIZE; y += 2) {
-        for (let x = 0; x < MAP_SIZE; x += 2) {
-          const idx = y * MAP_SIZE + x;
-          if (visionMask[idx] === 1) continue;
-          const px = x * TILE_SIZE * scale;
-          const py = y * TILE_SIZE * scale;
-          const s = 2 * TILE_SIZE * scale;
-          if (exploredMask[idx] === 1) {
-            mCtx.fillStyle = 'rgba(7, 11, 20, 0.65)';
-            mCtx.fillRect(px, py, s, s);
-          } else {
-            mCtx.fillStyle = 'rgba(3, 5, 10, 0.98)';
-            mCtx.fillRect(px, py, s, s);
-          }
-        }
-      }
+    // Draw Fog of War on Minimap (1 instant draw call from pre-baked fog texture)
+    if (fogOfWarEnabled && offscreenMinimapFogRef.current) {
+      mCtx.drawImage(offscreenMinimapFogRef.current, 0, 0, mWidth, mHeight);
     }
 
     // Draw Towers and Ancients on Minimap
@@ -395,56 +412,70 @@ export default function DotaMapCanvas({
         ctx.drawImage(offscreenCanvasRef.current, 0, 0);
       }
 
-      // 2. Tactical Range Overlays (Skill Target Cells)
+      // Calculate visible viewport tile boundaries for Frustum Culling
+      const startX = Math.max(0, Math.floor(-camX / (zoom * TILE_SIZE)));
+      const endX = Math.min(MAP_SIZE, Math.ceil((-camX + canvas.width) / (zoom * TILE_SIZE)));
+      const startY = Math.max(0, Math.floor(-camY / (zoom * TILE_SIZE)));
+      const endY = Math.min(MAP_SIZE, Math.ceil((-camY + canvas.height) / (zoom * TILE_SIZE)));
+
+      // 2. Tactical Range Overlays (Skill Target Cells) - Culled to visible viewport
       if (skillTargetCells.length > 0) {
         ctx.fillStyle = 'rgba(168, 85, 247, 0.28)';
         ctx.strokeStyle = '#a855f7';
         ctx.lineWidth = 1.5 / zoom;
-        skillTargetCells.forEach(cell => {
+        for (let i = 0; i < skillTargetCells.length; i++) {
+          const cell = skillTargetCells[i];
+          if (cell.x < startX || cell.x > endX || cell.y < startY || cell.y > endY) continue;
           const px = cell.x * TILE_SIZE;
           const py = cell.y * TILE_SIZE;
           ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
           ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
-        });
+        }
       }
 
-      // Move Cells
+      // Move Cells - Culled to visible viewport
       if (reachableMoveCells.length > 0) {
         ctx.fillStyle = 'rgba(59, 130, 246, 0.22)';
         ctx.strokeStyle = '#3b82f6';
         ctx.lineWidth = 1.5 / zoom;
-        reachableMoveCells.forEach(cell => {
+        for (let i = 0; i < reachableMoveCells.length; i++) {
+          const cell = reachableMoveCells[i];
+          if (cell.x < startX || cell.x > endX || cell.y < startY || cell.y > endY) continue;
           const px = cell.x * TILE_SIZE;
           const py = cell.y * TILE_SIZE;
           ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
           ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
-        });
+        }
       }
 
-      // Ward Placement Target Cells
+      // Ward Placement Target Cells - Culled to visible viewport
       if (wardTargetCells.length > 0) {
         ctx.fillStyle = 'rgba(234, 179, 8, 0.25)';
         ctx.strokeStyle = '#facc15';
         ctx.lineWidth = 1.5 / zoom;
-        wardTargetCells.forEach(cell => {
+        for (let i = 0; i < wardTargetCells.length; i++) {
+          const cell = wardTargetCells[i];
+          if (cell.x < startX || cell.x > endX || cell.y < startY || cell.y > endY) continue;
           const px = cell.x * TILE_SIZE;
           const py = cell.y * TILE_SIZE;
           ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
           ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
-        });
+        }
       }
 
-      // Attack Cells
+      // Attack Cells - Culled to visible viewport
       if (reachableAttackCells.length > 0) {
         ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
         ctx.strokeStyle = '#ef4444';
         ctx.lineWidth = 1.5 / zoom;
-        reachableAttackCells.forEach(cell => {
+        for (let i = 0; i < reachableAttackCells.length; i++) {
+          const cell = reachableAttackCells[i];
+          if (cell.x < startX || cell.x > endX || cell.y < startY || cell.y > endY) continue;
           const px = cell.x * TILE_SIZE;
           const py = cell.y * TILE_SIZE;
           ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
           ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
-        });
+        }
       }
 
       // 2.5 Active Hero Ability / Attack / Ward Range Indicator Circle
@@ -472,12 +503,14 @@ export default function DotaMapCanvas({
         ctx.strokeStyle = canAffordPath ? '#38bdf8' : '#ef4444';
         ctx.lineWidth = 2 / zoom;
 
-        hoverPath.forEach(cell => {
+        for (let i = 0; i < hoverPath.length; i++) {
+          const cell = hoverPath[i];
+          if (cell.x < startX || cell.x > endX || cell.y < startY || cell.y > endY) continue;
           const px = cell.x * TILE_SIZE;
           const py = cell.y * TILE_SIZE;
           ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
           ctx.strokeRect(px + 0.5, py + 0.5, TILE_SIZE - 1, TILE_SIZE - 1);
-        });
+        }
 
         // Draw dotted path line
         ctx.beginPath();
@@ -493,12 +526,6 @@ export default function DotaMapCanvas({
         ctx.stroke();
         ctx.setLineDash([]);
       }
-
-      // Calculate visible viewport tile boundaries for Frustum Culling
-      const startX = Math.max(0, Math.floor(-camX / (zoom * TILE_SIZE)));
-      const endX = Math.min(MAP_SIZE, Math.ceil((-camX + canvas.width) / (zoom * TILE_SIZE)));
-      const startY = Math.max(0, Math.floor(-camY / (zoom * TILE_SIZE)));
-      const endY = Math.min(MAP_SIZE, Math.ceil((-camY + canvas.height) / (zoom * TILE_SIZE)));
 
       // 4. Grid lines (Culled to visible viewport)
       if (showGrid) {
