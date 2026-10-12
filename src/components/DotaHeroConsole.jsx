@@ -72,12 +72,12 @@ export default function DotaHeroConsole({ hero, onCenterCamera, onToggleWeskerMo
   if (hero.grievousWounds) statuses.push({ text: 'Страшные раны (-40% хила)', icon: '🩸', color: 'bg-red-900/80 text-red-200 border-red-500/50' });
 
   return (
-    <div className="flex items-center gap-3 w-[430px] shrink-0 bg-[#0d121c]/90 border border-slate-800/80 rounded-2xl p-2.5 shadow-xl relative backdrop-blur-md h-[98px]">
+    <div className="flex items-center gap-3 w-[440px] shrink-0 bg-[#0d121c]/95 border border-slate-800/90 rounded-2xl p-2.5 shadow-2xl relative backdrop-blur-md h-[106px]">
       {/* 1. Hero Avatar Portrait & Level Badge */}
       <div
         onClick={onCenterCamera}
         title="Нажмите, чтобы центрировать камеру на герое"
-        className={`w-[78px] h-[78px] rounded-xl overflow-hidden border-2 shrink-0 relative bg-slate-900 cursor-pointer transition-all group ${
+        className={`w-[84px] h-[84px] rounded-xl overflow-hidden border-2 shrink-0 relative bg-slate-900 cursor-pointer transition-all group shadow-inner ${
           hero.faction === 'radiant'
             ? 'border-emerald-400/90 shadow-lg shadow-emerald-500/25 hover:border-emerald-300 ring-1 ring-emerald-500/30'
             : 'border-rose-400/90 shadow-lg shadow-rose-500/25 hover:border-rose-300 ring-1 ring-rose-500/30'
@@ -96,7 +96,7 @@ export default function DotaHeroConsole({ hero, onCenterCamera, onToggleWeskerMo
       </div>
 
       {/* 2. Hero Information, Bars & Stats */}
-      <div className="flex-1 min-w-0 flex flex-col justify-between h-full">
+      <div className="flex-1 min-w-0 flex flex-col justify-between h-full py-0.5">
         {/* Header: Name, Attribute Badge & Title */}
         <div>
           <div className="flex items-center justify-between gap-1.5">

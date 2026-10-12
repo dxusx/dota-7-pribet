@@ -1039,10 +1039,10 @@ export default function App() {
   return (
     <div className="flex flex-col w-screen h-screen bg-[#07090e] text-slate-100 overflow-hidden font-sans select-none">
       {/* 1. Header Toolbar & Timeline */}
-      <header className="h-14 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-4 flex items-center justify-between shrink-0 z-20">
+      <header className="h-14 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 sm:px-4 flex items-center justify-between gap-2 shrink-0 z-20">
         {/* Left: Round & Turn Info */}
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-gradient-to-br from-amber-600 to-red-600 flex flex-col items-center justify-center font-bold shadow-md border border-amber-400/40">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <div className="w-8 h-8 rounded bg-gradient-to-br from-amber-600 to-red-600 flex flex-col items-center justify-center font-bold shadow-md border border-amber-400/40 shrink-0">
             <span className="text-[8px] uppercase tracking-tighter text-amber-200">Рнд</span>
             <span className="text-xs leading-none text-white">{gameState.roundNumber}</span>
           </div>
@@ -1082,7 +1082,7 @@ export default function App() {
           </div>
 
           {/* Team Scoreboard: Radiant vs Dire Kills */}
-          <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950/90 border border-slate-800 shadow-inner">
+          <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-950/90 border border-slate-800 shadow-inner shrink-0">
             <span className="text-xs font-bold text-emerald-400 font-mono flex items-center gap-1" title="Убийства Radiant">
               <span className="text-[10px]">🛡️</span> {gameState.radiantKills || 0}
             </span>
@@ -1094,7 +1094,7 @@ export default function App() {
 
           {/* Active Hero Gold Indicator */}
           {activeHero && (
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-950/50 border border-amber-500/40 text-amber-300 font-mono text-xs font-bold shadow-inner" title="Текущее золото активного героя">
+            <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-950/50 border border-amber-500/40 text-amber-300 font-mono text-xs font-bold shadow-inner shrink-0" title="Текущее золото активного героя">
               <span>🪙</span>
               <span>{activeHero.gold ?? 600}</span>
             </div>
@@ -1102,7 +1102,7 @@ export default function App() {
         </div>
 
         {/* Center: Initiative Timeline with Left/Right arrows and horizontal wheel scroll */}
-        <div className="flex items-center gap-1 max-w-xl lg:max-w-2xl px-1">
+        <div className="flex items-center gap-1 flex-1 min-w-0 max-w-lg lg:max-w-xl px-1">
           <button
             onClick={() => scrollTimeline(-120)}
             className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors shrink-0"
@@ -1114,7 +1114,7 @@ export default function App() {
           <div
             ref={timelineRef}
             onWheel={handleTimelineWheel}
-            className="flex items-center gap-1.5 overflow-x-auto py-1 px-1.5 bg-slate-950/80 rounded-xl border border-slate-800 custom-scrollbar scroll-smooth"
+            className="flex items-center gap-1.5 overflow-x-auto py-1 px-1.5 bg-slate-950/80 rounded-xl border border-slate-800 custom-scrollbar scroll-smooth flex-1 min-w-0"
           >
             {gameState.initiativeQueue.map((heroId, idx) => {
               const hero = gameState.heroes.find(h => h.instanceId === heroId);
@@ -1157,54 +1157,54 @@ export default function App() {
           </button>
         </div>
 
-        {/* Right: Map Toggles & Roster */}
-        <div className="flex items-center gap-1.5">
+        {/* Right: Map Toggles, Roster & System Buttons */}
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => setFogOfWarEnabled(prev => !prev)}
             title={fogOfWarEnabled ? 'Туман войны включен' : 'Туман войны выключен'}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border font-semibold transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs border font-semibold transition-colors cursor-pointer ${
               fogOfWarEnabled
                 ? 'bg-amber-950/80 border-amber-500/50 text-amber-300 hover:bg-amber-900'
                 : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-slate-700'
             }`}
           >
-            <Eye size={14} />
-            <span>{fogOfWarEnabled ? '👁️ Туман: ВКЛ' : '👁️ Туман: ВЫКЛ'}</span>
+            <Eye size={13} />
+            <span className="hidden md:inline">{fogOfWarEnabled ? 'Туман: ВКЛ' : 'Туман: ВЫКЛ'}</span>
           </button>
 
           <button
             onClick={() => setBotAiEnabled(prev => !prev)}
             title={botAiEnabled ? 'ИИ ботов Dire включен (автоматический ход)' : 'ИИ ботов Dire выключен'}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border font-semibold transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs border font-semibold transition-colors cursor-pointer ${
               botAiEnabled
                 ? 'bg-rose-950/80 border-rose-500/50 text-rose-300 hover:bg-rose-900'
                 : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:bg-slate-700'
             }`}
           >
-            <Bot size={14} />
-            <span>{botAiEnabled ? '🤖 ИИ: ВКЛ' : '🤖 ИИ: ВЫКЛ'}</span>
+            <Bot size={13} />
+            <span className="hidden md:inline">{botAiEnabled ? 'ИИ: ВКЛ' : 'ИИ: ВЫКЛ'}</span>
           </button>
 
           <button
             onClick={() => setShowRosterModal(true)}
             title="Все 15 героев (Выбрать в матч)"
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border font-semibold bg-indigo-950/80 border-indigo-500/50 text-indigo-300 hover:bg-indigo-900 transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-2 py-1 rounded text-xs border font-semibold bg-indigo-950/80 border-indigo-500/50 text-indigo-300 hover:bg-indigo-900 transition-colors cursor-pointer"
           >
-            <Users size={14} />
-            <span>Ростер (15)</span>
+            <Users size={13} />
+            <span className="hidden md:inline">Ростер</span>
           </button>
 
           <button
             onClick={() => setShowCombatLogDrawer(prev => !prev)}
             title="Открыть / закрыть подробный лог боя"
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs border font-semibold transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 px-2 py-1 rounded text-xs border font-semibold transition-colors cursor-pointer ${
               showCombatLogDrawer
                 ? 'bg-amber-950/80 border-amber-500/50 text-amber-300 hover:bg-amber-900 shadow-md'
                 : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-700'
             }`}
           >
-            <ScrollText size={14} />
-            <span>Лог боя</span>
+            <ScrollText size={13} />
+            <span className="hidden md:inline">Лог</span>
             {gameState.combatLogs?.length > 0 && (
               <span className="text-[10px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono font-bold">
                 {gameState.combatLogs.length}
@@ -1212,49 +1212,49 @@ export default function App() {
             )}
           </button>
 
-          <button
-            onClick={() => setShowGrid(!showGrid)}
-            title="Сетка 100x100"
-            className={`p-1.5 rounded text-xs border font-mono transition-colors ${
-              showGrid
-                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                : 'bg-slate-800/60 border-slate-700 text-slate-400'
-            }`}
-          >
-            <Grid size={14} />
-          </button>
-
-          <button
-            onClick={() => setShowTrees(!showTrees)}
-            title="Лес"
-            className={`p-1.5 rounded text-xs border font-mono transition-colors ${
-              showTrees
-                ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
-                : 'bg-slate-800/60 border-slate-700 text-slate-400'
-            }`}
-          >
-            <Trees size={14} />
-          </button>
-
-          <button
-            onClick={() => setShowIcons(!showIcons)}
-            title="Значки и объекты"
-            className={`p-1.5 rounded text-xs border font-mono transition-colors ${
-              showIcons
-                ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300'
-                : 'bg-slate-800/60 border-slate-700 text-slate-400'
-            }`}
-          >
-            <Sparkles size={14} />
-          </button>
-
-          <button
-            onClick={() => setTargetPos({ x: 50, y: 50 })}
-            title="Центр карты"
-            className="p-1.5 rounded text-xs border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200"
-          >
-            <Maximize2 size={14} />
-          </button>
+          {/* Segmented View Control Pill */}
+          <div className="flex items-center bg-slate-950/80 border border-slate-800 rounded-lg p-0.5">
+            <button
+              onClick={() => setShowGrid(!showGrid)}
+              title="Сетка 100x100"
+              className={`p-1 rounded text-xs font-mono transition-colors ${
+                showGrid
+                  ? 'bg-amber-500/20 text-amber-300'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Grid size={13} />
+            </button>
+            <button
+              onClick={() => setShowTrees(!showTrees)}
+              title="Лес"
+              className={`p-1 rounded text-xs font-mono transition-colors ${
+                showTrees
+                  ? 'bg-emerald-500/20 text-emerald-300'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Trees size={13} />
+            </button>
+            <button
+              onClick={() => setShowIcons(!showIcons)}
+              title="Значки и объекты"
+              className={`p-1 rounded text-xs font-mono transition-colors ${
+                showIcons
+                  ? 'bg-indigo-500/20 text-indigo-300'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Sparkles size={13} />
+            </button>
+            <button
+              onClick={() => setTargetPos({ x: 50, y: 50 })}
+              title="Центр карты"
+              className="p-1 rounded text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+            >
+              <Maximize2 size={13} />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -1355,7 +1355,7 @@ export default function App() {
           const tileBounty = selectedTile.object && selectedTile.object.type === 'BOUNTY_ALTAR';
 
           return (
-            <aside className="absolute top-4 right-4 w-72 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl p-3.5 shadow-2xl z-10 animate-in fade-in slide-in-from-right duration-200 max-h-[80vh] overflow-y-auto custom-scrollbar">
+            <aside className={`absolute top-4 ${showCombatLogDrawer ? 'right-84 sm:right-[400px]' : 'right-4'} w-72 bg-slate-900/95 backdrop-blur-md border border-slate-700 rounded-xl p-3.5 shadow-2xl z-10 animate-in fade-in duration-200 max-h-[80vh] overflow-y-auto custom-scrollbar`}>
               <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                 <div className="flex items-center gap-2">
                   <span className="text-amber-400 font-mono font-bold text-sm">
@@ -1703,8 +1703,8 @@ export default function App() {
 
       {/* 3. Bottom Deck — Unified Dota 2 Command Console & Skills Bar */}
       {activeHero && (
-        <footer className="h-28 bg-[#080b11]/95 backdrop-blur-md border-t border-slate-800/80 px-2 flex items-center justify-center shrink-0 z-20 relative">
-          <div className="flex items-center justify-center gap-2.5 max-w-7xl w-full">
+        <footer className="shrink-0 bg-[#07090e]/95 backdrop-blur-md border-t border-slate-800/80 z-20 relative flex flex-col items-center pt-2 pb-1">
+          <div className="flex items-center justify-center gap-3 w-full max-w-7xl px-2">
             {/* 1. Left Panel: Dota-Style Active Hero Console */}
             <DotaHeroConsole
               hero={activeHero}
@@ -1716,7 +1716,7 @@ export default function App() {
             />
 
             {/* 2. Center Panel: Abilities Console */}
-            <div className="h-[98px] flex items-center gap-2 px-3 bg-[#0d121c]/90 border border-slate-800/80 rounded-2xl shadow-xl relative backdrop-blur-md shrink-0">
+            <div className="h-[106px] flex items-center gap-2 px-3 bg-[#0d121c]/95 border border-slate-800/90 rounded-2xl shadow-2xl relative backdrop-blur-md shrink-0">
               {activeHero.skills.map((skill, sIdx) => {
                 const hotkeys = ['Q', 'W', 'E', 'R', 'D', 'F'];
                 const hotkey = hotkeys[sIdx] || `${sIdx + 1}`;
@@ -1741,7 +1741,7 @@ export default function App() {
                       onClick={() => !isDisabled && handleSkillClick(skill)}
                       onMouseEnter={() => setHoveredSkillTooltip({ skill, hotkey })}
                       onMouseLeave={() => setHoveredSkillTooltip(null)}
-                      className={`h-16 w-16 rounded-xl border flex flex-col items-center justify-between p-1 transition-all text-left relative overflow-hidden shrink-0 ${
+                      className={`h-[84px] w-[68px] rounded-xl border flex flex-col items-center justify-between p-1.5 transition-all text-left relative overflow-hidden shrink-0 ${
                         isTargetingThis
                           ? 'border-purple-300 shadow-xl shadow-purple-500/50 scale-105 ring-2 ring-purple-400 cursor-pointer'
                           : isUltimate
@@ -1759,7 +1759,7 @@ export default function App() {
                         alt={skill.name}
                         className="absolute inset-0 w-full h-full object-cover -z-0 opacity-85 group-hover:opacity-100 transition-opacity"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/60 -z-0" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/70 -z-0" />
 
                       {/* Top row: Hotkey & Mana */}
                       <div className="w-full flex items-center justify-between z-10">
@@ -1774,7 +1774,7 @@ export default function App() {
                       </div>
 
                       {/* Skill Name */}
-                      <span className="text-[9px] font-bold text-slate-100 truncate w-full text-center leading-tight z-10 px-0.5 drop-shadow">
+                      <span className="text-[9.5px] font-bold text-slate-100 truncate w-full text-center leading-tight z-10 px-0.5 drop-shadow">
                         {skill.name}
                       </span>
 
@@ -1819,7 +1819,7 @@ export default function App() {
 
               {/* Floating Dota 2 Skill Tooltip (Anchored above ability bar) */}
               {hoveredSkillTooltip && (
-                <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+                <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
                   <DotaSkillTooltip
                     skill={hoveredSkillTooltip.skill}
                     hero={activeHero}
@@ -1831,10 +1831,10 @@ export default function App() {
             </div>
 
             {/* 3. Right Panel: Actions, Turn Budget & End Turn */}
-            <div className="h-[98px] flex items-center gap-3 bg-[#0d121c]/90 border border-slate-800/80 rounded-2xl px-3 py-2 shadow-xl backdrop-blur-md shrink-0">
+            <div className="h-[106px] flex items-center gap-3 bg-[#0d121c]/95 border border-slate-800/90 rounded-2xl px-3 py-2 shadow-2xl backdrop-blur-md shrink-0">
               {/* Action buttons (Move, Attack & Ward) */}
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-1">
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => {
                       setActionMode(actionMode === 'move' ? null : 'move');
@@ -1843,13 +1843,13 @@ export default function App() {
                     }}
                     onMouseEnter={() => setHoveredActionRange(maxSteps)}
                     onMouseLeave={() => setHoveredActionRange(null)}
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold font-mono border transition-all ${
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold font-mono border transition-all cursor-pointer ${
                       actionMode === 'move' && !targetingSkill && !wardMode
                         ? 'bg-blue-600 border-blue-400 text-white shadow-md'
-                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                        : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
                     }`}
                   >
-                    <Footprints size={12} />
+                    <Footprints size={13} />
                     <span>Ход [M]</span>
                   </button>
 
@@ -1861,13 +1861,13 @@ export default function App() {
                     }}
                     onMouseEnter={() => setHoveredActionRange(activeHero?.range || 1)}
                     onMouseLeave={() => setHoveredActionRange(null)}
-                    className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold font-mono border transition-all ${
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold font-mono border transition-all cursor-pointer ${
                       actionMode === 'attack' && !targetingSkill && !wardMode
                         ? 'bg-red-600 border-red-400 text-white shadow-md'
-                        : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                        : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
                     }`}
                   >
-                    <Swords size={12} />
+                    <Swords size={13} />
                     <span>Атака [A]</span>
                   </button>
                 </div>
@@ -1880,31 +1880,31 @@ export default function App() {
                   }}
                   onMouseEnter={() => setHoveredActionRange(5)}
                   onMouseLeave={() => setHoveredActionRange(null)}
-                  className={`flex items-center justify-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold font-mono border transition-all cursor-pointer ${
+                  className={`w-full flex items-center justify-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono border transition-all cursor-pointer ${
                     wardMode
                       ? 'bg-amber-500 border-amber-300 text-black shadow-md font-extrabold'
-                      : 'bg-slate-900 border-slate-800 text-amber-300 hover:text-amber-200'
+                      : 'bg-slate-900 border-slate-800 text-amber-300 hover:text-amber-200 hover:border-amber-500/40'
                   }`}
                   title="Установить Observer Ward (дальность 5 клеток, обзор 12 клеток, стоимость 1.0с)"
                 >
-                  <Eye size={12} />
+                  <Eye size={13} />
                   <span>Вард [W]</span>
                 </button>
               </div>
 
               {/* Turn Time Display */}
-              <div className="flex flex-col items-center justify-center gap-1.5 w-32">
+              <div className="flex flex-col items-center justify-center gap-1.5 w-32 px-1">
                 <div className="flex items-center justify-between w-full text-xs font-mono">
                   <span className="text-slate-400 flex items-center gap-1 text-[11px]">
-                    <Clock size={12} className="text-amber-400" /> Ход:
+                    <Clock size={13} className="text-amber-400" /> Ход:
                   </span>
                   <span className="font-bold text-amber-400 text-[11px]">
                     {gameState.remainingTurnTime.toFixed(1)} / 8.0s
                   </span>
                 </div>
-                <div className="w-full h-2 bg-slate-950 rounded-full border border-slate-800 overflow-hidden shadow-inner">
+                <div className="w-full h-2.5 bg-slate-950 rounded-full border border-slate-800 overflow-hidden shadow-inner">
                   <div
-                    className="h-full bg-gradient-to-r from-amber-500 to-red-500 transition-all duration-200"
+                    className="h-full bg-gradient-to-r from-amber-500 to-red-500 transition-all duration-200 rounded-full"
                     style={{ width: `${(gameState.remainingTurnTime / TURN_DURATION_SECONDS) * 100}%` }}
                   />
                 </div>
@@ -1913,38 +1913,41 @@ export default function App() {
               {/* End Turn Golden Button */}
               <button
                 onClick={handleEndTurn}
-                className="h-16 px-4 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-black shadow-lg shadow-amber-500/20 flex items-center gap-1.5 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                className="h-[84px] px-4 rounded-xl font-bold text-xs uppercase tracking-wider bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-black shadow-xl shadow-amber-500/25 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] border border-amber-400/50"
               >
-                <span>Конец хода</span>
-                <ChevronRight size={16} />
+                <div className="flex items-center gap-1 font-extrabold">
+                  <span>Конец хода</span>
+                  <ChevronRight size={16} />
+                </div>
+                <span className="text-[10px] font-mono text-amber-950/80 font-bold">[Space]</span>
               </button>
             </div>
           </div>
 
           {/* Hotkeys HUD Bar */}
-          <div className="w-full flex items-center justify-center gap-2 sm:gap-4 py-1 px-4 bg-slate-950/90 border-t border-slate-800/80 text-[10px] font-mono text-slate-400 select-none">
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 border border-slate-700 font-bold">Space</kbd> Конец хода
+          <div className="w-full flex items-center justify-center gap-3 sm:gap-5 py-1 px-4 bg-slate-950/90 border-t border-slate-900 text-[10px] font-mono text-slate-400 select-none mt-1.5">
+            <span className="flex items-center gap-1.5">
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 border border-slate-700 font-bold shadow-sm">Space</kbd> Конец хода
             </span>
             <span className="text-slate-700">•</span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-purple-300 border border-slate-700 font-bold">Q W E R D</kbd> Способности
+            <span className="flex items-center gap-1.5">
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-purple-300 border border-slate-700 font-bold shadow-sm">Q W E R D</kbd> Способности
             </span>
             <span className="text-slate-700">•</span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-red-300 border border-slate-700 font-bold">A / 2</kbd> Атака
+            <span className="flex items-center gap-1.5">
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-red-300 border border-slate-700 font-bold shadow-sm">A / 2</kbd> Атака
             </span>
             <span className="text-slate-700">•</span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-blue-300 border border-slate-700 font-bold">M / 1</kbd> Шаг
+            <span className="flex items-center gap-1.5">
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-blue-300 border border-slate-700 font-bold shadow-sm">M / 1</kbd> Шаг
             </span>
             <span className="text-slate-700">•</span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-yellow-300 border border-slate-700 font-bold">W</kbd> Вард
+            <span className="flex items-center gap-1.5">
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-yellow-300 border border-slate-700 font-bold shadow-sm">W</kbd> Вард
             </span>
             <span className="text-slate-700">•</span>
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700 font-bold">СКМ Drag</kbd> Камера
+            <span className="flex items-center gap-1.5">
+              <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-200 border border-slate-700 font-bold shadow-sm">СКМ Drag</kbd> Камера
             </span>
           </div>
         </footer>
