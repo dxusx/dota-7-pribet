@@ -1290,6 +1290,117 @@ test('34. Match Scoreboard: Team kills, Hero gold & bounties', async () => {
   });
 });
 
+test('35. Complete Hero Skills Operational Integrity & Stance Switching', async () => {
+  const {
+    executeSkill,
+    isSkillSelfCast,
+    isSkillPointTarget,
+    isSkillUnitTarget,
+  } = await import('./skillEngine.js');
+  const { getSkillDetails } = await import('./heroHudUtils.js');
+  const { HEROES_ROSTER } = await import('./heroesData.js');
+
+  // 1. Skill Categorization Verification
+  assert.equal(typeof isSkillSelfCast, 'function', 'isSkillSelfCast must be exported');
+  assert.equal(typeof isSkillPointTarget, 'function', 'isSkillPointTarget must be exported');
+  assert.equal(typeof isSkillUnitTarget, 'function', 'isSkillUnitTarget must be exported');
+
+  assert.equal(isSkillSelfCast('uss-agent'), true, 'uss-agent must be self-cast');
+  assert.equal(isSkillSelfCast('stars-agent'), true, 'stars-agent must be self-cast');
+  assert.equal(isSkillSelfCast('death-lotus'), true, 'death-lotus must be self-cast');
+  assert.equal(isSkillSelfCast('prion'), false, 'prion must NOT be self-cast');
+
+  assert.equal(isSkillPointTarget('tactical-evasion'), true, 'tactical-evasion must be point-targeted');
+  assert.equal(isSkillPointTarget('extraction-point'), true, 'extraction-point must be point-targeted');
+  assert.equal(isSkillPointTarget('sun-strike'), true, 'sun-strike must be point-targeted');
+  assert.equal(isSkillPointTarget('hollow-purple'), true, 'hollow-purple must be point-targeted');
+  assert.equal(isSkillPointTarget('shadowraze-near'), true, 'shadowraze-near must be point-targeted');
+
+  // 2. USS Agent Stance Switching & Stats Fallback
+  const hunkDef = HEROES_ROSTER.find(h => h.id === 'hunk');
+  const hunkHero = {
+    instanceId: 'hero_hunk_live',
+    id: 'hunk',
+    name: 'Hunk',
+    faction: 'dire',
+    x: 50,
+    y: 50,
+    hp: 100,
+    maxHp: 100,
+    mana: 100,
+    range: 10,
+    damage: 30,
+    skills: hunkDef.skills,
+  };
+  const mockState = {
+    remainingTurnTime: 8.0,
+    heroes: [hunkHero],
+    creeps: [],
+  };
+
+  // First toggle: Switch to Melee (CQC Knife)
+  const toggle1 = executeSkill({
+    skill: hunkDef.skills.find(s => s.id === 'uss-agent'),
+    caster: hunkHero,
+    gameState: mockState,
+  });
+  assert.equal(toggle1.success, true, 'USS Agent must succeed on bare hero instance');
+  const hunkMelee = toggle1.updatedHeroes.find(h => h.instanceId === 'hero_hunk_live');
+  assert.equal(hunkMelee.range, 1, 'Hunk melee range must be 1');
+  assert.equal(hunkMelee.damage, 35, 'Hunk melee knife damage must be 35');
+  assert.equal(hunkMelee.weaponMode, 'melee', 'Hunk weaponMode must be melee');
+  assert.equal(toggle1.newRemainingTime, 6.0, 'Toggle must deduct 2.0s time bank');
+
+  // Second toggle: Switch back to Ranged (MP5)
+  const toggle2 = executeSkill({
+    skill: hunkDef.skills.find(s => s.id === 'uss-agent'),
+    caster: hunkMelee,
+    gameState: { ...mockState, remainingTurnTime: 6.0, heroes: toggle1.updatedHeroes },
+  });
+  assert.equal(toggle2.success, true);
+  const hunkRanged = toggle2.updatedHeroes.find(h => h.instanceId === 'hero_hunk_live');
+  assert.equal(hunkRanged.range, 10, 'Hunk ranged range must be 10');
+  assert.equal(hunkRanged.damage, 30, 'Hunk ranged MP5 damage must be 30');
+  assert.equal(hunkRanged.weaponMode, 'ranged', 'Hunk weaponMode must be ranged');
+
+  // 3. Point Skills Damage Delivery (Hollow Purple, Sun Strike, Extraction Point)
+  const enemy = {
+    instanceId: 'enemy_target',
+    id: 'axe',
+    name: 'Axe',
+    faction: 'radiant',
+    x: 52,
+    y: 52,
+    hp: 150,
+    maxHp: 150,
+  };
+  const stateWithEnemy = {
+    remainingTurnTime: 8.0,
+    heroes: [hunkHero, enemy],
+    creeps: [],
+  };
+
+  // Extraction Point airstrike on (52, 52)
+  const extractRes = executeSkill({
+    skill: hunkDef.skills.find(s => s.id === 'extraction-point'),
+    caster: hunkHero,
+    targetTile: { x: 52, y: 52 },
+    gameState: stateWithEnemy,
+  });
+  assert.equal(extractRes.success, true);
+  const damagedEnemy = extractRes.updatedHeroes.find(h => h.instanceId === 'enemy_target');
+  assert.equal(damagedEnemy.hp, 70, 'Enemy must take 80 damage from Extraction Point');
+
+  // 4. Rich Ability Tooltip Target Type Accuracy
+  const ussDetails = getSkillDetails(hunkDef.skills.find(s => s.id === 'uss-agent'));
+  assert.equal(ussDetails.targetType, 'Ненаправленная (на себя)', 'USS Agent tooltip must be self-cast');
+  const evasionDetails = getSkillDetails(hunkDef.skills.find(s => s.id === 'tactical-evasion'));
+  assert.equal(evasionDetails.targetType, 'Направленная на область / точку', 'Tactical roll tooltip must be point');
+  const extractDetails = getSkillDetails(hunkDef.skills.find(s => s.id === 'extraction-point'));
+  assert.equal(extractDetails.targetType, 'Направленная на область / точку', 'Extraction point tooltip must be point');
+});
+
+
 
 
 

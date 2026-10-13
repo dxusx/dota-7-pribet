@@ -15,7 +15,7 @@ import {
   canCastSkills,
   TURN_DURATION_SECONDS,
 } from './game/combatRules';
-import { executeSkill } from './game/skillEngine';
+import { executeSkill, isSkillSelfCast, isSkillPointTarget, isSkillUnitTarget } from './game/skillEngine';
 import { decideBotAction } from './game/botAI';
 import { createSkillVfx, createAttackVfx } from './game/vfxRules';
 import { computeFactionVision } from './game/visionEngine';
@@ -790,27 +790,7 @@ export default function App() {
     }
 
     // If instant/self skill (timeCost 0 or self buff or weapon toggle or self AoE)
-    const isSelfCast =
-      skill.id === 'stars-agent' ||
-      skill.id === 'mastermind' ||
-      skill.id === 'preparation' ||
-      skill.id === 'divine-regen' ||
-      skill.id === 'rot' ||
-      skill.id === 'clutch-master' ||
-      skill.id === 'angel-power' ||
-      skill.id === 'last-cat-live' ||
-      skill.id === 'prion' ||
-      skill.id === 'cromwell-seal-1' ||
-      skill.id === 'cromwell-seal-2' ||
-      skill.id === 'cromwell-seal-0' ||
-      skill.id === 'berserkers-call' ||
-      skill.id === 'unlimited-void' ||
-      skill.id === 'infinity' ||
-      skill.id === 'requiem-of-souls' ||
-      skill.id === 'whirlwind-slash' ||
-      skill.id === 'malevolent-shrine' ||
-      skill.id === 'blade-dance' ||
-      skill.id === 'holy-barrier';
+    const isSelfCast = isSkillSelfCast(skill.id);
 
     if (isSelfCast) {
       const res = executeSkill({
@@ -825,10 +805,13 @@ export default function App() {
         setGameState(prev => ({
           ...prev,
           heroes: res.updatedHeroes,
+          creeps: res.updatedCreeps || prev.creeps,
           remainingTurnTime: res.newRemainingTime,
           combatLogs: [{ text: res.logMessage, time: prev.gameTimeSeconds }, ...prev.combatLogs.slice(0, 15)],
         }));
         res.floatingTexts.forEach(ft => addFloatingText(ft.x, ft.y, ft.text, ft.color));
+      } else if (res.reason) {
+        addFloatingText(activeHero.x, activeHero.y, res.reason, '#ef4444');
       }
       return;
     }
@@ -1807,7 +1790,11 @@ export default function App() {
 
                       {/* Skill Name */}
                       <span className="text-[9.5px] font-bold text-slate-100 truncate w-full text-center leading-tight z-10 px-0.5 drop-shadow">
-                        {skill.name}
+                        {skill.id === 'uss-agent'
+                          ? (activeHero.weaponMode === 'melee' ? '🔪 Нож CQC' : '🔫 ПП MP5')
+                          : skill.id === 'stars-agent'
+                          ? (activeHero.weaponMode === 'melee' ? '👊 Кулаки' : '🔫 Пистолет')
+                          : skill.name}
                       </span>
 
                       {/* Bottom: Time Cost / Passive Indicator */}

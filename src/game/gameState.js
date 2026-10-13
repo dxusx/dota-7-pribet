@@ -159,6 +159,8 @@ export function createInitialGameState() {
       initiativeRoll: 0,
       kills: 0,
       gold: 600,
+      weaponMode: def.stats.weaponMode || 'ranged',
+      stats: { ...def.stats },
     });
   });
 
@@ -197,6 +199,8 @@ export function createInitialGameState() {
       initiativeRoll: 0,
       kills: 0,
       gold: 600,
+      weaponMode: def.stats.weaponMode || 'ranged',
+      stats: { ...def.stats },
     });
   });
 

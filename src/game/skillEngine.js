@@ -10,6 +10,85 @@
 
 import { resolveAttack, deductActionTime, canPerformAction } from './combatRules.js';
 import { MAP_SIZE } from '../map/dotaMapData.js';
+import { HEROES_ROSTER } from './heroesData.js';
+
+export const ENEMY_HERO_ONLY_SKILLS = new Set([
+  'spell-steal',
+  'mind-control',
+  'divine-rapier',
+  'prion',
+]);
+
+export const POINT_SKILLS = new Set([
+  'meat-hook',
+  'shunpo',
+  'barrier-seal',
+  'sun-strike',
+  'chaos-meteor',
+  'shadowraze-near',
+  'shadowraze-medium',
+  'shadowraze-far',
+  'awp-wallbang',
+  'oneway-smoke',
+  'flashbang',
+  'furnace-open',
+  'hollow-purple',
+  'everywhere-nowhere',
+  'light-speed',
+  'prepare-thyself',
+  'tactical-evasion',
+  'extraction-point',
+  'crush',
+  'dash',
+  'emp',
+  'deafening-blast',
+]);
+
+export const SELF_SKILLS = new Set([
+  'stars-agent',
+  'uss-agent',
+  'grim-reaper',
+  'mastermind',
+  'ouroboros',
+  'wesker-speed',
+  'berserkers-call',
+  'counter-helix',
+  'voracity',
+  'preparation',
+  'death-lotus',
+  'superhuman',
+  'whirlwind-slash',
+  'divine-regen',
+  'infinity-shield',
+  'unlimited-void',
+  'king-of-curses',
+  'malevolent-shrine',
+  'rot',
+  'flesh-heap',
+  'requiem-of-souls',
+  'clutch-master',
+  'dead-alive',
+  'last-cat-live',
+  'army-of-souls',
+  'cromwell-seal-2',
+  'cromwell-seal-1',
+  'cromwell-seal-0',
+  'angel-rage',
+  'angel-power',
+  'feast-of-souls',
+]);
+
+export function isSkillSelfCast(skillId) {
+  return SELF_SKILLS.has(skillId);
+}
+
+export function isSkillPointTarget(skillId) {
+  return POINT_SKILLS.has(skillId);
+}
+
+export function isSkillUnitTarget(skillId) {
+  return !SELF_SKILLS.has(skillId) && !POINT_SKILLS.has(skillId);
+}
 
 export function executeSkill({
   skill,
@@ -35,13 +114,7 @@ export function executeSkill({
   }
 
   // Strict Target Validation Guards
-  const isEnemyHeroOnly =
-    skill.id === 'spell-steal' ||
-    skill.id === 'mind-control' ||
-    skill.id === 'divine-rapier' ||
-    skill.id === 'prion';
-
-  if (isEnemyHeroOnly) {
+  if (ENEMY_HERO_ONLY_SKILLS.has(skill.id)) {
     if (!targetHero || targetHero.isDead) {
       return { success: false, reason: 'Нужно выбрать вражеского героя!' };
     }
@@ -50,63 +123,9 @@ export function executeSkill({
     }
   }
 
-  const isPointSkill =
-    skill.id === 'meat-hook' ||
-    skill.id === 'shunpo' ||
-    skill.id === 'barrier-seal' ||
-    skill.id === 'sun-strike' ||
-    skill.id === 'chaos-meteor' ||
-    skill.id === 'shadowraze-near' ||
-    skill.id === 'shadowraze-medium' ||
-    skill.id === 'shadowraze-far' ||
-    skill.id === 'awp-wallbang' ||
-    skill.id === 'oneway-smoke' ||
-    skill.id === 'flashbang' ||
-    skill.id === 'furnace-open' ||
-    skill.id === 'hollow-purple' ||
-    skill.id === 'everywhere-nowhere' ||
-    skill.id === 'light-speed' ||
-    skill.id === 'prepare-thyself' ||
-    skill.id === 'tactical-evasion' ||
-    skill.id === 'extraction-point' ||
-    skill.id === 'crush';
-
-  const isSelfSkill =
-    skill.id === 'stars-agent' ||
-    skill.id === 'uss-agent' ||
-    skill.id === 'grim-reaper' ||
-    skill.id === 'mastermind' ||
-    skill.id === 'ouroboros' ||
-    skill.id === 'wesker-speed' ||
-    skill.id === 'berserkers-call' ||
-    skill.id === 'counter-helix' ||
-    skill.id === 'voracity' ||
-    skill.id === 'preparation' ||
-    skill.id === 'death-lotus' ||
-    skill.id === 'superhuman' ||
-    skill.id === 'whirlwind-slash' ||
-    skill.id === 'divine-regen' ||
-    skill.id === 'infinity-shield' ||
-    skill.id === 'unlimited-void' ||
-    skill.id === 'king-of-curses' ||
-    skill.id === 'malevolent-shrine' ||
-    skill.id === 'rot' ||
-    skill.id === 'flesh-heap' ||
-    skill.id === 'requiem-of-souls' ||
-    skill.id === 'clutch-master' ||
-    skill.id === 'dead-alive' ||
-    skill.id === 'last-cat-live' ||
-    skill.id === 'army-of-souls' ||
-    skill.id === 'cromwell-seal-2' ||
-    skill.id === 'cromwell-seal-1' ||
-    skill.id === 'cromwell-seal-0' ||
-    skill.id === 'angel-rage' ||
-    skill.id === 'angel-power';
-
-  const isUnitTarget =
-    !isSelfSkill &&
-    !isPointSkill &&
-    !isEnemyHeroOnly;
+  const isPointSkill = isSkillPointTarget(skill.id);
+  const isSelfSkill = isSkillSelfCast(skill.id);
+  const isUnitTarget = isSkillUnitTarget(skill.id) && !ENEMY_HERO_ONLY_SKILLS.has(skill.id);
 
   if (isUnitTarget) {
     const targetUnit = targetHero || targetCreep;
@@ -125,29 +144,40 @@ export function executeSkill({
 
   // 1. S.T.A.R.S. Agent (Wesker weapon toggle) & USS Agent (Hunk weapon toggle)
   if (skill.id === 'stars-agent' || skill.id === 'uss-agent') {
-    const newMode = caster.stats.weaponMode === 'ranged' ? 'melee' : 'ranged';
-    const activeStats = newMode === 'ranged' ? caster.stats.ranged : caster.stats.melee;
+    const heroDef = HEROES_ROSTER.find(h => h.id === caster.id);
+    const heroStats = caster.stats || heroDef?.stats || {};
+    const currentMode = caster.weaponMode || heroStats.weaponMode || 'ranged';
+    const newMode = currentMode === 'ranged' ? 'melee' : 'ranged';
+    const activeStats = (newMode === 'ranged' ? heroStats.ranged : heroStats.melee) || {};
 
     updatedHeroes = updatedHeroes.map(h => {
       if (h.instanceId === caster.instanceId) {
         return {
           ...h,
-          stats: { ...h.stats, weaponMode: newMode },
-          damage: activeStats.damage,
-          range: activeStats.range,
-          period: activeStats.period,
-          penetration: activeStats.penetration,
-          hit: activeStats.hit,
+          weaponMode: newMode,
+          stats: { ...(h.stats || heroStats), weaponMode: newMode },
+          damage: activeStats.damage ?? h.damage,
+          range: activeStats.range ?? h.range,
+          period: activeStats.period ?? h.period,
+          penetration: activeStats.penetration ?? h.penetration,
+          hit: activeStats.hit ?? h.hit,
         };
       }
       return h;
     });
 
     const weaponNames = skill.id === 'uss-agent'
-      ? (newMode === 'ranged' ? 'ПП MP5 (дальний бой)' : 'Нож CQC (ближний бой)')
-      : (newMode === 'ranged' ? 'Пистолет (дальний бой)' : 'Кулаки (ближний бой)');
-    logMessage = `${caster.name} переключил оружие на ${weaponNames}`;
-    floatingTexts.push({ x: caster.x, y: caster.y, text: `Оружие: ${newMode === 'ranged' ? 'Дальний' : 'Ближний'}`, color: '#38bdf8' });
+      ? (newMode === 'ranged' ? 'ПП MP5 (дальний бой: дальность 10, урон 30)' : 'Нож CQC (ближний бой: дальность 1, урон 35)')
+      : (newMode === 'ranged' ? 'Пистолет (дальний бой: дальность 5, урон 40)' : 'Кулаки (ближний бой: дальность 1, урон 5)');
+    logMessage = `${caster.name} переключил оружие: ${weaponNames}`;
+    floatingTexts.push({
+      x: caster.x,
+      y: caster.y,
+      text: skill.id === 'uss-agent'
+        ? (newMode === 'ranged' ? '🔫 ПП MP5 (Дальний)' : '🔪 Нож CQC (Ближний)')
+        : (newMode === 'ranged' ? '🔫 Пистолет (Дальний)' : '👊 Кулаки (Ближний)'),
+      color: '#38bdf8',
+    });
   }
 
   // 2. Mastermind (Wesker Ultimate: invulnerability & speed boost)
@@ -929,6 +959,258 @@ export function executeSkill({
       });
       logMessage = `${caster.name} вызвал авиаудар эвакуации [Extraction Point] по [${targetTile.x}, ${targetTile.y}]!`;
     }
+  } else if (skill.id === 'sun-strike' && targetTile) {
+    const dmg = 100;
+    const aoe = 1;
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.faction !== caster.faction && !h.isDead && Math.abs(h.x - targetTile.x) <= aoe && Math.abs(h.y - targetTile.y) <= aoe) {
+        const newHp = Math.max(0, h.hp - dmg);
+        floatingTexts.push({ x: h.x, y: h.y, text: `☀️ -${dmg} (Чистый урон)`, color: '#f59e0b' });
+        return { ...h, hp: newHp, isDead: newHp <= 0 };
+      }
+      return h;
+    });
+    updatedCreeps = updatedCreeps.map(c => {
+      if (c.faction !== caster.faction && !c.isDead && Math.abs(c.x - targetTile.x) <= aoe && Math.abs(c.y - targetTile.y) <= aoe) {
+        const newHp = Math.max(0, c.hp - dmg);
+        floatingTexts.push({ x: c.x, y: c.y, text: `☀️ -${dmg}`, color: '#f59e0b' });
+        return { ...c, hp: newHp, isDead: newHp <= 0 };
+      }
+      return c;
+    });
+    logMessage = `${caster.name} обрушил [Sun Strike] на [${targetTile.x}, ${targetTile.y}]: 100 чистого урона!`;
+    floatingTexts.push({ x: targetTile.x, y: targetTile.y, text: '☀️ SUN STRIKE!', color: '#f59e0b' });
+  } else if (skill.id === 'hollow-purple' && targetTile) {
+    const dmg = 90;
+    const aoe = 2;
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.faction !== caster.faction && !h.isDead && Math.abs(h.x - targetTile.x) <= aoe && Math.abs(h.y - targetTile.y) <= aoe) {
+        const newHp = Math.max(0, h.hp - dmg);
+        floatingTexts.push({ x: h.x, y: h.y, text: `🟣 -${dmg} (Стирание)`, color: '#a855f7' });
+        return { ...h, hp: newHp, isDead: newHp <= 0 };
+      }
+      return h;
+    });
+    updatedCreeps = updatedCreeps.map(c => {
+      if (c.faction !== caster.faction && !c.isDead && Math.abs(c.x - targetTile.x) <= aoe && Math.abs(c.y - targetTile.y) <= aoe) {
+        const newHp = Math.max(0, c.hp - dmg);
+        floatingTexts.push({ x: c.x, y: c.y, text: `🟣 -${dmg}`, color: '#a855f7' });
+        return { ...c, hp: newHp, isDead: newHp <= 0 };
+      }
+      return c;
+    });
+    logMessage = `${caster.name} применил [Hollow Purple] в область [${targetTile.x}, ${targetTile.y}]: 90 урона!`;
+    floatingTexts.push({ x: targetTile.x, y: targetTile.y, text: '🟣 HOLLOW PURPLE!', color: '#a855f7' });
+  } else if (skill.id === 'unlimited-void') {
+    const radius = 6;
+    let stuns = 0;
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.faction !== caster.faction && !h.isDead) {
+        const dist = Math.hypot(h.x - caster.x, h.y - caster.y);
+        if (dist <= radius) {
+          stuns++;
+          const newHp = Math.max(0, h.hp - 30);
+          floatingTexts.push({ x: h.x, y: h.y, text: '👁️ Оглушение (Домен)', color: '#38bdf8' });
+          return { ...h, hp: newHp, isDead: newHp <= 0, statuses: { ...(h.statuses || {}), stun: { duration: 2.0 } } };
+        }
+      }
+      return h;
+    });
+    logMessage = `${caster.name} раскрыл Территорию [Unlimited Void]: ${stuns} врагов перегружены информацией и оглушены!`;
+    floatingTexts.push({ x: caster.x, y: caster.y, text: '👁️ UNLIMITED VOID!', color: '#38bdf8' });
+  } else if (skill.id === 'malevolent-shrine') {
+    const radius = 7;
+    const dmg = 60;
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.faction !== caster.faction && !h.isDead) {
+        const dist = Math.hypot(h.x - caster.x, h.y - caster.y);
+        if (dist <= radius) {
+          const newHp = Math.max(0, h.hp - dmg);
+          floatingTexts.push({ x: h.x, y: h.y, text: `⛩️ -${dmg}`, color: '#dc2626' });
+          return { ...h, hp: newHp, isDead: newHp <= 0 };
+        }
+      }
+      return h;
+    });
+    updatedCreeps = updatedCreeps.map(c => {
+      if (c.faction !== caster.faction && !c.isDead) {
+        const dist = Math.hypot(c.x - caster.x, c.y - caster.y);
+        if (dist <= radius) {
+          const newHp = Math.max(0, c.hp - dmg);
+          floatingTexts.push({ x: c.x, y: c.y, text: `⛩️ -${dmg}`, color: '#dc2626' });
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+      }
+      return c;
+    });
+    logMessage = `${caster.name} раскрыл [Malevolent Shrine]: бесконечные рассекания в радиусе 7!`;
+    floatingTexts.push({ x: caster.x, y: caster.y, text: '⛩️ MALEVOLENT SHRINE!', color: '#dc2626' });
+  } else if (skill.id === 'furnace-open' && targetTile) {
+    const aoe = 2;
+    const dmg = 80;
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.faction !== caster.faction && !h.isDead && Math.abs(h.x - targetTile.x) <= aoe && Math.abs(h.y - targetTile.y) <= aoe) {
+        const newHp = Math.max(0, h.hp - dmg);
+        floatingTexts.push({ x: h.x, y: h.y, text: `🔥 -${dmg}`, color: '#ea580c' });
+        return { ...h, hp: newHp, isDead: newHp <= 0 };
+      }
+      return h;
+    });
+    updatedCreeps = updatedCreeps.map(c => {
+      if (c.faction !== caster.faction && !c.isDead && Math.abs(c.x - targetTile.x) <= aoe && Math.abs(c.y - targetTile.y) <= aoe) {
+        const newHp = Math.max(0, c.hp - dmg);
+        floatingTexts.push({ x: c.x, y: c.y, text: `🔥 -${dmg}`, color: '#ea580c' });
+        return { ...c, hp: newHp, isDead: newHp <= 0 };
+      }
+      return c;
+    });
+    logMessage = `${caster.name} выстрелил огненной стрелой [Furnace: Open] по [${targetTile.x}, ${targetTile.y}]!`;
+    floatingTexts.push({ x: targetTile.x, y: targetTile.y, text: '🔥 ПЕЧЬ: ОТКРЫТИЕ!', color: '#ea580c' });
+  } else if ((skill.id === 'shadowraze-near' || skill.id === 'shadowraze-medium' || skill.id === 'shadowraze-far') && targetTile) {
+    const aoe = 1;
+    const dmg = 40;
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.faction !== caster.faction && !h.isDead && Math.abs(h.x - targetTile.x) <= aoe && Math.abs(h.y - targetTile.y) <= aoe) {
+        const newHp = Math.max(0, h.hp - dmg);
+        floatingTexts.push({ x: h.x, y: h.y, text: `💀 -${dmg}`, color: '#831843' });
+        return { ...h, hp: newHp, isDead: newHp <= 0 };
+      }
+      return h;
+    });
+    updatedCreeps = updatedCreeps.map(c => {
+      if (c.faction !== caster.faction && !c.isDead && Math.abs(c.x - targetTile.x) <= aoe && Math.abs(c.y - targetTile.y) <= aoe) {
+        const newHp = Math.max(0, c.hp - dmg);
+        floatingTexts.push({ x: c.x, y: c.y, text: `💀 -${dmg}`, color: '#831843' });
+        return { ...c, hp: newHp, isDead: newHp <= 0 };
+      }
+      return c;
+    });
+    logMessage = `${caster.name} поразил область койлом [${skill.name}] на 40 урона!`;
+    floatingTexts.push({ x: targetTile.x, y: targetTile.y, text: '💀 SHADOWRAZE!', color: '#831843' });
+  } else if (skill.id === 'dash' && targetTile) {
+    const destX = targetTile.x;
+    const destY = targetTile.y;
+    const damage = 30;
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.instanceId === caster.instanceId) {
+        return { ...h, x: destX, y: destY };
+      }
+      if (h.faction !== caster.faction && !h.isDead && Math.abs(h.x - destX) <= 1 && Math.abs(h.y - destY) <= 1) {
+        const newHp = Math.max(0, h.hp - damage);
+        floatingTexts.push({ x: h.x, y: h.y, text: `💥 -${damage} (Откид)`, color: '#ef4444' });
+        return { ...h, hp: newHp, isDead: newHp <= 0, x: Math.min(MAP_SIZE - 1, h.x + 2) };
+      }
+      return h;
+    });
+    logMessage = `${caster.name} совершил рывок [Dash] до [${destX}, ${destY}]!`;
+    floatingTexts.push({ x: destX, y: destY, text: '⚡ DASH!', color: '#ef4444' });
+  } else if (skill.id === 'feast-of-souls') {
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.instanceId === caster.instanceId) {
+        return { ...h, speed: h.speed * 2, period: Math.max(1.0, (h.period || 4.0) / 2) };
+      }
+      return h;
+    });
+    logMessage = `${caster.name} активировал [Feast of Souls]: скорость х2, темп атак х2!`;
+    floatingTexts.push({ x: caster.x, y: caster.y, text: '👻 FEAST OF SOULS! Скорость x2', color: '#831843' });
+  } else if (skill.id === 'requiem-of-souls') {
+    const radius = 6;
+    const dmg = 70;
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.faction !== caster.faction && !h.isDead) {
+        const dist = Math.hypot(h.x - caster.x, h.y - caster.y);
+        if (dist <= radius) {
+          const newHp = Math.max(0, h.hp - dmg);
+          floatingTexts.push({ x: h.x, y: h.y, text: `😱 -${dmg} (Страх)`, color: '#831843' });
+          return { ...h, hp: newHp, isDead: newHp <= 0, statuses: { ...(h.statuses || {}), fear: { duration: 3.0 } } };
+        }
+      }
+      return h;
+    });
+    logMessage = `${caster.name} высвободил [Requiem of Souls]: души нанесли 70 урона и наложили Страх!`;
+    floatingTexts.push({ x: caster.x, y: caster.y, text: '😱 РЕКВИЕМ ДУШ!', color: '#831843' });
+  } else if (skill.id === 'chaos-meteor' && targetTile) {
+    const dmg = 70;
+    const aoe = 2;
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.faction !== caster.faction && !h.isDead && Math.abs(h.x - targetTile.x) <= aoe && Math.abs(h.y - targetTile.y) <= aoe) {
+        const newHp = Math.max(0, h.hp - dmg);
+        floatingTexts.push({ x: h.x, y: h.y, text: `☄️ -${dmg}`, color: '#ea580c' });
+        return { ...h, hp: newHp, isDead: newHp <= 0 };
+      }
+      return h;
+    });
+    updatedCreeps = updatedCreeps.map(c => {
+      if (c.faction !== caster.faction && !c.isDead && Math.abs(c.x - targetTile.x) <= aoe && Math.abs(c.y - targetTile.y) <= aoe) {
+        const newHp = Math.max(0, c.hp - dmg);
+        floatingTexts.push({ x: c.x, y: c.y, text: `☄️ -${dmg}`, color: '#ea580c' });
+        return { ...c, hp: newHp, isDead: newHp <= 0 };
+      }
+      return c;
+    });
+    logMessage = `${caster.name} обрушил [Chaos Meteor] по [${targetTile.x}, ${targetTile.y}]!`;
+    floatingTexts.push({ x: targetTile.x, y: targetTile.y, text: '☄️ МЕТЕОР!', color: '#ea580c' });
+  } else if (skill.id === 'emp' && targetTile) {
+    const aoe = 3;
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.faction !== caster.faction && !h.isDead && Math.abs(h.x - targetTile.x) <= aoe && Math.abs(h.y - targetTile.y) <= aoe) {
+        const newMana = Math.max(0, h.mana - 40);
+        const newHp = Math.max(0, h.hp - 40);
+        floatingTexts.push({ x: h.x, y: h.y, text: '⚡ -40 MP / -40 HP', color: '#a855f7' });
+        return { ...h, mana: newMana, hp: newHp, isDead: newHp <= 0 };
+      }
+      return h;
+    });
+    logMessage = `${caster.name} взорвал [EMP] по [${targetTile.x}, ${targetTile.y}]: сжег 40 маны врагов!`;
+    floatingTexts.push({ x: targetTile.x, y: targetTile.y, text: '⚡ EMP!', color: '#a855f7' });
+  } else if (skill.id === 'rot') {
+    const radius = 2;
+    const dmg = 25;
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.instanceId === caster.instanceId) {
+        return { ...h, hp: Math.max(1, h.hp - 15) };
+      }
+      if (h.faction !== caster.faction && !h.isDead) {
+        const dist = Math.hypot(h.x - caster.x, h.y - caster.y);
+        if (dist <= radius) {
+          const newHp = Math.max(0, h.hp - dmg);
+          floatingTexts.push({ x: h.x, y: h.y, text: `☣️ -${dmg}`, color: '#84cc16' });
+          return { ...h, hp: newHp, isDead: newHp <= 0 };
+        }
+      }
+      return h;
+    });
+    logMessage = `${caster.name} активировал [Rot]: токсичное облако наносит урон вокруг!`;
+    floatingTexts.push({ x: caster.x, y: caster.y, text: '☣️ ROT!', color: '#84cc16' });
+  } else if (skill.id === 'awp-wallbang' && targetTile) {
+    const dmg = 75;
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.faction !== caster.faction && !h.isDead && h.x === targetTile.x && h.y === targetTile.y) {
+        const newHp = Math.max(0, h.hp - dmg);
+        floatingTexts.push({ x: h.x, y: h.y, text: `🎯 -${dmg} (Wallbang)`, color: '#22c55e' });
+        return { ...h, hp: newHp, isDead: newHp <= 0 };
+      }
+      return h;
+    });
+    updatedCreeps = updatedCreeps.map(c => {
+      if (c.faction !== caster.faction && !c.isDead && c.x === targetTile.x && c.y === targetTile.y) {
+        const newHp = Math.max(0, c.hp - dmg);
+        floatingTexts.push({ x: c.x, y: c.y, text: `🎯 -${dmg}`, color: '#22c55e' });
+        return { ...c, hp: newHp, isDead: newHp <= 0 };
+      }
+      return c;
+    });
+    logMessage = `${caster.name} произвел прострел [AWP Wallbang] в [${targetTile.x}, ${targetTile.y}]!`;
+    floatingTexts.push({ x: targetTile.x, y: targetTile.y, text: '🎯 ПРОСТРЕЛ AWP!', color: '#22c55e' });
+  } else if (skill.id === 'clutch-master') {
+    updatedHeroes = updatedHeroes.map(h => {
+      if (h.instanceId === caster.instanceId) {
+        return { ...h, speed: h.speed + 2, hit: h.hit + 30 };
+      }
+      return h;
+    });
+    logMessage = `${caster.name} активировал [Clutch Master]: +2 к скорости, +30 к попаданию!`;
+    floatingTexts.push({ x: caster.x, y: caster.y, text: '👑 CLUTCH MASTER!', color: '#22c55e' });
   } else if (targetHero || targetCreep) {
     const damage = skill.damage || 40;
     if (targetHero) {

@@ -76,11 +76,17 @@ const POINT_SKILLS = new Set([
   'everywhere-nowhere',
   'light-speed',
   'prepare-thyself',
+  'tactical-evasion',
+  'extraction-point',
   'crush',
+  'dash',
+  'emp',
+  'deafening-blast',
 ]);
 
 const SELF_OR_AOE_SKILLS = new Set([
   'stars-agent',
+  'uss-agent',
   'mastermind',
   'ouroboros',
   'wesker-speed',
@@ -108,6 +114,7 @@ const SELF_OR_AOE_SKILLS = new Set([
   'cromwell-seal-0',
   'angel-rage',
   'angel-power',
+  'feast-of-souls',
 ]);
 
 /**
