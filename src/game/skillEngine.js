@@ -67,10 +67,14 @@ export function executeSkill({
     skill.id === 'everywhere-nowhere' ||
     skill.id === 'light-speed' ||
     skill.id === 'prepare-thyself' ||
+    skill.id === 'tactical-evasion' ||
+    skill.id === 'extraction-point' ||
     skill.id === 'crush';
 
   const isSelfSkill =
     skill.id === 'stars-agent' ||
+    skill.id === 'uss-agent' ||
+    skill.id === 'grim-reaper' ||
     skill.id === 'mastermind' ||
     skill.id === 'ouroboros' ||
     skill.id === 'wesker-speed' ||
@@ -119,8 +123,8 @@ export function executeSkill({
   let floatingTexts = [];
   let logMessage = '';
 
-  // 1. S.T.A.R.S. Agent (Wesker weapon toggle)
-  if (skill.id === 'stars-agent') {
+  // 1. S.T.A.R.S. Agent (Wesker weapon toggle) & USS Agent (Hunk weapon toggle)
+  if (skill.id === 'stars-agent' || skill.id === 'uss-agent') {
     const newMode = caster.stats.weaponMode === 'ranged' ? 'melee' : 'ranged';
     const activeStats = newMode === 'ranged' ? caster.stats.ranged : caster.stats.melee;
 
@@ -139,8 +143,11 @@ export function executeSkill({
       return h;
     });
 
-    logMessage = `${caster.name} переключил оружие на ${newMode === 'ranged' ? 'Пистолет (дальний бой)' : 'Кулаки (ближний бой)'}`;
-    floatingTexts.push({ x: caster.x, y: caster.y, text: `Оружие: ${newMode === 'ranged' ? 'Пистолет' : 'Кулаки'}`, color: '#38bdf8' });
+    const weaponNames = skill.id === 'uss-agent'
+      ? (newMode === 'ranged' ? 'ПП MP5 (дальний бой)' : 'Нож CQC (ближний бой)')
+      : (newMode === 'ranged' ? 'Пистолет (дальний бой)' : 'Кулаки (ближний бой)');
+    logMessage = `${caster.name} переключил оружие на ${weaponNames}`;
+    floatingTexts.push({ x: caster.x, y: caster.y, text: `Оружие: ${newMode === 'ranged' ? 'Дальний' : 'Ближний'}`, color: '#38bdf8' });
   }
 
   // 2. Mastermind (Wesker Ultimate: invulnerability & speed boost)
@@ -862,6 +869,66 @@ export function executeSkill({
       }
       return h;
     });
+  } else if (skill.id === 'neck-breaker') {
+    const targetUnit = targetHero || targetCreep;
+    if (targetUnit) {
+      const damage = 60;
+      if (targetHero) {
+        updatedHeroes = updatedHeroes.map(h => {
+          if (h.instanceId === targetHero.instanceId) {
+            const newHp = Math.max(0, h.hp - damage);
+            const statuses = { ...(h.statuses || {}), silence: { duration: 4.0 } };
+            return { ...h, hp: newHp, isDead: newHp <= 0, statuses };
+          }
+          return h;
+        });
+        logMessage = `${caster.name} провел CQC захват [Neck Breaker] по ${targetHero.name}: ${damage} урона и безмолвие!`;
+        floatingTexts.push({ x: targetHero.x, y: targetHero.y, text: `💥 -${damage} [Безмолвие]`, color: '#ef4444' });
+      } else {
+        updatedCreeps = updatedCreeps.map(c => {
+          if (c.id === targetCreep.id) {
+            const newHp = Math.max(0, c.hp - damage);
+            return { ...c, hp: newHp, isDead: newHp <= 0 };
+          }
+          return c;
+        });
+        logMessage = `${caster.name} ликвидировал крипа через CQC: ${damage} урона!`;
+        floatingTexts.push({ x: targetCreep.x, y: targetCreep.y, text: `💥 -${damage}`, color: '#ef4444' });
+      }
+    }
+  } else if (skill.id === 'tactical-evasion') {
+    if (targetTile) {
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.instanceId === caster.instanceId) {
+          return { ...h, x: targetTile.x, y: targetTile.y };
+        }
+        return h;
+      });
+      logMessage = `${caster.name} совершил [Tactical Roll] до [${targetTile.x}, ${targetTile.y}]!`;
+      floatingTexts.push({ x: targetTile.x, y: targetTile.y, text: `💨 Перекат`, color: '#38bdf8' });
+    }
+  } else if (skill.id === 'extraction-point') {
+    if (targetTile) {
+      const aoe = 2;
+      const dmg = 80;
+      updatedHeroes = updatedHeroes.map(h => {
+        if (h.faction !== caster.faction && !h.isDead && Math.abs(h.x - targetTile.x) <= aoe && Math.abs(h.y - targetTile.y) <= aoe) {
+          const newHp = Math.max(0, h.hp - dmg);
+          floatingTexts.push({ x: h.x, y: h.y, text: `🚁 -${dmg}`, color: '#ef4444' });
+          return { ...h, hp: newHp, isDead: newHp <= 0 };
+        }
+        return h;
+      });
+      updatedCreeps = updatedCreeps.map(c => {
+        if (c.faction !== caster.faction && !c.isDead && Math.abs(c.x - targetTile.x) <= aoe && Math.abs(c.y - targetTile.y) <= aoe) {
+          const newHp = Math.max(0, c.hp - dmg);
+          floatingTexts.push({ x: c.x, y: c.y, text: `🚁 -${dmg}`, color: '#ef4444' });
+          return { ...c, hp: newHp, isDead: newHp <= 0 };
+        }
+        return c;
+      });
+      logMessage = `${caster.name} вызвал авиаудар эвакуации [Extraction Point] по [${targetTile.x}, ${targetTile.y}]!`;
+    }
   } else if (targetHero || targetCreep) {
     const damage = skill.damage || 40;
     if (targetHero) {

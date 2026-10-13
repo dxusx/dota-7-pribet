@@ -117,7 +117,7 @@ test('8. Creep Formations & Roster Integrity', () => {
   assert.equal(CREEP_STATS[1].ranged.hp, 80);
   assert.equal(CREEP_STATS[5].melee.hp, 500);
 
-  assert.equal(HEROES_ROSTER.length, 15);
+  assert.equal(HEROES_ROSTER.length, 16);
   const wesker = HEROES_ROSTER.find(h => h.id === 'wesker');
   assert.ok(wesker);
   assert.equal(wesker.stats.hp, 100);
@@ -145,6 +145,7 @@ test('9. Hero Speed and Step Verification for Every Character', () => {
     schrodinger: 6,
     alucard: 6,
     gabriel: 6,
+    hunk: 6,
   };
 
   HEROES_ROSTER.forEach(hero => {
@@ -430,6 +431,17 @@ test('18. Google Doc New Heroes Integration (Schrodinger, Alucard, Gabriel)', ()
   assert.equal(gabriel.stats.hp, 100);
   assert.equal(gabriel.stats.armor, 5);
   assert.ok(gabriel.skills.length >= 5);
+
+  assert.ok(heroIds.includes('hunk'), 'Hunk must exist in HEROES_ROSTER');
+  const hunk = HEROES_ROSTER.find(h => h.id === 'hunk');
+  assert.equal(hunk.heroClass, 'AGILITY');
+  assert.equal(hunk.stats.hp, 100);
+  assert.equal(hunk.stats.armor, 5);
+  assert.equal(hunk.stats.vision, 11);
+  assert.equal(hunk.stats.speed, 6);
+  assert.equal(hunk.stats.ranged.damage, 30);
+  assert.equal(hunk.stats.ranged.range, 10);
+  assert.ok(hunk.skills.some(s => s.id === 'uss-agent'));
 });
 
 test('19. New Heroes Skill Engine Mechanics', () => {
@@ -537,6 +549,37 @@ test('19. New Heroes Skill Engine Mechanics', () => {
   assert.equal(res3.success, true);
   const updatedEnemy2 = res3.updatedHeroes.find(h => h.instanceId === 'hero_enemy2');
   assert.ok(updatedEnemy2.statuses?.silence, 'Enemy must have silence status');
+
+  // 4. Hunk: USS Agent (toggles stance between SMG and melee knife)
+  const hunkHero = {
+    instanceId: 'hero_hunk',
+    id: 'hunk',
+    name: 'Hunk',
+    x: 40,
+    y: 40,
+    stats: {
+      weaponMode: 'ranged',
+      ranged: { damage: 30, range: 10, period: 4.0, penetration: 15, hit: 15 },
+      melee: { damage: 35, range: 1, period: 3.0, penetration: 25, hit: 60 },
+    },
+    skills: [{ id: 'uss-agent', name: 'USS Agent', timeCost: 2.0, manaCost: 0, cooldown: 0 }],
+  };
+  const mockState4 = {
+    remainingTurnTime: 8.0,
+    heroes: [hunkHero],
+    creeps: [],
+  };
+  const res4 = executeSkill({
+    skill: hunkHero.skills[0],
+    caster: hunkHero,
+    gameState: mockState4,
+  });
+  assert.equal(res4.success, true);
+  const updatedHunk = res4.updatedHeroes.find(h => h.instanceId === 'hero_hunk');
+  assert.equal(updatedHunk.stats.weaponMode, 'melee');
+  assert.equal(updatedHunk.damage, 35);
+  assert.equal(updatedHunk.range, 1);
+  assert.equal(res4.newRemainingTime, 6.0); // 8.0 - 2.0s
 });
 
 test('20. Autonomous Tower Defense Mechanics', async () => {

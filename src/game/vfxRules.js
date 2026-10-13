@@ -176,6 +176,17 @@ export function createSkillVfx(skillId, fromPos, toPos) {
     return { type: 'virus_injection', from, to, color: '#701a75', durationMs: 500, createdAt: Date.now() };
   }
 
+  // 16. Hunk
+  if (skillId === 'neck-breaker') {
+    return { type: 'slash', from, to, color: '#b91c1c', durationMs: 450, createdAt: Date.now() };
+  }
+  if (skillId === 'tactical-evasion') {
+    return { type: 'tracer', from, to, color: '#38bdf8', durationMs: 400, createdAt: Date.now() };
+  }
+  if (skillId === 'extraction-point') {
+    return { type: 'aoe_impact', from, to, color: '#ea580c', durationMs: 800, createdAt: Date.now() };
+  }
+
   // Fallback / Generic spell burst
   return {
     type: 'burst',

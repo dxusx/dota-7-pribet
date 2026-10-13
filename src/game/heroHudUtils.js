@@ -236,6 +236,9 @@ export function getSkillDetails(skill, hero = null) {
   } else if (skill.id === 'angel-rage') {
     attributes.push({ label: 'Порог активации', value: 'Ниже 50% HP' });
     attributes.push({ label: 'Священный гнев', value: 'Скорость x2, скорость действий x2, кулдауны x2' });
+  } else if (skill.id === 'grim-reaper') {
+    attributes.push({ label: 'Порог выживания', value: 'HP ниже 40%' });
+    attributes.push({ label: 'Бонус выживаемости', value: '+10 к броне, +15% к уклонению' });
   }
 
   return {
